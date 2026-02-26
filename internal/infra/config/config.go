@@ -1,0 +1,126 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+	"time"
+)
+
+// Config holds all runtime configuration used by the process.
+type Config struct {
+	AppEnv   string
+	HTTP     HTTPConfig
+	DB       DBConfig
+	Log      LogConfig
+	Shutdown ShutdownConfig
+}
+
+type HTTPConfig struct {
+	Address      string
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
+	IdleTimeout  time.Duration
+}
+
+type DBConfig struct {
+	URL               string
+	MaxConns          int32
+	MinConns          int32
+	MaxConnLifetime   time.Duration
+	MaxConnIdleTime   time.Duration
+	HealthCheckPeriod time.Duration
+	ConnectTimeout    time.Duration
+}
+
+type LogConfig struct {
+	Level      string
+	Development bool
+}
+
+type ShutdownConfig struct {
+	GracePeriod time.Duration
+}
+
+func Load() (Config, error) {
+	cfg := Config{
+		AppEnv: getEnv("APP_ENV", "local"),
+		HTTP: HTTPConfig{
+			Address:      getEnv("HTTP_ADDRESS", ":8080"),
+			ReadTimeout:  getDuration("HTTP_READ_TIMEOUT", 10*time.Second),
+			WriteTimeout: getDuration("HTTP_WRITE_TIMEOUT", 15*time.Second),
+			IdleTimeout:  getDuration("HTTP_IDLE_TIMEOUT", 60*time.Second),
+		},
+		DB: DBConfig{
+			URL:               getEnv("DB_URL", "postgres://postgres:postgres@localhost:5432/vocynex?sslmode=disable"),
+			MaxConns:          int32(getInt("DB_MAX_CONNS", 10)),
+			MinConns:          int32(getInt("DB_MIN_CONNS", 2)),
+			MaxConnLifetime:   getDuration("DB_MAX_CONN_LIFETIME", 30*time.Minute),
+			MaxConnIdleTime:   getDuration("DB_MAX_CONN_IDLE_TIME", 5*time.Minute),
+			HealthCheckPeriod: getDuration("DB_HEALTH_CHECK_PERIOD", time.Minute),
+			ConnectTimeout:    getDuration("DB_CONNECT_TIMEOUT", 5*time.Second),
+		},
+		Log: LogConfig{
+			Level:      getEnv("LOG_LEVEL", "info"),
+			Development: getBool("LOG_DEVELOPMENT", true),
+		},
+		Shutdown: ShutdownConfig{
+			GracePeriod: getDuration("SHUTDOWN_GRACE_PERIOD", 10*time.Second),
+		},
+	}
+
+	if cfg.DB.URL == "" {
+		return Config{}, fmt.Errorf("DB_URL must not be empty")
+	}
+	if cfg.DB.MinConns < 0 || cfg.DB.MaxConns < 1 || cfg.DB.MinConns > cfg.DB.MaxConns {
+		return Config{}, fmt.Errorf("invalid DB pool configuration: min=%d max=%d", cfg.DB.MinConns, cfg.DB.MaxConns)
+	}
+	if cfg.HTTP.Address == "" {
+		return Config{}, fmt.Errorf("HTTP_ADDRESS must not be empty")
+	}
+
+	return cfg, nil
+}
+
+func getEnv(key, fallback string) string {
+	if v, ok := os.LookupEnv(key); ok {
+		return v
+	}
+	return fallback
+}
+
+func getInt(key string, fallback int) int {
+	raw := getEnv(key, "")
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+func getBool(key string, fallback bool) bool {
+	raw := getEnv(key, "")
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseBool(raw)
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+func getDuration(key string, fallback time.Duration) time.Duration {
+	raw := getEnv(key, "")
+	if raw == "" {
+		return fallback
+	}
+	v, err := time.ParseDuration(raw)
+	if err != nil {
+		return fallback
+	}
+	return v
+}
