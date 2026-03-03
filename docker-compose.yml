@@ -1,0 +1,67 @@
+name: vocynex-local
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: vocynex-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: vocynex
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      # For postgres 18+, mount parent dir as recommended by upstream image.
+      - ./volumes/postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vocynex"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8-alpine
+    container_name: vocynex-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./volumes/redis/data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  hyperdx:
+    image: docker.hyperdx.io/hyperdx/hyperdx-local:2-beta
+    container_name: vocynex-hyperdx
+    ports:
+      - "8081:8080"
+      - "8123:8123"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080 >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.102.1
+    container_name: vocynex-otel-collector
+    command: ["--config=/etc/otel-collector/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otel-collector/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "13133:13133"
+      - "8889:8889"
+    depends_on:
+      hyperdx:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133/"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
