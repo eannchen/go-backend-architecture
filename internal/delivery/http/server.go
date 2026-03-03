@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/labstack/echo/v4"
-	echoMiddleware "github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	echoMiddleware "github.com/labstack/echo/v5/middleware"
 
 	"vocynex-api/internal/delivery/middleware"
 	"vocynex-api/internal/infra/config"
@@ -14,45 +14,49 @@ import (
 )
 
 type Server struct {
-	echo   *echo.Echo
-	cfg    config.HTTPConfig
-	logger logger.Logger
+	echo       *echo.Echo
+	httpServer *http.Server
+	cfg        config.HTTPConfig
+	logger     logger.Logger
 }
 
 func NewServer(cfg config.HTTPConfig, log logger.Logger, healthHandler *HealthHandler) *Server {
 	e := echo.New()
-	e.HideBanner = true
-	e.HidePort = true
 
 	e.Use(echoMiddleware.Recover())
 	e.Use(middleware.ContextPropagation(cfg.ReadTimeout))
 
 	e.GET("/healthz", healthHandler.GetHealth)
 
+	httpServer := &http.Server{
+		Addr:              cfg.Address,
+		Handler:           e,
+		ReadTimeout:       cfg.ReadTimeout,
+		WriteTimeout:      cfg.WriteTimeout,
+		IdleTimeout:       cfg.IdleTimeout,
+		ReadHeaderTimeout: cfg.ReadTimeout,
+	}
+
 	return &Server{
-		echo:   e,
-		cfg:    cfg,
-		logger: log,
+		echo:       e,
+		httpServer: httpServer,
+		cfg:        cfg,
+		logger:     log,
 	}
 }
 
 func (s *Server) Start() error {
-	s.echo.Server.ReadTimeout = s.cfg.ReadTimeout
-	s.echo.Server.WriteTimeout = s.cfg.WriteTimeout
-	s.echo.Server.IdleTimeout = s.cfg.IdleTimeout
-	s.echo.Server.ReadHeaderTimeout = s.cfg.ReadTimeout
-
 	s.logger.Info(context.Background(), "http server starting", logger.Field{
 		Key:   "address",
 		Value: s.cfg.Address,
 	})
 
-	return s.echo.Start(s.cfg.Address)
+	return s.httpServer.ListenAndServe()
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
 	start := time.Now()
-	err := s.echo.Shutdown(ctx)
+	err := s.httpServer.Shutdown(ctx)
 	s.logger.Info(ctx, "http server shutdown complete", logger.Field{
 		Key:   "duration_ms",
 		Value: time.Since(start).Milliseconds(),

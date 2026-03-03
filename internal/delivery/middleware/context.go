@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 
 	"vocynex-api/internal/infra/observability"
 )
@@ -15,7 +15,7 @@ const requestIDHeader = "X-Request-ID"
 
 func ContextPropagation(timeout time.Duration) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			req := c.Request()
 			reqCtx := req.Context()
 

@@ -3,7 +3,7 @@ package http
 import (
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 
 	"vocynex-api/internal/usecase"
 )
@@ -16,7 +16,7 @@ func NewHealthHandler(healthChecker usecase.HealthChecker) *HealthHandler {
 	return &HealthHandler{healthChecker: healthChecker}
 }
 
-func (h *HealthHandler) GetHealth(c echo.Context) error {
+func (h *HealthHandler) GetHealth(c *echo.Context) error {
 	status, err := h.healthChecker.Check(c.Request().Context())
 	if err != nil {
 		return c.JSON(http.StatusServiceUnavailable, status)
