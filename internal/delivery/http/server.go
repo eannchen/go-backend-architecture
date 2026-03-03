@@ -20,11 +20,12 @@ type Server struct {
 	logger     logger.Logger
 }
 
-func NewServer(cfg config.HTTPConfig, log logger.Logger, healthHandler *HealthHandler) *Server {
+func NewServer(cfg config.HTTPConfig, serviceName string, log logger.Logger, healthHandler *HealthHandler) *Server {
 	e := echo.New()
 
 	e.Use(echoMiddleware.Recover())
 	e.Use(middleware.ContextPropagation(cfg.ReadTimeout))
+	e.Use(middleware.Tracing(serviceName))
 
 	e.GET("/healthz", healthHandler.GetHealth)
 

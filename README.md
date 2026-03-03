@@ -57,6 +57,7 @@ Without quoting, zsh may treat `?` as a wildcard.
 - OTel Collector config file is at project root: `otel-collector.yaml`
 - Compose mounts it into the collector container at `/etc/otel-collector/config.yaml`
 - API OTel environment defaults are in `.env.example`
+- HTTP requests (including `GET /healthz`) are traced via Echo middleware and exported to OTLP endpoint.
 
 ## Layout
 

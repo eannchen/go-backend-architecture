@@ -9,11 +9,13 @@ import (
 
 // Config holds all runtime configuration used by the process.
 type Config struct {
-	AppEnv   string
-	HTTP     HTTPConfig
-	DB       DBConfig
-	Log      LogConfig
-	Shutdown ShutdownConfig
+	AppEnv      string
+	ServiceName string
+	HTTP        HTTPConfig
+	DB          DBConfig
+	OTel        OTelConfig
+	Log         LogConfig
+	Shutdown    ShutdownConfig
 }
 
 type HTTPConfig struct {
@@ -34,8 +36,15 @@ type DBConfig struct {
 }
 
 type LogConfig struct {
-	Level      string
+	Level       string
 	Development bool
+}
+
+type OTelConfig struct {
+	Enabled            bool
+	ExporterEndpoint   string
+	Insecure           bool
+	TraceSamplingRatio float64
 }
 
 type ShutdownConfig struct {
@@ -44,7 +53,8 @@ type ShutdownConfig struct {
 
 func Load() (Config, error) {
 	cfg := Config{
-		AppEnv: getEnv("APP_ENV", "local"),
+		AppEnv:      getEnv("APP_ENV", "local"),
+		ServiceName: getEnv("SERVICE_NAME", getEnv("SERVICE_NAME", "vocynex-api")),
 		HTTP: HTTPConfig{
 			Address:      getEnv("HTTP_ADDRESS", ":8080"),
 			ReadTimeout:  getDuration("HTTP_READ_TIMEOUT", 10*time.Second),
@@ -60,8 +70,14 @@ func Load() (Config, error) {
 			HealthCheckPeriod: getDuration("DB_HEALTH_CHECK_PERIOD", time.Minute),
 			ConnectTimeout:    getDuration("DB_CONNECT_TIMEOUT", 5*time.Second),
 		},
+		OTel: OTelConfig{
+			Enabled:            getBool("OTEL_ENABLED", true),
+			ExporterEndpoint:   getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"),
+			Insecure:           getBool("OTEL_INSECURE", true),
+			TraceSamplingRatio: getFloat("OTEL_TRACES_SAMPLER_RATIO", 1.0),
+		},
 		Log: LogConfig{
-			Level:      getEnv("LOG_LEVEL", "info"),
+			Level:       getEnv("LOG_LEVEL", "info"),
 			Development: getBool("LOG_DEVELOPMENT", true),
 		},
 		Shutdown: ShutdownConfig{
@@ -77,6 +93,12 @@ func Load() (Config, error) {
 	}
 	if cfg.HTTP.Address == "" {
 		return Config{}, fmt.Errorf("HTTP_ADDRESS must not be empty")
+	}
+	if cfg.ServiceName == "" {
+		return Config{}, fmt.Errorf("SERVICE_NAME must not be empty")
+	}
+	if cfg.OTel.TraceSamplingRatio < 0 || cfg.OTel.TraceSamplingRatio > 1 {
+		return Config{}, fmt.Errorf("OTEL_TRACES_SAMPLER_RATIO must be between 0 and 1")
 	}
 
 	return cfg, nil
@@ -119,6 +141,18 @@ func getDuration(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	v, err := time.ParseDuration(raw)
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+func getFloat(key string, fallback float64) float64 {
+	raw := getEnv(key, "")
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
 		return fallback
 	}
