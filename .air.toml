@@ -3,10 +3,10 @@ tmp_dir = "tmp"
 
 [build]
 cmd = "go build -o ./tmp/api ./cmd/api"
-bin = "./tmp/api"
+entrypoint = "./tmp/api"
 full_bin = "./tmp/api"
 include_ext = ["go", "sql", "yaml", "yml", "env"]
-exclude_dir = ["tmp", ".git", "vendor"]
+exclude_dir = ["tmp", ".git", "vendor", "volumes"]
 delay = 1000
 stop_on_error = true
 

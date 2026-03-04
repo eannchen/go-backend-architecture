@@ -7,10 +7,19 @@ GOOSE_DRIVER ?= postgres
 GOOSE_DBSTRING ?= $(DB_URL)
 GOOSE_MIGRATION_DIR ?= internal/infra/db/postgres/migrations
 
-.PHONY: install run test sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring
+.PHONY: install run run-stop test sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring
 
 run:
 	air -c .air.toml
+
+run-stop:
+	@pids=$$(lsof -tiTCP:8080 -sTCP:LISTEN); \
+	if [ -n "$$pids" ]; then \
+		echo "Stopping process(es) on :8080 -> $$pids"; \
+		kill $$pids; \
+	else \
+		echo "No process is listening on :8080"; \
+	fi
 
 install:
 	go install github.com/air-verse/air@latest

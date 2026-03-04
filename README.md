@@ -28,6 +28,7 @@ Infra services in `docker-compose.yml`:
 - OTel Collector: `localhost:4317` (gRPC), `localhost:4318` (HTTP)
 - HyperDX UI: `http://localhost:8081`
 - HyperDX ClickHouse HTTP: `http://localhost:8123`
+- HyperDX local data is persisted under `./volumes/hyperdx/`
 
 Recommended flow:
 
@@ -43,6 +44,7 @@ Useful commands:
 - Stop infra: `make dev-down`
 - Migration status: `make migrate-status`
 - Start API with Air: `make run`
+- Stop stale local API on `:8080`: `make run-stop`
 
 ## Migration note (zsh)
 

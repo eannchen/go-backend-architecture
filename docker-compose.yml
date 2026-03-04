@@ -39,6 +39,11 @@ services:
     ports:
       - "8081:8080"
       - "8123:8123"
+    volumes:
+      # Persist HyperDX local metadata/settings (MongoDB) across restarts.
+      - ./volumes/hyperdx/mongodb:/data/db
+      # Persist HyperDX analytics storage (ClickHouse) across restarts.
+      - ./volumes/hyperdx/clickhouse:/var/lib/clickhouse
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080 >/dev/null 2>&1 || exit 1"]
       interval: 15s
