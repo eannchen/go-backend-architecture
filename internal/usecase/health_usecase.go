@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"vocynex-api/internal/infra/logger"
+	"vocynex-api/internal/infra/observability"
 	"vocynex-api/internal/repository"
 )
 
@@ -19,16 +21,21 @@ type HealthChecker interface {
 type HealthUsecase struct {
 	runtimeRepo repository.RuntimeRepository
 	txManager   repository.TxManager
+	logger      logger.Logger
 }
 
-func NewHealthUsecase(runtimeRepo repository.RuntimeRepository, txManager repository.TxManager) *HealthUsecase {
+func NewHealthUsecase(runtimeRepo repository.RuntimeRepository, txManager repository.TxManager, log logger.Logger) *HealthUsecase {
 	return &HealthUsecase{
 		runtimeRepo: runtimeRepo,
 		txManager:   txManager,
+		logger:      log,
 	}
 }
 
 func (u *HealthUsecase) Check(ctx context.Context) (HealthStatus, error) {
+	ctx, span := observability.StartSpan(ctx, "vocynex-api/usecase", "health_usecase.check")
+	defer span.End()
+
 	status := HealthStatus{
 		Status: "ok",
 		Dependencies: map[string]string{
@@ -43,6 +50,8 @@ func (u *HealthUsecase) Check(ctx context.Context) (HealthStatus, error) {
 	if err := u.runtimeRepo.Ping(ctx); err != nil {
 		status.Status = "degraded"
 		status.Dependencies["database"] = "down"
+		span.Fail(err, "database ping failed")
+		u.logger.Warn(ctx, "health check failed on database ping")
 		return status, errors.Join(errors.New("database readiness failed"), err)
 	}
 
@@ -62,8 +71,12 @@ func (u *HealthUsecase) Check(ctx context.Context) (HealthStatus, error) {
 		status.Dependencies["database_tx"] = "down"
 		status.Dependencies["database_dynamic_query"] = "down"
 		status.Dependencies["database_static_query"] = "down"
+		span.Fail(txErr, "transactional health checks failed")
+		u.logger.Warn(ctx, "health check failed on transactional database checks")
 		return status, errors.Join(errors.New("database transactional health check failed"), txErr)
 	}
 
+	span.OK()
+	u.logger.Debug(ctx, "health check passed")
 	return status, nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -37,12 +38,15 @@ type DBConfig struct {
 
 type LogConfig struct {
 	Level       string
+	OTELevel    string
 	Development bool
 }
 
 type OTelConfig struct {
 	Enabled            bool
 	ExporterEndpoint   string
+	TracesEndpoint     string
+	LogsEndpoint       string
 	Insecure           bool
 	TraceSamplingRatio float64
 }
@@ -78,6 +82,7 @@ func Load() (Config, error) {
 		},
 		Log: LogConfig{
 			Level:       getEnv("LOG_LEVEL", "info"),
+			OTELevel:    getEnv("OTEL_LOG_LEVEL", getEnv("LOG_LEVEL", "info")),
 			Development: getBool("LOG_DEVELOPMENT", true),
 		},
 		Shutdown: ShutdownConfig{
@@ -99,6 +104,15 @@ func Load() (Config, error) {
 	}
 	if cfg.OTel.TraceSamplingRatio < 0 || cfg.OTel.TraceSamplingRatio > 1 {
 		return Config{}, fmt.Errorf("OTEL_TRACES_SAMPLER_RATIO must be between 0 and 1")
+	}
+	cfg.OTel.TracesEndpoint = withOTLPPath(cfg.OTel.ExporterEndpoint, "/v1/traces")
+	cfg.OTel.LogsEndpoint = withOTLPPath(cfg.OTel.ExporterEndpoint, "/v1/logs")
+	// Optional per-signal overrides if a collector exposes custom paths.
+	if v := strings.TrimSpace(getEnv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "")); v != "" {
+		cfg.OTel.TracesEndpoint = v
+	}
+	if v := strings.TrimSpace(getEnv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "")); v != "" {
+		cfg.OTel.LogsEndpoint = v
 	}
 
 	return cfg, nil
@@ -157,4 +171,13 @@ func getFloat(key string, fallback float64) float64 {
 		return fallback
 	}
 	return v
+}
+
+func withOTLPPath(base, suffix string) string {
+	trimmed := strings.TrimSpace(base)
+	trimmed = strings.TrimRight(trimmed, "/")
+	if trimmed == "" {
+		return suffix
+	}
+	return trimmed + suffix
 }

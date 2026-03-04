@@ -34,11 +34,12 @@ func New(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 
-	otelShutdown, err := observability.Setup(ctx, cfg.OTel, cfg.ServiceName, cfg.AppEnv)
+	otelShutdown, otelLogEmitter, err := observability.Setup(ctx, cfg.OTel, cfg.ServiceName, cfg.AppEnv)
 	if err != nil {
 		_ = log.Sync()
 		return nil, err
 	}
+	log.SetLogSink(newObservabilityLogSink(otelLogEmitter))
 
 	pool, err := postgres.NewPool(ctx, cfg.DB, log)
 	if err != nil {
@@ -49,8 +50,8 @@ func New(ctx context.Context) (*App, error) {
 
 	runtimeRepo := repos.NewRuntimeRepository(pool)
 	txManager := postgres.NewTxManager(pool)
-	healthUsecase := usecase.NewHealthUsecase(runtimeRepo, txManager)
-	healthHandler := httpDelivery.NewHealthHandler(healthUsecase)
+	healthUsecase := usecase.NewHealthUsecase(runtimeRepo, txManager, log)
+	healthHandler := httpDelivery.NewHealthHandler(healthUsecase, log)
 	server := httpDelivery.NewServer(cfg.HTTP, cfg.ServiceName, log, healthHandler)
 
 	return &App{

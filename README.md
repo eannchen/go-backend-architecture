@@ -57,6 +57,9 @@ Without quoting, zsh may treat `?` as a wildcard.
 - OTel Collector config file is at project root: `otel-collector.yaml`
 - Compose mounts it into the collector container at `/etc/otel-collector/config.yaml`
 - API OTel environment defaults are in `.env.example`
+- `OTEL_EXPORTER_OTLP_ENDPOINT` is the single default endpoint; traces/logs paths are auto-derived (`/v1/traces`, `/v1/logs`).
+- Use `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` and `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` only when custom per-signal endpoints are needed.
+- `OTEL_LOG_LEVEL` controls minimum level exported to OTel logs (`LOG_LEVEL` still controls terminal output).
 - HTTP requests (including `GET /healthz`) are traced via Echo middleware and exported to OTLP endpoint.
 
 ## Layout

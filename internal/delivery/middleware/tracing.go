@@ -5,9 +5,7 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v5"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
@@ -15,12 +13,10 @@ import (
 )
 
 func Tracing(serviceName string) echo.MiddlewareFunc {
-	tracer := otel.Tracer(fmt.Sprintf("%s/http", serviceName))
-
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			req := c.Request()
-			ctx := otel.GetTextMapPropagator().Extract(req.Context(), propagation.HeaderCarrier(req.Header))
+			ctx := propagation.TraceContext{}.Extract(req.Context(), propagation.HeaderCarrier(req.Header))
 
 			route := c.Path()
 			if route == "" {
@@ -28,8 +24,9 @@ func Tracing(serviceName string) echo.MiddlewareFunc {
 			}
 
 			spanName := fmt.Sprintf("%s %s", req.Method, route)
-			ctx, span := tracer.Start(
+			ctx, span := observability.StartSpanWithOptions(
 				ctx,
+				fmt.Sprintf("%s/http", serviceName),
 				spanName,
 				trace.WithSpanKind(trace.SpanKindServer),
 				trace.WithAttributes(
@@ -38,6 +35,7 @@ func Tracing(serviceName string) echo.MiddlewareFunc {
 					attribute.String("url.path", req.URL.Path),
 				),
 			)
+			defer span.End()
 
 			spanCtx := span.SpanContext()
 			if spanCtx.IsValid() {
@@ -54,12 +52,10 @@ func Tracing(serviceName string) echo.MiddlewareFunc {
 			}
 			span.SetAttributes(attribute.Int("http.response.status_code", statusCode))
 			if err != nil {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, err.Error())
+				span.Fail(err, err.Error())
 			} else {
-				span.SetStatus(codes.Ok, "ok")
+				span.OK()
 			}
-			span.End()
 
 			return err
 		}
