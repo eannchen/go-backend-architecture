@@ -39,10 +39,10 @@ func (u *HealthUsecase) Check(ctx context.Context) (HealthStatus, error) {
 	status := HealthStatus{
 		Status: "ok",
 		Dependencies: map[string]string{
-			"database":                "up",
-			"database_tx":             "up",
-			"database_dynamic_query":  "up",
-			"database_static_query":   "up",
+			"database":               "up",
+			"database_tx":            "up",
+			"database_dynamic_query": "up",
+			"database_static_query":  "up",
 		},
 	}
 
@@ -58,10 +58,6 @@ func (u *HealthUsecase) Check(ctx context.Context) (HealthStatus, error) {
 	// Transactional check demonstrates cross-repository extensibility:
 	// today it uses Runtime(), later it can use Runtime()+User()+Order() in one tx.
 	txErr := u.txManager.WithTx(ctx, func(txCtx context.Context, repos repository.TxRepository) error {
-		if err := repos.Runtime().Ping(txCtx); err != nil {
-			return err
-		}
-
 		// Validate dynamic query path (Squirrel) within same tx.
 		_, err := repos.Runtime().SearchRuntimeValues(txCtx, "", 1)
 		return err
