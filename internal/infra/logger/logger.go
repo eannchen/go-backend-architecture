@@ -16,7 +16,8 @@ func FieldOf(key string, value any) Field {
 // Fields creates fields from key/value pairs.
 //
 // Example:
-//   Fields("address", ":8080", "component", "http_server")
+//
+//	Fields("address", ":8080", "component", "http_server")
 //
 // If pairs length is odd, the last dangling key is ignored.
 func Fields(pairs ...any) []Field {
@@ -31,11 +32,20 @@ func Fields(pairs ...any) []Field {
 	return out
 }
 
+type Severity uint8
+
+const (
+	SeverityDebug Severity = iota
+	SeverityInfo
+	SeverityWarn
+	SeverityError
+)
+
 // LogSinkFunc is an optional secondary sink for structured logs.
 //
 // The primary sink can stay terminal/stdout, while this sink can export logs
 // to any backend (OTel, Kafka, file, etc.) without coupling logger API to it.
-type LogSinkFunc func(ctx context.Context, severityText, message string, fields ...Field)
+type LogSinkFunc func(ctx context.Context, severity Severity, message string, fields ...Field)
 
 // Logger defines the project logging contract.
 //

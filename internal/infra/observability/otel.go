@@ -40,8 +40,8 @@ func logScopeName(serviceName string) string {
 	return serviceName + "/logger"
 }
 
-func (e *otelLogEmitter) Emit(ctx context.Context, severityText, message string, attrs ...Field) {
-	sev := severityFromText(severityText)
+func (e *otelLogEmitter) Emit(ctx context.Context, severity Severity, message string, attrs ...Field) {
+	sev := toOTelSeverity(severity)
 	if !e.logger.Enabled(ctx, otellog.EnabledParameters{Severity: sev}) {
 		return
 	}
@@ -51,7 +51,7 @@ func (e *otelLogEmitter) Emit(ctx context.Context, severityText, message string,
 	record.SetTimestamp(now)
 	record.SetObservedTimestamp(now)
 	record.SetSeverity(sev)
-	record.SetSeverityText(severityText)
+	record.SetSeverityText(severity.String())
 	record.SetBody(otellog.StringValue(message))
 	record.AddAttributes(toLogAttributes(attrs...)...)
 
@@ -60,7 +60,7 @@ func (e *otelLogEmitter) Emit(ctx context.Context, severityText, message string,
 
 type noopLogEmitter struct{}
 
-func (noopLogEmitter) Emit(context.Context, string, string, ...Field) {}
+func (noopLogEmitter) Emit(context.Context, Severity, string, ...Field) {}
 
 func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv string) (ShutdownFunc, LogEmitter, error) {
 	if !cfg.Enabled {
@@ -142,13 +142,13 @@ func (r *telemetryRuntime) Shutdown(ctx context.Context) error {
 	)
 }
 
-func severityFromText(level string) otellog.Severity {
+func toOTelSeverity(level Severity) otellog.Severity {
 	switch level {
-	case "debug":
+	case SeverityDebug:
 		return otellog.SeverityDebug
-	case "warn":
+	case SeverityWarn:
 		return otellog.SeverityWarn
-	case "error":
+	case SeverityError:
 		return otellog.SeverityError
 	default:
 		return otellog.SeverityInfo

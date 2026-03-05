@@ -8,11 +8,24 @@ import (
 )
 
 func newObservabilityLogSink(emitter observability.LogEmitter) logger.LogSinkFunc {
-	return func(ctx context.Context, severityText, message string, fields ...logger.Field) {
+	return func(ctx context.Context, severity logger.Severity, message string, fields ...logger.Field) {
 		attrs := make([]observability.Field, 0, len(fields))
 		for _, f := range fields {
-			attrs = append(attrs, observability.Attr(f.Key, f.Value))
+			attrs = append(attrs, observability.FieldOf(f.Key, f.Value))
 		}
-		emitter.Emit(ctx, severityText, message, attrs...)
+		emitter.Emit(ctx, toObservabilitySeverity(severity), message, attrs...)
+	}
+}
+
+func toObservabilitySeverity(s logger.Severity) observability.Severity {
+	switch s {
+	case logger.SeverityDebug:
+		return observability.SeverityDebug
+	case logger.SeverityWarn:
+		return observability.SeverityWarn
+	case logger.SeverityError:
+		return observability.SeverityError
+	default:
+		return observability.SeverityInfo
 	}
 }

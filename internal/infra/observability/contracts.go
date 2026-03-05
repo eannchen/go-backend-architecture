@@ -14,32 +14,55 @@ type Field struct {
 	Value any
 }
 
-// Attr creates one key/value attribute.
-func Attr(key string, value any) Field {
+// FieldOf creates one key/value attribute.
+func FieldOf(key string, value any) Field {
 	return Field{Key: key, Value: value}
 }
 
-// Attrs creates attributes from key/value pairs.
+// Fields creates attributes from key/value pairs.
 //
 // Example:
-//   Attrs("http.method", "GET", "http.route", "/healthz")
+//
+//	Fields("http.method", "GET", "http.route", "/healthz")
 //
 // If pairs length is odd, the last dangling key is ignored.
-func Attrs(pairs ...any) []Field {
+func Fields(pairs ...any) []Field {
 	out := make([]Field, 0, len(pairs)/2)
 	for i := 0; i+1 < len(pairs); i += 2 {
 		key, ok := pairs[i].(string)
 		if !ok || key == "" {
 			continue
 		}
-		out = append(out, Attr(key, pairs[i+1]))
+		out = append(out, FieldOf(key, pairs[i+1]))
 	}
 	return out
 }
 
+type Severity uint8
+
+const (
+	SeverityDebug Severity = iota
+	SeverityInfo
+	SeverityWarn
+	SeverityError
+)
+
+func (s Severity) String() string {
+	switch s {
+	case SeverityDebug:
+		return "debug"
+	case SeverityWarn:
+		return "warn"
+	case SeverityError:
+		return "error"
+	default:
+		return "info"
+	}
+}
+
 // LogEmitter is the contract for a secondary log sink.
 type LogEmitter interface {
-	Emit(ctx context.Context, severityText, message string, attrs ...Field)
+	Emit(ctx context.Context, severity Severity, message string, attrs ...Field)
 }
 
 // Span is an observability-agnostic span contract for app layers.
