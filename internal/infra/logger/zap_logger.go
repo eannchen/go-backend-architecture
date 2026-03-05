@@ -14,7 +14,7 @@ import (
 
 type zapLogger struct {
 	base      *zap.Logger
-	otelLevel zapcore.Level
+	sinkLevel zapcore.Level
 	emitSink  LogSinkFunc
 }
 
@@ -23,7 +23,7 @@ func NewZap(cfg config.LogConfig) (Logger, error) {
 	if err != nil {
 		return nil, err
 	}
-	otelLevel, err := zapcore.ParseLevel(cfg.OTELevel)
+	sinkLevel, err := zapcore.ParseLevel(cfg.OTELevel)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func NewZap(cfg config.LogConfig) (Logger, error) {
 
 	return &zapLogger{
 		base:      logger,
-		otelLevel: otelLevel,
+		sinkLevel: sinkLevel,
 		emitSink:  func(context.Context, Severity, string, ...Field) {},
 	}, nil
 }
@@ -51,26 +51,26 @@ func NewZap(cfg config.LogConfig) (Logger, error) {
 func (l *zapLogger) Debug(ctx context.Context, message string, fieldSets ...[]Field) {
 	fields := mergeFieldSets(fieldSets...)
 	l.base.With(contextFields(ctx)...).Debug(message, toZapFields(fields)...)
-	l.emitOTelLog(ctx, zapcore.DebugLevel, SeverityDebug, message, fields)
+	l.emitSinkLog(ctx, zapcore.DebugLevel, SeverityDebug, message, fields)
 }
 
 func (l *zapLogger) Info(ctx context.Context, message string, fieldSets ...[]Field) {
 	fields := mergeFieldSets(fieldSets...)
 	l.base.With(contextFields(ctx)...).Info(message, toZapFields(fields)...)
-	l.emitOTelLog(ctx, zapcore.InfoLevel, SeverityInfo, message, fields)
+	l.emitSinkLog(ctx, zapcore.InfoLevel, SeverityInfo, message, fields)
 }
 
 func (l *zapLogger) Warn(ctx context.Context, message string, fieldSets ...[]Field) {
 	fields := mergeFieldSets(fieldSets...)
 	l.base.With(contextFields(ctx)...).Warn(message, toZapFields(fields)...)
-	l.emitOTelLog(ctx, zapcore.WarnLevel, SeverityWarn, message, fields)
+	l.emitSinkLog(ctx, zapcore.WarnLevel, SeverityWarn, message, fields)
 }
 
 func (l *zapLogger) Error(ctx context.Context, message string, err error, fieldSets ...[]Field) {
 	fields := mergeFieldSets(fieldSets...)
 	zf := append(fields, FieldOf("error", err))
 	l.base.With(contextFields(ctx)...).Error(message, toZapFields(zf)...)
-	l.emitOTelLog(ctx, zapcore.ErrorLevel, SeverityError, message, zf)
+	l.emitSinkLog(ctx, zapcore.ErrorLevel, SeverityError, message, zf)
 }
 
 func (l *zapLogger) SetLogSink(sink LogSinkFunc) {
@@ -110,8 +110,8 @@ func toZapFields(fields []Field) []zap.Field {
 	return out
 }
 
-func (l *zapLogger) emitOTelLog(ctx context.Context, level zapcore.Level, severity Severity, message string, fields []Field) {
-	if level < l.otelLevel {
+func (l *zapLogger) emitSinkLog(ctx context.Context, level zapcore.Level, severity Severity, message string, fields []Field) {
+	if level < l.sinkLevel {
 		return
 	}
 	callerFields := buildSinkCallerFields()
