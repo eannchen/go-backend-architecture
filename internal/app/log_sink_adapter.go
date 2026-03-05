@@ -9,12 +9,9 @@ import (
 
 func newObservabilityLogSink(emitter observability.LogEmitter) logger.LogSinkFunc {
 	return func(ctx context.Context, severityText, message string, fields ...logger.Field) {
-		attrs := make([]observability.KV, 0, len(fields))
+		attrs := make([]observability.Field, 0, len(fields))
 		for _, f := range fields {
-			attrs = append(attrs, observability.KV{
-				Key:   f.Key,
-				Value: f.Value,
-			})
+			attrs = append(attrs, observability.Attr(f.Key, f.Value))
 		}
 		emitter.Emit(ctx, severityText, message, attrs...)
 	}

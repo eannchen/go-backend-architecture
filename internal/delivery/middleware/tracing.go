@@ -25,9 +25,11 @@ func Tracing(tracer observability.Tracer) echo.MiddlewareFunc {
 				ctx,
 				"http",
 				spanName,
-				observability.KV{Key: "http.request.method", Value: req.Method},
-				observability.KV{Key: "http.route", Value: route},
-				observability.KV{Key: "url.path", Value: req.URL.Path},
+				observability.Attrs(
+					"http.request.method", req.Method,
+					"http.route", route,
+					"url.path", req.URL.Path,
+				),
 			)
 			defer span.End()
 
@@ -43,7 +45,7 @@ func Tracing(tracer observability.Tracer) echo.MiddlewareFunc {
 			if sw, ok := c.Response().(interface{ Status() int }); ok {
 				statusCode = sw.Status()
 			}
-			span.SetAttributes(observability.KV{Key: "http.response.status_code", Value: statusCode})
+			span.SetAttributes(observability.Attr("http.response.status_code", statusCode))
 			if err != nil {
 				span.Fail(err, err.Error())
 			} else {

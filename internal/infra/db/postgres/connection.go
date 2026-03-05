@@ -46,8 +46,5 @@ func ClosePool(ctx context.Context, pool *pgxpool.Pool, log logger.Logger) {
 	}
 	start := time.Now()
 	pool.Close()
-	log.Info(ctx, "database pool closed", logger.Field{
-		Key:   "duration_ms",
-		Value: time.Since(start).Milliseconds(),
-	})
+	log.Info(ctx, "database pool closed", logger.Fields("duration_ms", time.Since(start).Milliseconds()))
 }

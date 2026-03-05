@@ -40,7 +40,7 @@ func logScopeName(serviceName string) string {
 	return serviceName + "/logger"
 }
 
-func (e *otelLogEmitter) Emit(ctx context.Context, severityText, message string, attrs ...KV) {
+func (e *otelLogEmitter) Emit(ctx context.Context, severityText, message string, attrs ...Field) {
 	sev := severityFromText(severityText)
 	if !e.logger.Enabled(ctx, otellog.EnabledParameters{Severity: sev}) {
 		return
@@ -60,7 +60,7 @@ func (e *otelLogEmitter) Emit(ctx context.Context, severityText, message string,
 
 type noopLogEmitter struct{}
 
-func (noopLogEmitter) Emit(context.Context, string, string, ...KV) {}
+func (noopLogEmitter) Emit(context.Context, string, string, ...Field) {}
 
 func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv string) (ShutdownFunc, LogEmitter, error) {
 	if !cfg.Enabled {
@@ -155,12 +155,12 @@ func severityFromText(level string) otellog.Severity {
 	}
 }
 
-func toLogAttributes(attrs ...KV) []otellog.KeyValue {
+func toLogAttributes(attrs ...Field) []otellog.KeyValue {
 	out := make([]otellog.KeyValue, 0, len(attrs))
-	for _, kv := range attrs {
+	for _, field := range attrs {
 		out = append(out, otellog.KeyValue{
-			Key:   kv.Key,
-			Value: toLogValue(kv.Value),
+			Key:   field.Key,
+			Value: toLogValue(field.Value),
 		})
 	}
 	return out

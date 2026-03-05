@@ -8,6 +8,29 @@ type Field struct {
 	Value any
 }
 
+// FieldOf creates one structured field.
+func FieldOf(key string, value any) Field {
+	return Field{Key: key, Value: value}
+}
+
+// Fields creates fields from key/value pairs.
+//
+// Example:
+//   Fields("address", ":8080", "component", "http_server")
+//
+// If pairs length is odd, the last dangling key is ignored.
+func Fields(pairs ...any) []Field {
+	out := make([]Field, 0, len(pairs)/2)
+	for i := 0; i+1 < len(pairs); i += 2 {
+		key, ok := pairs[i].(string)
+		if !ok || key == "" {
+			continue
+		}
+		out = append(out, FieldOf(key, pairs[i+1]))
+	}
+	return out
+}
+
 // LogSinkFunc is an optional secondary sink for structured logs.
 //
 // The primary sink can stay terminal/stdout, while this sink can export logs
@@ -19,10 +42,10 @@ type LogSinkFunc func(ctx context.Context, severityText, message string, fields 
 // Context is included in every call so tracing metadata can be attached later
 // without changing call sites.
 type Logger interface {
-	Debug(ctx context.Context, message string, fields ...Field)
-	Info(ctx context.Context, message string, fields ...Field)
-	Warn(ctx context.Context, message string, fields ...Field)
-	Error(ctx context.Context, message string, err error, fields ...Field)
+	Debug(ctx context.Context, message string, fields ...[]Field)
+	Info(ctx context.Context, message string, fields ...[]Field)
+	Warn(ctx context.Context, message string, fields ...[]Field)
+	Error(ctx context.Context, message string, err error, fields ...[]Field)
 	SetLogSink(sink LogSinkFunc)
 	Sync() error
 }

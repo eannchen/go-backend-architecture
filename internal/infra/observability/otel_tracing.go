@@ -28,31 +28,33 @@ func (t *otelTracer) tracerName(scope string) string {
 	return t.serviceName + "/" + scope
 }
 
-func (t *otelTracer) Start(ctx context.Context, scope, spanName string, attrs ...KV) (context.Context, Span) {
+func (t *otelTracer) Start(ctx context.Context, scope, spanName string, attrs ...[]Field) (context.Context, Span) {
+	fields := mergeFieldSets(attrs...)
 	opts := []trace.SpanStartOption{}
-	if len(attrs) > 0 {
-		opts = append(opts, trace.WithAttributes(toTraceAttributes(attrs...)...))
+	if len(fields) > 0 {
+		opts = append(opts, trace.WithAttributes(toTraceAttributes(fields)...))
 	}
 	ctx, s := otel.Tracer(t.tracerName(scope)).Start(ctx, spanName, opts...)
 	return ctx, &otelSpan{span: s}
 }
 
-func (t *otelTracer) StartServer(ctx context.Context, scope, spanName string, attrs ...KV) (context.Context, Span) {
+func (t *otelTracer) StartServer(ctx context.Context, scope, spanName string, attrs ...[]Field) (context.Context, Span) {
+	fields := mergeFieldSets(attrs...)
 	opts := []trace.SpanStartOption{
 		trace.WithSpanKind(trace.SpanKindServer),
 	}
-	if len(attrs) > 0 {
-		opts = append(opts, trace.WithAttributes(toTraceAttributes(attrs...)...))
+	if len(fields) > 0 {
+		opts = append(opts, trace.WithAttributes(toTraceAttributes(fields)...))
 	}
 	ctx, s := otel.Tracer(t.tracerName(scope)).Start(ctx, spanName, opts...)
 	return ctx, &otelSpan{span: s}
 }
 
-func (s *otelSpan) SetAttributes(attrs ...KV) {
+func (s *otelSpan) SetAttributes(attrs ...Field) {
 	if s == nil || s.span == nil {
 		return
 	}
-	s.span.SetAttributes(toTraceAttributes(attrs...)...)
+	s.span.SetAttributes(toTraceAttributes(attrs)...)
 }
 
 func (s *otelSpan) Fail(err error, description string) {
@@ -94,39 +96,51 @@ func (t *otelTracer) ExtractHTTP(ctx context.Context, headers http.Header) conte
 	return propagation.TraceContext{}.Extract(ctx, propagation.HeaderCarrier(headers))
 }
 
-func toTraceAttributes(attrs ...KV) []attribute.KeyValue {
-	out := make([]attribute.KeyValue, 0, len(attrs))
-	for _, kv := range attrs {
-		out = append(out, toTraceAttribute(kv))
+func mergeFieldSets(attrSets ...[]Field) []Field {
+	total := 0
+	for _, set := range attrSets {
+		total += len(set)
+	}
+	out := make([]Field, 0, total)
+	for _, set := range attrSets {
+		out = append(out, set...)
 	}
 	return out
 }
 
-func toTraceAttribute(kv KV) attribute.KeyValue {
-	switch v := kv.Value.(type) {
+func toTraceAttributes(attrs []Field) []attribute.KeyValue {
+	out := make([]attribute.KeyValue, 0, len(attrs))
+	for _, field := range attrs {
+		out = append(out, toTraceAttribute(field))
+	}
+	return out
+}
+
+func toTraceAttribute(field Field) attribute.KeyValue {
+	switch v := field.Value.(type) {
 	case string:
-		return attribute.String(kv.Key, v)
+		return attribute.String(field.Key, v)
 	case bool:
-		return attribute.Bool(kv.Key, v)
+		return attribute.Bool(field.Key, v)
 	case int:
-		return attribute.Int64(kv.Key, int64(v))
+		return attribute.Int64(field.Key, int64(v))
 	case int32:
-		return attribute.Int64(kv.Key, int64(v))
+		return attribute.Int64(field.Key, int64(v))
 	case int64:
-		return attribute.Int64(kv.Key, v)
+		return attribute.Int64(field.Key, v)
 	case uint:
-		return attribute.Int64(kv.Key, int64(v))
+		return attribute.Int64(field.Key, int64(v))
 	case uint32:
-		return attribute.Int64(kv.Key, int64(v))
+		return attribute.Int64(field.Key, int64(v))
 	case uint64:
-		return attribute.Int64(kv.Key, int64(v))
+		return attribute.Int64(field.Key, int64(v))
 	case float32:
-		return attribute.Float64(kv.Key, float64(v))
+		return attribute.Float64(field.Key, float64(v))
 	case float64:
-		return attribute.Float64(kv.Key, v)
+		return attribute.Float64(field.Key, v)
 	case error:
-		return attribute.String(kv.Key, v.Error())
+		return attribute.String(field.Key, v.Error())
 	default:
-		return attribute.String(kv.Key, fmt.Sprintf("%v", kv.Value))
+		return attribute.String(field.Key, fmt.Sprintf("%v", field.Value))
 	}
 }

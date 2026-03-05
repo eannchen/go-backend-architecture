@@ -48,25 +48,29 @@ func NewZap(cfg config.LogConfig) (Logger, error) {
 	}, nil
 }
 
-func (l *zapLogger) Debug(ctx context.Context, message string, fields ...Field) {
+func (l *zapLogger) Debug(ctx context.Context, message string, fieldSets ...[]Field) {
+	fields := mergeFieldSets(fieldSets...)
 	l.base.With(contextFields(ctx)...).Debug(message, toZapFields(fields)...)
-	l.emitOTelLog(ctx, zapcore.DebugLevel, "debug", message, fields...)
+	l.emitOTelLog(ctx, zapcore.DebugLevel, "debug", message, fields)
 }
 
-func (l *zapLogger) Info(ctx context.Context, message string, fields ...Field) {
+func (l *zapLogger) Info(ctx context.Context, message string, fieldSets ...[]Field) {
+	fields := mergeFieldSets(fieldSets...)
 	l.base.With(contextFields(ctx)...).Info(message, toZapFields(fields)...)
-	l.emitOTelLog(ctx, zapcore.InfoLevel, "info", message, fields...)
+	l.emitOTelLog(ctx, zapcore.InfoLevel, "info", message, fields)
 }
 
-func (l *zapLogger) Warn(ctx context.Context, message string, fields ...Field) {
+func (l *zapLogger) Warn(ctx context.Context, message string, fieldSets ...[]Field) {
+	fields := mergeFieldSets(fieldSets...)
 	l.base.With(contextFields(ctx)...).Warn(message, toZapFields(fields)...)
-	l.emitOTelLog(ctx, zapcore.WarnLevel, "warn", message, fields...)
+	l.emitOTelLog(ctx, zapcore.WarnLevel, "warn", message, fields)
 }
 
-func (l *zapLogger) Error(ctx context.Context, message string, err error, fields ...Field) {
-	zf := append(fields, Field{Key: "error", Value: err})
+func (l *zapLogger) Error(ctx context.Context, message string, err error, fieldSets ...[]Field) {
+	fields := mergeFieldSets(fieldSets...)
+	zf := append(fields, FieldOf("error", err))
 	l.base.With(contextFields(ctx)...).Error(message, toZapFields(zf)...)
-	l.emitOTelLog(ctx, zapcore.ErrorLevel, "error", message, zf...)
+	l.emitOTelLog(ctx, zapcore.ErrorLevel, "error", message, zf)
 }
 
 func (l *zapLogger) SetLogSink(sink LogSinkFunc) {
@@ -106,7 +110,7 @@ func toZapFields(fields []Field) []zap.Field {
 	return out
 }
 
-func (l *zapLogger) emitOTelLog(ctx context.Context, level zapcore.Level, severityText, message string, fields ...Field) {
+func (l *zapLogger) emitOTelLog(ctx context.Context, level zapcore.Level, severityText, message string, fields []Field) {
 	if level < l.otelLevel {
 		return
 	}
@@ -115,6 +119,18 @@ func (l *zapLogger) emitOTelLog(ctx context.Context, level zapcore.Level, severi
 	out = append(out, fields...)
 	out = append(out, callerFields...)
 	l.emitSink(ctx, severityText, message, out...)
+}
+
+func mergeFieldSets(fieldSets ...[]Field) []Field {
+	total := 0
+	for _, set := range fieldSets {
+		total += len(set)
+	}
+	out := make([]Field, 0, total)
+	for _, set := range fieldSets {
+		out = append(out, set...)
+	}
+	return out
 }
 
 func buildSinkCallerFields() []Field {
@@ -130,7 +146,7 @@ func buildSinkCallerFields() []Field {
 		funcName = fn.Name()
 	}
 	return []Field{
-		{Key: "code.location", Value: fmt.Sprintf("%s:%d", file, line)},
-		{Key: "code.function", Value: funcName},
+		FieldOf("code.location", fmt.Sprintf("%s:%d", file, line)),
+		FieldOf("code.function", funcName),
 	}
 }

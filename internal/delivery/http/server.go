@@ -48,10 +48,7 @@ func NewServer(cfg config.HTTPConfig, log logger.Logger, tracer observability.Tr
 }
 
 func (s *Server) Start() error {
-	s.logger.Info(context.Background(), "http server starting", logger.Field{
-		Key:   "address",
-		Value: s.cfg.Address,
-	})
+	s.logger.Info(context.Background(), "http server starting", logger.Fields("address", s.cfg.Address))
 
 	return s.httpServer.ListenAndServe()
 }
@@ -59,10 +56,7 @@ func (s *Server) Start() error {
 func (s *Server) Shutdown(ctx context.Context) error {
 	start := time.Now()
 	err := s.httpServer.Shutdown(ctx)
-	s.logger.Info(ctx, "http server shutdown complete", logger.Field{
-		Key:   "duration_ms",
-		Value: time.Since(start).Milliseconds(),
-	})
+	s.logger.Info(ctx, "http server shutdown complete", logger.Fields("duration_ms", time.Since(start).Milliseconds()))
 	if err != nil && err != http.ErrServerClosed {
 		return err
 	}
