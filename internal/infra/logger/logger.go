@@ -47,6 +47,10 @@ const (
 // to any backend (OTel, Kafka, file, etc.) without coupling logger API to it.
 type LogSinkFunc func(ctx context.Context, severity Severity, message string, fields ...Field)
 
+// ContextFieldsProviderFunc extracts context-bound fields (e.g. request/trace IDs)
+// that should be attached to every log and sink export.
+type ContextFieldsProviderFunc func(ctx context.Context) []Field
+
 // Logger defines the project logging contract.
 //
 // Context is included in every call so tracing metadata can be attached later
@@ -57,5 +61,6 @@ type Logger interface {
 	Warn(ctx context.Context, message string, fields ...[]Field)
 	Error(ctx context.Context, message string, err error, fields ...[]Field)
 	SetLogSink(sink LogSinkFunc)
+	SetContextFieldsProvider(provider ContextFieldsProviderFunc)
 	Sync() error
 }

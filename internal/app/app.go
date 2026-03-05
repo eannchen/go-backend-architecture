@@ -40,6 +40,7 @@ func New(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 	log.SetLogSink(newObservabilityLogSink(otelLogEmitter))
+	log.SetContextFieldsProvider(newContextFieldsProvider())
 	tracer := observability.NewTracer(cfg.ServiceName)
 
 	pool, err := postgres.NewPool(ctx, cfg.DB, log)

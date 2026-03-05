@@ -29,3 +29,20 @@ func toObservabilitySeverity(s logger.Severity) observability.Severity {
 		return observability.SeverityInfo
 	}
 }
+
+func newContextFieldsProvider() logger.ContextFieldsProviderFunc {
+	return func(ctx context.Context) []logger.Field {
+		fields := make([]logger.Field, 0, 3)
+		if requestID := observability.RequestIDFromContext(ctx); requestID != "" {
+			fields = append(fields, logger.FieldOf("request_id", requestID))
+		}
+		traceID, spanID := observability.TraceFromContext(ctx)
+		if traceID != "" {
+			fields = append(fields, logger.FieldOf("trace_id", traceID))
+		}
+		if spanID != "" {
+			fields = append(fields, logger.FieldOf("span_id", spanID))
+		}
+		return fields
+	}
+}
