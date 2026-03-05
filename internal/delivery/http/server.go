@@ -11,6 +11,7 @@ import (
 	"vocynex-api/internal/delivery/middleware"
 	"vocynex-api/internal/infra/config"
 	"vocynex-api/internal/infra/logger"
+	"vocynex-api/internal/infra/observability"
 )
 
 type Server struct {
@@ -20,12 +21,12 @@ type Server struct {
 	logger     logger.Logger
 }
 
-func NewServer(cfg config.HTTPConfig, serviceName string, log logger.Logger, healthHandler *HealthHandler) *Server {
+func NewServer(cfg config.HTTPConfig, log logger.Logger, tracer observability.Tracer, healthHandler *HealthHandler) *Server {
 	e := echo.New()
 
 	e.Use(echoMiddleware.Recover())
 	e.Use(middleware.ContextPropagation(cfg.ReadTimeout))
-	e.Use(middleware.Tracing(serviceName))
+	e.Use(middleware.Tracing(tracer))
 
 	e.GET("/healthz", healthHandler.GetHealth)
 

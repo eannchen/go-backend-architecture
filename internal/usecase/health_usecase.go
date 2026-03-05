@@ -22,18 +22,20 @@ type HealthUsecase struct {
 	runtimeRepo repository.RuntimeRepository
 	txManager   repository.TxManager
 	logger      logger.Logger
+	tracer      observability.Tracer
 }
 
-func NewHealthUsecase(runtimeRepo repository.RuntimeRepository, txManager repository.TxManager, log logger.Logger) *HealthUsecase {
+func NewHealthUsecase(runtimeRepo repository.RuntimeRepository, txManager repository.TxManager, log logger.Logger, tracer observability.Tracer) *HealthUsecase {
 	return &HealthUsecase{
 		runtimeRepo: runtimeRepo,
 		txManager:   txManager,
 		logger:      log,
+		tracer:      tracer,
 	}
 }
 
 func (u *HealthUsecase) Check(ctx context.Context) (HealthStatus, error) {
-	ctx, span := observability.StartSpan(ctx, "vocynex-api/usecase", "health_usecase.check")
+	ctx, span := u.tracer.Start(ctx, "usecase", "health_usecase.check")
 	defer span.End()
 
 	status := HealthStatus{

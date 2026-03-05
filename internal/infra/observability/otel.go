@@ -36,6 +36,10 @@ type otelLogEmitter struct {
 	logger otellog.Logger
 }
 
+func logScopeName(serviceName string) string {
+	return serviceName + "/logger"
+}
+
 func (e *otelLogEmitter) Emit(ctx context.Context, severityText, message string, attrs ...KV) {
 	sev := severityFromText(severityText)
 	if !e.logger.Enabled(ctx, otellog.EnabledParameters{Severity: sev}) {
@@ -58,14 +62,6 @@ type noopLogEmitter struct{}
 
 func (noopLogEmitter) Emit(context.Context, string, string, ...KV) {}
 
-// Setup configures OpenTelemetry tracing + logging and installs global providers.
-//
-// OTel APIs used:
-// - otlptracehttp.New / otlploghttp.New: create OTLP exporters.
-// - sdktrace.NewTracerProvider: tracing SDK pipeline (batch export).
-// - sdklog.NewLoggerProvider: logs SDK pipeline (batch export).
-// - otel.SetTracerProvider: set global tracer provider used by instrumentation.
-// - otel.SetTextMapPropagator: configure trace context propagation (W3C).
 func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv string) (ShutdownFunc, LogEmitter, error) {
 	if !cfg.Enabled {
 		return func(context.Context) error { return nil }, noopLogEmitter{}, nil
@@ -100,6 +96,11 @@ func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv strin
 	tracerProvider := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(traceExporter),
 		sdktrace.WithResource(res),
+		// Sampler controls "which traces are kept/exported".
+		// - TraceIDRatioBased(r): for NEW root traces, keep about r (0.0~1.0).
+		// - ParentBased(...): if this request already has a parent span, follow
+		//   the parent's sampling decision for trace consistency across services.
+		// Example: r=0.1 means ~10% of new traces are sampled.
 		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.TraceSamplingRatio))),
 	)
 
@@ -112,9 +113,14 @@ func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv strin
 		sdklog.WithResource(res),
 		sdklog.WithProcessor(sdklog.NewBatchProcessor(logExporter)),
 	)
-	logEmitter := &otelLogEmitter{logger: loggerProvider.Logger(serviceName)}
+	logEmitter := &otelLogEmitter{logger: loggerProvider.Logger(logScopeName(serviceName))}
 
 	otel.SetTracerProvider(tracerProvider)
+	// Propagator is the "format adapter" used to read/write trace context in
+	// carriers like HTTP headers. This enables cross-service trace continuation.
+	// - TraceContext: handles W3C trace headers (traceparent/tracestate).
+	// - Baggage: handles W3C baggage key-values.
+	// We set this globally so middleware/outbound clients use a consistent format.
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},

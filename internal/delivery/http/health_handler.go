@@ -13,17 +13,19 @@ import (
 type HealthHandler struct {
 	healthChecker usecase.HealthChecker
 	logger        logger.Logger
+	tracer        observability.Tracer
 }
 
-func NewHealthHandler(healthChecker usecase.HealthChecker, log logger.Logger) *HealthHandler {
+func NewHealthHandler(healthChecker usecase.HealthChecker, log logger.Logger, tracer observability.Tracer) *HealthHandler {
 	return &HealthHandler{
 		healthChecker: healthChecker,
 		logger:        log,
+		tracer:        tracer,
 	}
 }
 
 func (h *HealthHandler) GetHealth(c *echo.Context) error {
-	ctx, span := observability.StartSpan(c.Request().Context(), "vocynex-api/handler", "health_handler.get_health")
+	ctx, span := h.tracer.Start(c.Request().Context(), "handler", "health_handler.get_health")
 	defer span.End()
 
 	status, err := h.healthChecker.Check(ctx)

@@ -8,15 +8,17 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"vocynex-api/internal/infra/db/postgres/repos"
+	"vocynex-api/internal/infra/observability"
 	"vocynex-api/internal/repository"
 )
 
 type TxManager struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	tracer observability.Tracer
 }
 
-func NewTxManager(pool *pgxpool.Pool) *TxManager {
-	return &TxManager{pool: pool}
+func NewTxManager(pool *pgxpool.Pool, tracer observability.Tracer) *TxManager {
+	return &TxManager{pool: pool, tracer: tracer}
 }
 
 func (m *TxManager) WithTx(ctx context.Context, fn repository.TxFunc) error {
@@ -32,7 +34,7 @@ func (m *TxManager) WithTx(ctx context.Context, fn repository.TxFunc) error {
 		}
 	}()
 
-	repos := newTxRepositories(tx)
+	repos := newTxRepositories(tx, m.tracer)
 
 	if err := fn(ctx, repos); err != nil {
 		return err
@@ -47,16 +49,17 @@ func (m *TxManager) WithTx(ctx context.Context, fn repository.TxFunc) error {
 
 type txRepositories struct {
 	tx      pgx.Tx
+	tracer  observability.Tracer
 	runtime repository.RuntimeRepository
 }
 
-func newTxRepositories(tx pgx.Tx) *txRepositories {
-	return &txRepositories{tx: tx}
+func newTxRepositories(tx pgx.Tx, tracer observability.Tracer) *txRepositories {
+	return &txRepositories{tx: tx, tracer: tracer}
 }
 
 func (r *txRepositories) Runtime() repository.RuntimeRepository {
 	if r.runtime == nil {
-		r.runtime = repos.NewRuntimeRepository(r.tx)
+		r.runtime = repos.NewRuntimeRepository(r.tx, r.tracer)
 	}
 	return r.runtime
 }

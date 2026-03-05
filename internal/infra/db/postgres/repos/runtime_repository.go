@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"go.opentelemetry.io/otel/attribute"
-
 	"vocynex-api/internal/infra/db/builder"
 	"vocynex-api/internal/infra/observability"
 	dbsqlc "vocynex-api/internal/infra/db/postgres/sqlc/gen"
@@ -15,19 +13,21 @@ import (
 type RuntimeRepository struct {
 	db      dbsqlc.DBTX
 	queries *dbsqlc.Queries
+	tracer  observability.Tracer
 }
 
-func NewRuntimeRepository(db dbsqlc.DBTX) *RuntimeRepository {
+func NewRuntimeRepository(db dbsqlc.DBTX, tracer observability.Tracer) *RuntimeRepository {
 	return &RuntimeRepository{
 		db:      db,
 		queries: dbsqlc.New(db),
+		tracer:  tracer,
 	}
 }
 
 func (r *RuntimeRepository) Ping(ctx context.Context) error {
-	ctx, span := observability.StartSpan(ctx, "vocynex-api/repository", "runtime_repository.ping",
-		attribute.String("db.system", "postgresql"),
-		attribute.String("db.operation", "ping"),
+	ctx, span := r.tracer.Start(ctx, "repository", "runtime_repository.ping",
+		observability.KV{Key: "db.system", Value: "postgresql"},
+		observability.KV{Key: "db.operation", Value: "ping"},
 	)
 	defer span.End()
 
@@ -53,18 +53,18 @@ func (r *RuntimeRepository) GetRuntimeValue(ctx context.Context, key string) (re
 }
 
 func (r *RuntimeRepository) SearchRuntimeValues(ctx context.Context, prefix string, limit uint64) ([]repository.RuntimeKV, error) {
-	ctx, span := observability.StartSpan(ctx, "vocynex-api/repository", "runtime_repository.search_runtime_values",
-		attribute.String("db.system", "postgresql"),
-		attribute.String("db.operation", "select"),
-		attribute.String("db.sql.table", "system_runtime_kv"),
-		attribute.String("query.prefix", prefix),
+	ctx, span := r.tracer.Start(ctx, "repository", "runtime_repository.search_runtime_values",
+		observability.KV{Key: "db.system", Value: "postgresql"},
+		observability.KV{Key: "db.operation", Value: "select"},
+		observability.KV{Key: "db.sql.table", Value: "system_runtime_kv"},
+		observability.KV{Key: "query.prefix", Value: prefix},
 	)
 	defer span.End()
 
 	if limit == 0 {
 		limit = 50
 	}
-	span.SetAttributes(attribute.Int64("query.limit", int64(limit)))
+	span.SetAttributes(observability.KV{Key: "query.limit", Value: int64(limit)})
 
 	query := builder.StatementBuilder.
 		Select("key", "value").
@@ -81,7 +81,7 @@ func (r *RuntimeRepository) SearchRuntimeValues(ctx context.Context, prefix stri
 		span.Fail(err, "build query failed")
 		return nil, fmt.Errorf("build dynamic runtime query: %w", err)
 	}
-	span.SetAttributes(attribute.String("db.statement", sqlStr))
+	span.SetAttributes(observability.KV{Key: "db.statement", Value: sqlStr})
 
 	rows, err := r.db.Query(ctx, sqlStr, args...)
 	if err != nil {

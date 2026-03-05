@@ -2,6 +2,8 @@ package logger
 
 import (
 	"context"
+	"fmt"
+	"runtime"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -36,6 +38,8 @@ func NewZap(cfg config.LogConfig) (Logger, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Skip one frame to show real caller.
+	logger = logger.WithOptions(zap.AddCaller(), zap.AddCallerSkip(1))
 
 	return &zapLogger{
 		base:      logger,
@@ -106,5 +110,27 @@ func (l *zapLogger) emitOTelLog(ctx context.Context, level zapcore.Level, severi
 	if level < l.otelLevel {
 		return
 	}
-	l.emitSink(ctx, severityText, message, fields...)
+	callerFields := buildSinkCallerFields()
+	out := make([]Field, 0, len(fields)+len(callerFields))
+	out = append(out, fields...)
+	out = append(out, callerFields...)
+	l.emitSink(ctx, severityText, message, out...)
+}
+
+func buildSinkCallerFields() []Field {
+	// Stack frame skip:
+	// 0 buildSinkCallerFields, 1 emitOTelLog, 2 Debug/Info/Warn/Error, 3 caller.
+	pc, file, line, ok := runtime.Caller(3)
+	if !ok {
+		return nil
+	}
+	fn := runtime.FuncForPC(pc)
+	funcName := ""
+	if fn != nil {
+		funcName = fn.Name()
+	}
+	return []Field{
+		{Key: "code.location", Value: fmt.Sprintf("%s:%d", file, line)},
+		{Key: "code.function", Value: funcName},
+	}
 }

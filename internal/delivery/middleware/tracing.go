@@ -5,18 +5,15 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v5"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/trace"
 
 	"vocynex-api/internal/infra/observability"
 )
 
-func Tracing(serviceName string) echo.MiddlewareFunc {
+func Tracing(tracer observability.Tracer) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			req := c.Request()
-			ctx := propagation.TraceContext{}.Extract(req.Context(), propagation.HeaderCarrier(req.Header))
+			ctx := tracer.ExtractHTTP(req.Context(), req.Header)
 
 			route := c.Path()
 			if route == "" {
@@ -24,22 +21,18 @@ func Tracing(serviceName string) echo.MiddlewareFunc {
 			}
 
 			spanName := fmt.Sprintf("%s %s", req.Method, route)
-			ctx, span := observability.StartSpanWithOptions(
+			ctx, span := tracer.StartServer(
 				ctx,
-				fmt.Sprintf("%s/http", serviceName),
+				"http",
 				spanName,
-				trace.WithSpanKind(trace.SpanKindServer),
-				trace.WithAttributes(
-					attribute.String("http.request.method", req.Method),
-					attribute.String("http.route", route),
-					attribute.String("url.path", req.URL.Path),
-				),
+				observability.KV{Key: "http.request.method", Value: req.Method},
+				observability.KV{Key: "http.route", Value: route},
+				observability.KV{Key: "url.path", Value: req.URL.Path},
 			)
 			defer span.End()
 
-			spanCtx := span.SpanContext()
-			if spanCtx.IsValid() {
-				ctx = observability.WithTrace(ctx, spanCtx.TraceID().String(), spanCtx.SpanID().String())
+			if traceID, spanID, ok := span.IDs(); ok {
+				ctx = observability.WithTrace(ctx, traceID, spanID)
 			}
 
 			c.SetRequest(req.WithContext(ctx))
@@ -50,7 +43,7 @@ func Tracing(serviceName string) echo.MiddlewareFunc {
 			if sw, ok := c.Response().(interface{ Status() int }); ok {
 				statusCode = sw.Status()
 			}
-			span.SetAttributes(attribute.Int("http.response.status_code", statusCode))
+			span.SetAttributes(observability.KV{Key: "http.response.status_code", Value: statusCode})
 			if err != nil {
 				span.Fail(err, err.Error())
 			} else {
