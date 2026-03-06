@@ -23,10 +23,15 @@ type otelRuntime struct {
 	traceProvider  *sdktrace.TracerProvider
 	loggerProvider *sdklog.LoggerProvider
 	logEmitter     observability.LogEmitter
+	tracer         observability.Tracer
 }
 
 func (r *otelRuntime) LogEmitter() observability.LogEmitter {
 	return r.logEmitter
+}
+
+func (r *otelRuntime) Tracer() observability.Tracer {
+	return r.tracer
 }
 
 func (r *otelRuntime) Shutdown(ctx context.Context) error {
@@ -104,6 +109,7 @@ func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv strin
 		traceProvider:  tracerProvider,
 		loggerProvider: loggerProvider,
 		logEmitter:     logEmitter,
+		tracer:         NewTracer(serviceName),
 	}
 	return runtime, nil
 }

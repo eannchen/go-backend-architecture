@@ -12,6 +12,7 @@ import (
 	"vocynex-api/internal/infra/db/postgres"
 	"vocynex-api/internal/infra/db/postgres/repos"
 	"vocynex-api/internal/infra/logger"
+	zaplogger "vocynex-api/internal/infra/logger/zap"
 	"vocynex-api/internal/infra/observability"
 	otelobs "vocynex-api/internal/infra/observability/otel"
 	"vocynex-api/internal/usecase"
@@ -35,9 +36,9 @@ func New(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	tracer := otelobs.NewTracer(cfg.ServiceName)
+	tracer := otelRuntime.Tracer()
 
-	log, err := logger.NewZap(cfg.Log)
+	log, err := zaplogger.New(cfg.Log)
 	if err != nil {
 		return nil, joinInitErrors(
 			err,

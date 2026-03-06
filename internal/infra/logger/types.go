@@ -1,21 +1,21 @@
-package observability
+package logger
 
-// Field is an observability-agnostic key/value attribute.
+// Field is a logger-agnostic key/value pair.
 type Field struct {
 	Key   string
 	Value any
 }
 
-// FieldOf creates one key/value attribute.
+// FieldOf creates one structured field.
 func FieldOf(key string, value any) Field {
 	return Field{Key: key, Value: value}
 }
 
-// Fields creates attributes from key/value pairs.
+// Fields creates fields from key/value pairs.
 //
 // Example:
 //
-//	Fields("http.method", "GET", "http.route", "/healthz")
+//	Fields("address", ":8080", "component", "http_server")
 //
 // If pairs length is odd, the last dangling key is ignored.
 func Fields(pairs ...any) []Field {
@@ -29,3 +29,12 @@ func Fields(pairs ...any) []Field {
 	}
 	return out
 }
+
+type Severity uint8
+
+const (
+	SeverityDebug Severity = iota
+	SeverityInfo
+	SeverityWarn
+	SeverityError
+)

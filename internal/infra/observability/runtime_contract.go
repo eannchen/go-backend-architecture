@@ -5,6 +5,7 @@ import "context"
 // Runtime is the observability facade exposed to app wiring.
 type Runtime interface {
 	LogEmitter() LogEmitter
+	Tracer() Tracer
 	Shutdown(ctx context.Context) error
 }
 
@@ -12,5 +13,7 @@ type Runtime interface {
 type NoopRuntime struct{}
 
 func (NoopRuntime) LogEmitter() LogEmitter { return NoopLogEmitter{} }
+
+func (NoopRuntime) Tracer() Tracer { return NoopTracer{} }
 
 func (NoopRuntime) Shutdown(context.Context) error { return nil }
