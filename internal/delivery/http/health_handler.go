@@ -28,17 +28,19 @@ func (h *HealthHandler) RegisterRoutes(e *echo.Echo) {
 	e.GET("/healthz", h.GetHealth)
 }
 
-func (h *HealthHandler) GetHealth(c *echo.Context) error {
+func (h *HealthHandler) GetHealth(c *echo.Context) (err error) {
 	ctx, span := h.tracer.Start(c.Request().Context(), "handler", "health_handler.get_health")
-	defer span.End()
+	var spanErr error
+	defer func() {
+		span.Finish(spanErr)
+	}()
 
 	status, err := h.healthChecker.Check(ctx)
 	if err != nil {
-		span.Fail(err, err.Error())
+		spanErr = err
 		h.logger.Warn(ctx, "health endpoint returned degraded status")
 		return c.JSON(http.StatusServiceUnavailable, status)
 	}
-	span.OK()
 	h.logger.Debug(ctx, "health endpoint returned ok")
 	return c.JSON(http.StatusOK, status)
 }

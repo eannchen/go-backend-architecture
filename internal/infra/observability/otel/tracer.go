@@ -63,26 +63,26 @@ func (s *span) SetAttributes(fields ...observability.Field) {
 	s.span.SetAttributes(toTraceAttributes(fields)...)
 }
 
-func (s *span) Fail(err error, description string) {
+func (s *span) Finish(err error, description ...string) {
 	if s == nil || s.span == nil {
 		return
+	}
+	desc := ""
+	if len(description) > 0 {
+		desc = description[0]
 	}
 	if err != nil {
+		if desc == "" {
+			desc = err.Error()
+		}
 		s.span.RecordError(err)
-	}
-	s.span.SetStatus(codes.Error, description)
-}
-
-func (s *span) OK() {
-	if s == nil || s.span == nil {
-		return
-	}
-	s.span.SetStatus(codes.Ok, "ok")
-}
-
-func (s *span) End() {
-	if s == nil || s.span == nil {
-		return
+		s.span.SetStatus(codes.Error, desc)
+	} else {
+		if desc == "" {
+			s.span.SetStatus(codes.Ok, "ok")
+		} else {
+			s.span.SetStatus(codes.Ok, desc)
+		}
 	}
 	s.span.End()
 }

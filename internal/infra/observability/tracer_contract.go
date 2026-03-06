@@ -8,9 +8,7 @@ import (
 // Span is an observability-agnostic span contract for app layers.
 type Span interface {
 	SetAttributes(attrs ...Field)
-	Fail(err error, description string)
-	OK()
-	End()
+	Finish(err error, description ...string)
 	IDs() (traceID, spanID string, ok bool)
 }
 
@@ -39,11 +37,7 @@ func (NoopTracer) ExtractHTTP(ctx context.Context, _ http.Header) context.Contex
 
 func (noopSpan) SetAttributes(_ ...Field) {}
 
-func (noopSpan) Fail(_ error, _ string) {}
-
-func (noopSpan) OK() {}
-
-func (noopSpan) End() {}
+func (noopSpan) Finish(_ error, _ ...string) {}
 
 func (noopSpan) IDs() (traceID, spanID string, ok bool) {
 	return "", "", false

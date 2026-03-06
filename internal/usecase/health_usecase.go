@@ -34,11 +34,13 @@ func NewHealthUsecase(log logger.Logger, tracer observability.Tracer, runtimeRep
 	}
 }
 
-func (u *HealthUsecase) Check(ctx context.Context) (HealthStatus, error) {
+func (u *HealthUsecase) Check(ctx context.Context) (status HealthStatus, err error) {
 	ctx, span := u.tracer.Start(ctx, "usecase", "health_usecase.check")
-	defer span.End()
+	defer func() {
+		span.Finish(err)
+	}()
 
-	status := HealthStatus{
+	status = HealthStatus{
 		Status: "ok",
 		Dependencies: map[string]string{
 			"database":               "up",
@@ -52,7 +54,6 @@ func (u *HealthUsecase) Check(ctx context.Context) (HealthStatus, error) {
 	if err := u.runtimeRepo.Ping(ctx); err != nil {
 		status.Status = "degraded"
 		status.Dependencies["database"] = "down"
-		span.Fail(err, "database ping failed")
 		u.logger.Warn(ctx, "health check failed on database ping")
 		return status, errors.Join(errors.New("database readiness failed"), err)
 	}
@@ -69,12 +70,10 @@ func (u *HealthUsecase) Check(ctx context.Context) (HealthStatus, error) {
 		status.Dependencies["database_tx"] = "down"
 		status.Dependencies["database_dynamic_query"] = "down"
 		status.Dependencies["database_static_query"] = "down"
-		span.Fail(txErr, "transactional health checks failed")
 		u.logger.Warn(ctx, "health check failed on transactional database checks")
 		return status, errors.Join(errors.New("database transactional health check failed"), txErr)
 	}
 
-	span.OK()
 	u.logger.Debug(ctx, "health check passed")
 	return status, nil
 }

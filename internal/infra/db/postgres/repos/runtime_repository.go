@@ -24,21 +24,21 @@ func NewRuntimeRepository(db dbsqlc.DBTX, tracer observability.Tracer) *RuntimeR
 	}
 }
 
-func (r *RuntimeRepository) Ping(ctx context.Context) error {
+func (r *RuntimeRepository) Ping(ctx context.Context) (err error) {
 	ctx, span := r.tracer.Start(ctx, "repository", "runtime_repository.ping",
 		observability.Fields(
 			"db.system", "postgresql",
 			"db.operation", "ping",
 		),
 	)
-	defer span.End()
+	defer func() {
+		span.Finish(err)
+	}()
 
-	_, err := r.queries.Ping(ctx)
+	_, err = r.queries.Ping(ctx)
 	if err != nil {
-		span.Fail(err, err.Error())
 		return err
 	}
-	span.OK()
 	return err
 }
 
@@ -54,7 +54,7 @@ func (r *RuntimeRepository) GetRuntimeValue(ctx context.Context, key string) (re
 	}, nil
 }
 
-func (r *RuntimeRepository) SearchRuntimeValues(ctx context.Context, prefix string, limit uint64) ([]repository.RuntimeKV, error) {
+func (r *RuntimeRepository) SearchRuntimeValues(ctx context.Context, prefix string, limit uint64) (result []repository.RuntimeKV, err error) {
 	ctx, span := r.tracer.Start(ctx, "repository", "runtime_repository.search_runtime_values",
 		observability.Fields(
 			"db.system", "postgresql",
@@ -63,7 +63,9 @@ func (r *RuntimeRepository) SearchRuntimeValues(ctx context.Context, prefix stri
 			"query.prefix", prefix,
 		),
 	)
-	defer span.End()
+	defer func() {
+		span.Finish(err)
+	}()
 
 	if limit == 0 {
 		limit = 50
@@ -82,33 +84,28 @@ func (r *RuntimeRepository) SearchRuntimeValues(ctx context.Context, prefix stri
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		span.Fail(err, "build query failed")
 		return nil, fmt.Errorf("build dynamic runtime query: %w", err)
 	}
 	span.SetAttributes(observability.FieldOf("db.statement", sqlStr))
 
 	rows, err := r.db.Query(ctx, sqlStr, args...)
 	if err != nil {
-		span.Fail(err, "query execution failed")
 		return nil, fmt.Errorf("execute dynamic runtime query: %w", err)
 	}
 	defer rows.Close()
 
-	result := make([]repository.RuntimeKV, 0, limit)
+	result = make([]repository.RuntimeKV, 0, limit)
 	for rows.Next() {
 		var item repository.RuntimeKV
 		if err := rows.Scan(&item.Key, &item.Value); err != nil {
-			span.Fail(err, "row scan failed")
 			return nil, fmt.Errorf("scan dynamic runtime row: %w", err)
 		}
 		result = append(result, item)
 	}
 
 	if err := rows.Err(); err != nil {
-		span.Fail(err, "row iteration failed")
 		return nil, fmt.Errorf("iterate dynamic runtime rows: %w", err)
 	}
 
-	span.OK()
 	return result, nil
 }
