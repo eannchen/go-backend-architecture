@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -17,10 +18,10 @@ import (
 )
 
 type App struct {
-	Config     config.Config
-	Logger     logger.Logger
-	DBPool     *pgxpool.Pool
-	Server     *httpDelivery.Server
+	Config        config.Config
+	Logger        logger.Logger
+	DBPool        *pgxpool.Pool
+	Server        *httpDelivery.Server
 	Observability observability.Runtime
 }
 
@@ -30,25 +31,29 @@ func New(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 
-	log, err := logger.NewZap(cfg.Log)
-	if err != nil {
-		return nil, err
-	}
-
 	otelRuntime, err := otelobs.Setup(ctx, cfg.OTel, cfg.ServiceName, cfg.AppEnv)
 	if err != nil {
-		_ = log.Sync()
 		return nil, err
 	}
-	log.SetLogSink(newObservabilityLogSink(otelRuntime.LogEmitter()))
-	log.SetContextFieldsProvider(newContextFieldsProvider())
 	tracer := otelobs.NewTracer(cfg.ServiceName)
+
+	log, err := logger.NewZap(cfg.Log)
+	if err != nil {
+		return nil, joinInitErrors(
+			err,
+			stepErr("shutdown observability after logger init failure", otelRuntime.Shutdown(ctx)),
+		)
+	}
+	log.SetLogSink(logEmitterToLogSink(otelRuntime.LogEmitter()))
+	log.SetContextFieldsProvider(contextFieldsProvider())
 
 	pool, err := postgres.NewPool(ctx, cfg.DB, log)
 	if err != nil {
-		_ = otelRuntime.Shutdown(ctx)
-		_ = log.Sync()
-		return nil, err
+		return nil, joinInitErrors(
+			err,
+			stepErr("shutdown observability after db init failure", otelRuntime.Shutdown(ctx)),
+			stepErr("sync logger after db init failure", log.Sync()),
+		)
 	}
 
 	runtimeRepo := repos.NewRuntimeRepository(pool, tracer)
@@ -90,4 +95,18 @@ func (a *App) Shutdown(ctx context.Context) error {
 	}
 
 	return shutdownErr
+}
+
+func stepErr(step string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", step, err)
+}
+
+func joinInitErrors(base error, cleanupErrs ...error) error {
+	all := make([]error, 0, len(cleanupErrs)+1)
+	all = append(all, base)
+	all = append(all, cleanupErrs...)
+	return errors.Join(all...)
 }

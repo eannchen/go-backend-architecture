@@ -7,13 +7,13 @@ import (
 	"vocynex-api/internal/infra/observability"
 )
 
-func newObservabilityLogSink(emitter observability.LogEmitter) logger.LogSinkFunc {
+func logEmitterToLogSink(emitter observability.LogEmitter) logger.LogSinkFunc {
 	return func(ctx context.Context, severity logger.Severity, message string, fields ...logger.Field) {
-		attrs := make([]observability.Field, 0, len(fields))
+		obsFields := make([]observability.Field, 0, len(fields))
 		for _, f := range fields {
-			attrs = append(attrs, observability.FieldOf(f.Key, f.Value))
+			obsFields = append(obsFields, observability.FieldOf(f.Key, f.Value))
 		}
-		emitter.Emit(ctx, toObservabilitySeverity(severity), message, attrs...)
+		emitter.Emit(ctx, toObservabilitySeverity(severity), message, obsFields...)
 	}
 }
 
@@ -30,7 +30,7 @@ func toObservabilitySeverity(s logger.Severity) observability.Severity {
 	}
 }
 
-func newContextFieldsProvider() logger.ContextFieldsProviderFunc {
+func contextFieldsProvider() logger.ContextFieldsProviderFunc {
 	return func(ctx context.Context) []logger.Field {
 		fields := make([]logger.Field, 0, 3)
 		if requestID := observability.RequestIDFromContext(ctx); requestID != "" {
