@@ -21,14 +21,19 @@ type Server struct {
 	logger     logger.Logger
 }
 
-func NewServer(cfg config.HTTPConfig, log logger.Logger, tracer observability.Tracer, healthHandler *HealthHandler) *Server {
+func NewServer(cfg config.HTTPConfig, log logger.Logger, tracer observability.Tracer, registrars ...RouteRegistrar) *Server {
 	e := echo.New()
 
 	e.Use(echoMiddleware.Recover())
 	e.Use(middleware.ContextPropagation(cfg.ReadTimeout))
 	e.Use(middleware.Tracing(tracer))
 
-	e.GET("/healthz", healthHandler.GetHealth)
+	for _, registrar := range registrars {
+		if registrar == nil {
+			continue
+		}
+		registrar.RegisterRoutes(e)
+	}
 
 	httpServer := &http.Server{
 		Addr:              cfg.Address,

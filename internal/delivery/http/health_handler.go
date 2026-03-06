@@ -24,6 +24,10 @@ func NewHealthHandler(log logger.Logger, tracer observability.Tracer, healthChec
 	}
 }
 
+func (h *HealthHandler) RegisterRoutes(e *echo.Echo) {
+	e.GET("/healthz", h.GetHealth)
+}
+
 func (h *HealthHandler) GetHealth(c *echo.Context) error {
 	ctx, span := h.tracer.Start(c.Request().Context(), "handler", "health_handler.get_health")
 	defer span.End()
