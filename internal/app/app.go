@@ -12,15 +12,16 @@ import (
 	"vocynex-api/internal/infra/db/postgres/repos"
 	"vocynex-api/internal/infra/logger"
 	"vocynex-api/internal/infra/observability"
+	otelobs "vocynex-api/internal/infra/observability/otel"
 	"vocynex-api/internal/usecase"
 )
 
 type App struct {
-	Config            config.Config
-	Logger            logger.Logger
-	DBPool            *pgxpool.Pool
-	Server            *httpDelivery.Server
-	ShutdownTelemetry observability.ShutdownFunc
+	Config     config.Config
+	Logger     logger.Logger
+	DBPool     *pgxpool.Pool
+	Server     *httpDelivery.Server
+	Observability observability.Runtime
 }
 
 func New(ctx context.Context) (*App, error) {
@@ -34,18 +35,18 @@ func New(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 
-	otelShutdown, otelLogEmitter, err := observability.Setup(ctx, cfg.OTel, cfg.ServiceName, cfg.AppEnv)
+	otelRuntime, err := otelobs.Setup(ctx, cfg.OTel, cfg.ServiceName, cfg.AppEnv)
 	if err != nil {
 		_ = log.Sync()
 		return nil, err
 	}
-	log.SetLogSink(newObservabilityLogSink(otelLogEmitter))
+	log.SetLogSink(newObservabilityLogSink(otelRuntime.LogEmitter()))
 	log.SetContextFieldsProvider(newContextFieldsProvider())
-	tracer := observability.NewTracer(cfg.ServiceName)
+	tracer := otelobs.NewTracer(cfg.ServiceName)
 
 	pool, err := postgres.NewPool(ctx, cfg.DB, log)
 	if err != nil {
-		_ = otelShutdown(ctx)
+		_ = otelRuntime.Shutdown(ctx)
 		_ = log.Sync()
 		return nil, err
 	}
@@ -57,11 +58,11 @@ func New(ctx context.Context) (*App, error) {
 	server := httpDelivery.NewServer(cfg.HTTP, log, tracer, healthHandler)
 
 	return &App{
-		Config:            cfg,
-		Logger:            log,
-		DBPool:            pool,
-		Server:            server,
-		ShutdownTelemetry: otelShutdown,
+		Config:        cfg,
+		Logger:        log,
+		DBPool:        pool,
+		Server:        server,
+		Observability: otelRuntime,
 	}, nil
 }
 
@@ -78,8 +79,8 @@ func (a *App) Shutdown(ctx context.Context) error {
 
 	postgres.ClosePool(ctx, a.DBPool, a.Logger)
 
-	if a.ShutdownTelemetry != nil {
-		if err := a.ShutdownTelemetry(ctx); err != nil {
+	if a.Observability != nil {
+		if err := a.Observability.Shutdown(ctx); err != nil {
 			shutdownErr = errors.Join(shutdownErr, err)
 		}
 	}
