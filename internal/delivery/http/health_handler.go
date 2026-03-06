@@ -16,7 +16,7 @@ type HealthHandler struct {
 	tracer        observability.Tracer
 }
 
-func NewHealthHandler(healthChecker usecase.HealthChecker, log logger.Logger, tracer observability.Tracer) *HealthHandler {
+func NewHealthHandler(log logger.Logger, tracer observability.Tracer, healthChecker usecase.HealthChecker) *HealthHandler {
 	return &HealthHandler{
 		healthChecker: healthChecker,
 		logger:        log,

@@ -25,7 +25,7 @@ type HealthUsecase struct {
 	tracer      observability.Tracer
 }
 
-func NewHealthUsecase(runtimeRepo repository.RuntimeRepository, txManager repository.TxManager, log logger.Logger, tracer observability.Tracer) *HealthUsecase {
+func NewHealthUsecase(log logger.Logger, tracer observability.Tracer, runtimeRepo repository.RuntimeRepository, txManager repository.TxManager) *HealthUsecase {
 	return &HealthUsecase{
 		runtimeRepo: runtimeRepo,
 		txManager:   txManager,

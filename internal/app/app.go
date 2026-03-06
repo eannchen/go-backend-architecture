@@ -10,12 +10,10 @@ import (
 	httpDelivery "vocynex-api/internal/delivery/http"
 	"vocynex-api/internal/infra/config"
 	"vocynex-api/internal/infra/db/postgres"
-	"vocynex-api/internal/infra/db/postgres/repos"
 	"vocynex-api/internal/infra/logger"
 	zaplogger "vocynex-api/internal/infra/logger/zap"
 	"vocynex-api/internal/infra/observability"
 	otelobs "vocynex-api/internal/infra/observability/otel"
-	"vocynex-api/internal/usecase"
 )
 
 type App struct {
@@ -57,11 +55,11 @@ func New(ctx context.Context) (*App, error) {
 		)
 	}
 
-	runtimeRepo := repos.NewRuntimeRepository(pool, tracer)
-	txManager := postgres.NewTxManager(pool, tracer)
-	healthUsecase := usecase.NewHealthUsecase(runtimeRepo, txManager, log, tracer)
-	healthHandler := httpDelivery.NewHealthHandler(healthUsecase, log, tracer)
-	server := httpDelivery.NewServer(cfg.HTTP, log, tracer, healthHandler)
+	wiring := newWiring(cfg, log, tracer)
+	repositories := wiring.buildRepositories(pool)
+	usecases := wiring.buildUsecases(repositories)
+	handlers := wiring.buildHandlers(usecases)
+	server := wiring.buildServer(handlers)
 
 	return &App{
 		Config:        cfg,
