@@ -18,31 +18,31 @@ type APIError struct {
 	Details any    `json:"details,omitempty"`
 }
 
-func respondJSON(c *echo.Context, status int, payload any) error {
+func RespondJSON(c *echo.Context, status int, payload any) error {
 	return c.JSON(status, payload)
 }
 
-func respondError(c *echo.Context, status int, code string, message string, details any) error {
-	return respondJSON(c, status, APIError{
+func RespondError(c *echo.Context, status int, code string, message string, details any) error {
+	return RespondJSON(c, status, APIError{
 		Code:    code,
 		Message: message,
 		Details: details,
 	})
 }
 
-func respondInvalidQueryError(c *echo.Context, message string, details any) error {
-	return respondError(c, http.StatusBadRequest, ErrCodeInvalidQuery, message, details)
+func RespondInvalidQueryError(c *echo.Context, message string, details any) error {
+	return RespondError(c, http.StatusBadRequest, ErrCodeInvalidQuery, message, details)
 }
 
-func respondAppError(c *echo.Context, err error) error {
+func RespondAppError(c *echo.Context, err error) error {
 	appErr, ok := apperr.As(err)
 	if !ok {
-		return respondError(c, http.StatusInternalServerError, string(apperr.CodeInternal), "internal server error", nil)
+		return RespondError(c, http.StatusInternalServerError, string(apperr.CodeInternal), "internal server error", nil)
 	}
-	return respondError(c, toHTTPStatus(err), string(appErr.Code), appErr.Message, appErr.Details)
+	return RespondError(c, ToStatusCode(err), string(appErr.Code), appErr.Message, appErr.Details)
 }
 
-func toHTTPStatus(err error) int {
+func ToStatusCode(err error) int {
 	if err == nil {
 		return http.StatusOK
 	}

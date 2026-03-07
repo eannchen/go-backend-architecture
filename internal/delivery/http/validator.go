@@ -3,7 +3,7 @@ package http
 import (
 	"github.com/go-playground/validator/v10"
 
-	"vocynex-api/internal/usecase"
+	usecaseHealth "vocynex-api/internal/usecase/health"
 )
 
 type requestValidator struct {
@@ -24,6 +24,6 @@ func (v *requestValidator) Validate(i any) error {
 }
 
 func validateHealthCheckMode(fl validator.FieldLevel) bool {
-	_, err := usecase.ParseHealthCheckMode(fl.Field().String())
+	_, err := usecaseHealth.ParseCheckMode(fl.Field().String())
 	return err == nil
 }

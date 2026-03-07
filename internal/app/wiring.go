@@ -4,13 +4,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	httpDelivery "vocynex-api/internal/delivery/http"
+	healthHTTP "vocynex-api/internal/delivery/http/health"
 	"vocynex-api/internal/infra/config"
 	"vocynex-api/internal/infra/db/postgres"
 	"vocynex-api/internal/infra/db/postgres/repos"
 	"vocynex-api/internal/infra/logger"
 	"vocynex-api/internal/infra/observability"
 	"vocynex-api/internal/repository"
-	"vocynex-api/internal/usecase"
+	usecaseHealth "vocynex-api/internal/usecase/health"
 )
 
 // wiring centralizes shared dependencies used when wiring constructors.
@@ -26,11 +27,11 @@ type appRepositories struct {
 }
 
 type appUsecases struct {
-	health *usecase.HealthUsecase
+	health *usecaseHealth.Usecase
 }
 
 type appHandlers struct {
-	health *httpDelivery.HealthHandler
+	health *healthHTTP.Handler
 }
 
 func newWiring(cfg config.Config, log logger.Logger, tracer observability.Tracer) wiring {
@@ -50,13 +51,13 @@ func (d wiring) buildRepositories(pool *pgxpool.Pool) appRepositories {
 
 func (d wiring) buildUsecases(repos appRepositories) appUsecases {
 	return appUsecases{
-		health: usecase.NewHealthUsecase(d.log, d.tracer, repos.runtimeRepo, repos.txManager),
+		health: usecaseHealth.New(d.log, d.tracer, repos.runtimeRepo, repos.txManager),
 	}
 }
 
 func (d wiring) buildHandlers(usecases appUsecases) appHandlers {
 	return appHandlers{
-		health: httpDelivery.NewHealthHandler(d.log, d.tracer, usecases.health),
+		health: healthHTTP.NewHandler(d.log, d.tracer, usecases.health),
 	}
 }
 
