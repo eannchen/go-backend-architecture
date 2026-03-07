@@ -35,7 +35,7 @@ func main() {
 	if err := application.Start(); err != nil {
 		// Echo returns this error on expected server close during shutdown.
 		if !errors.Is(err, http.ErrServerClosed) {
-			application.Logger.Error(context.Background(), "server exited with error", err, logger.Fields("component", "http_server"))
+			application.Logger.Error(context.Background(), "server exited with error", err, logger.FromPairs("component", "http_server"))
 			os.Exit(1)
 		}
 	}

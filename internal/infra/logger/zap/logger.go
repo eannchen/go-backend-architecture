@@ -44,43 +44,46 @@ func New(cfg config.LogConfig) (logger.Logger, error) {
 	return &impl{
 		base:                  base,
 		sinkLevel:             sinkLevel,
-		emitSink:              func(context.Context, logger.Severity, string, ...logger.Field) {},
-		contextFieldsProvider: func(context.Context) []logger.Field { return nil },
+		emitSink:              func(context.Context, logger.Severity, string, ...logger.Fields) {},
+		contextFieldsProvider: func(context.Context) logger.Fields { return nil },
 	}, nil
 }
 
-func (l *impl) Debug(ctx context.Context, message string, fieldSets ...[]logger.Field) {
-	fields := flattenFieldSets(fieldSets...)
+func (l *impl) Debug(ctx context.Context, message string, optionalFields ...logger.Fields) {
+	fields := logger.OptionalFields(optionalFields...)
 	contextFields := l.contextFieldsProvider(ctx)
 	l.base.With(buildZapFields(contextFields)...).Debug(message, buildZapFields(fields)...)
 	l.emitSinkLog(ctx, zapcore.DebugLevel, logger.SeverityDebug, message, fields, contextFields)
 }
 
-func (l *impl) Info(ctx context.Context, message string, fieldSets ...[]logger.Field) {
-	fields := flattenFieldSets(fieldSets...)
+func (l *impl) Info(ctx context.Context, message string, optionalFields ...logger.Fields) {
+	fields := logger.OptionalFields(optionalFields...)
 	contextFields := l.contextFieldsProvider(ctx)
 	l.base.With(buildZapFields(contextFields)...).Info(message, buildZapFields(fields)...)
 	l.emitSinkLog(ctx, zapcore.InfoLevel, logger.SeverityInfo, message, fields, contextFields)
 }
 
-func (l *impl) Warn(ctx context.Context, message string, fieldSets ...[]logger.Field) {
-	fields := flattenFieldSets(fieldSets...)
+func (l *impl) Warn(ctx context.Context, message string, optionalFields ...logger.Fields) {
+	fields := logger.OptionalFields(optionalFields...)
 	contextFields := l.contextFieldsProvider(ctx)
 	l.base.With(buildZapFields(contextFields)...).Warn(message, buildZapFields(fields)...)
 	l.emitSinkLog(ctx, zapcore.WarnLevel, logger.SeverityWarn, message, fields, contextFields)
 }
 
-func (l *impl) Error(ctx context.Context, message string, err error, fieldSets ...[]logger.Field) {
-	fields := flattenFieldSets(fieldSets...)
-	fields = append(fields, logger.FieldOf("error", err))
+func (l *impl) Error(ctx context.Context, message string, err error, optionalFields ...logger.Fields) {
+	fields := logger.CloneFields(logger.OptionalFields(optionalFields...))
+	if fields == nil {
+		fields = logger.Fields{}
+	}
+	fields["error"] = err
 	contextFields := l.contextFieldsProvider(ctx)
 	l.base.With(buildZapFields(contextFields)...).Error(message, buildZapFields(fields)...)
-	l.emitSinkLog(ctx, zapcore.ErrorLevel, logger.SeverityError, message, fields, contextFields)
+	l.emitSinkLog(ctx, zapcore.ErrorLevel, logger.SeverityError, message, contextFields, fields)
 }
 
 func (l *impl) SetLogSink(sink logger.LogSinkFunc) {
 	if sink == nil {
-		l.emitSink = func(context.Context, logger.Severity, string, ...logger.Field) {}
+		l.emitSink = func(context.Context, logger.Severity, string, ...logger.Fields) {}
 		return
 	}
 	l.emitSink = sink
@@ -88,7 +91,7 @@ func (l *impl) SetLogSink(sink logger.LogSinkFunc) {
 
 func (l *impl) SetContextFieldsProvider(provider logger.ContextFieldsProviderFunc) {
 	if provider == nil {
-		l.contextFieldsProvider = func(context.Context) []logger.Field { return nil }
+		l.contextFieldsProvider = func(context.Context) logger.Fields { return nil }
 		return
 	}
 	l.contextFieldsProvider = provider
@@ -98,39 +101,24 @@ func (l *impl) Sync() error {
 	return l.base.Sync()
 }
 
-func (l *impl) emitSinkLog(ctx context.Context, level zapcore.Level, severity logger.Severity, message string, fields []logger.Field, contextFields []logger.Field) {
+func (l *impl) emitSinkLog(ctx context.Context, level zapcore.Level, severity logger.Severity, message string, contextFields, fields logger.Fields) {
 	if level < l.sinkLevel {
 		return
 	}
 	callerFields := buildCallerSinkFields()
-	out := make([]logger.Field, 0, len(fields)+len(contextFields)+len(callerFields))
-	out = append(out, fields...)
-	out = append(out, contextFields...)
-	out = append(out, callerFields...)
-	l.emitSink(ctx, severity, message, out...)
+	out := logger.MergeFields(fields, contextFields, callerFields)
+	l.emitSink(ctx, severity, message, out)
 }
 
-func buildZapFields(fields []logger.Field) []uzap.Field {
+func buildZapFields(fields logger.Fields) []uzap.Field {
 	out := make([]uzap.Field, 0, len(fields))
-	for _, f := range fields {
-		out = append(out, uzap.Any(f.Key, f.Value))
+	for key, value := range fields {
+		out = append(out, uzap.Any(key, value))
 	}
 	return out
 }
 
-func flattenFieldSets(fieldSets ...[]logger.Field) []logger.Field {
-	total := 0
-	for _, set := range fieldSets {
-		total += len(set)
-	}
-	out := make([]logger.Field, 0, total)
-	for _, set := range fieldSets {
-		out = append(out, set...)
-	}
-	return out
-}
-
-func buildCallerSinkFields() []logger.Field {
+func buildCallerSinkFields() logger.Fields {
 	pc, file, line, ok := runtime.Caller(3)
 	if !ok {
 		return nil
@@ -140,8 +128,8 @@ func buildCallerSinkFields() []logger.Field {
 	if fn != nil {
 		funcName = fn.Name()
 	}
-	return []logger.Field{
-		logger.FieldOf("code.location", fmt.Sprintf("%s:%d", file, line)),
-		logger.FieldOf("code.function", funcName),
-	}
+	return logger.FromPairs(
+		"code.location", fmt.Sprintf("%s:%d", file, line),
+		"code.function", funcName,
+	)
 }

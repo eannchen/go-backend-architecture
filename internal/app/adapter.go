@@ -8,10 +8,11 @@ import (
 )
 
 func logEmitterToLogSink(emitter observability.LogEmitter) logger.LogSinkFunc {
-	return func(ctx context.Context, severity logger.Severity, message string, fields ...logger.Field) {
+	return func(ctx context.Context, severity logger.Severity, message string, optionalFields ...logger.Fields) {
+		fields := logger.OptionalFields(optionalFields...)
 		obsFields := make([]observability.Field, 0, len(fields))
-		for _, f := range fields {
-			obsFields = append(obsFields, observability.FieldOf(f.Key, f.Value))
+		for key, value := range fields {
+			obsFields = append(obsFields, observability.FieldOf(key, value))
 		}
 		emitter.Emit(ctx, toObservabilitySeverity(severity), message, obsFields...)
 	}
@@ -31,17 +32,20 @@ func toObservabilitySeverity(s logger.Severity) observability.Severity {
 }
 
 func contextFieldsProvider() logger.ContextFieldsProviderFunc {
-	return func(ctx context.Context) []logger.Field {
-		fields := make([]logger.Field, 0, 3)
+	return func(ctx context.Context) logger.Fields {
+		fields := make(logger.Fields)
 		if requestID := observability.RequestIDFromContext(ctx); requestID != "" {
-			fields = append(fields, logger.FieldOf("request_id", requestID))
+			fields["request_id"] = requestID
 		}
 		traceID, spanID := observability.TraceFromContext(ctx)
 		if traceID != "" {
-			fields = append(fields, logger.FieldOf("trace_id", traceID))
+			fields["trace_id"] = traceID
 		}
 		if spanID != "" {
-			fields = append(fields, logger.FieldOf("span_id", spanID))
+			fields["span_id"] = spanID
+		}
+		if len(fields) == 0 {
+			return nil
 		}
 		return fields
 	}
