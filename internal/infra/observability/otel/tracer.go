@@ -22,8 +22,8 @@ func NewTracer(serviceName string) observability.Tracer {
 	return &tracer{serviceName: serviceName}
 }
 
-func (t *tracer) Start(ctx context.Context, scope, spanName string, fieldSets ...[]observability.Field) (context.Context, observability.Span) {
-	fields := mergeFieldSets(fieldSets...)
+func (t *tracer) Start(ctx context.Context, scope, spanName string, optionalFields ...observability.Fields) (context.Context, observability.Span) {
+	fields := observability.OptionalFields(optionalFields...)
 	opts := []trace.SpanStartOption{}
 	if len(fields) > 0 {
 		opts = append(opts, trace.WithAttributes(toTraceAttributes(fields)...))
@@ -32,8 +32,8 @@ func (t *tracer) Start(ctx context.Context, scope, spanName string, fieldSets ..
 	return ctx, &span{span: s}
 }
 
-func (t *tracer) StartServer(ctx context.Context, scope, spanName string, fieldSets ...[]observability.Field) (context.Context, observability.Span) {
-	fields := mergeFieldSets(fieldSets...)
+func (t *tracer) StartServer(ctx context.Context, scope, spanName string, optionalFields ...observability.Fields) (context.Context, observability.Span) {
+	fields := observability.OptionalFields(optionalFields...)
 	opts := []trace.SpanStartOption{
 		trace.WithSpanKind(trace.SpanKindServer),
 	}
@@ -56,10 +56,11 @@ type span struct {
 	span trace.Span
 }
 
-func (s *span) SetAttributes(fields ...observability.Field) {
+func (s *span) SetAttributes(optionalFields ...observability.Fields) {
 	if s == nil || s.span == nil {
 		return
 	}
+	fields := observability.OptionalFields(optionalFields...)
 	s.span.SetAttributes(toTraceAttributes(fields)...)
 }
 
@@ -98,51 +99,39 @@ func (s *span) IDs() (traceID, spanID string, ok bool) {
 	return sc.TraceID().String(), sc.SpanID().String(), true
 }
 
-func mergeFieldSets(fieldSets ...[]observability.Field) []observability.Field {
-	total := 0
-	for _, fields := range fieldSets {
-		total += len(fields)
-	}
-	out := make([]observability.Field, 0, total)
-	for _, fields := range fieldSets {
-		out = append(out, fields...)
-	}
-	return out
-}
-
-func toTraceAttributes(fields []observability.Field) []attribute.KeyValue {
+func toTraceAttributes(fields observability.Fields) []attribute.KeyValue {
 	out := make([]attribute.KeyValue, 0, len(fields))
-	for _, field := range fields {
-		out = append(out, toTraceAttribute(field))
+	for key, value := range fields {
+		out = append(out, toTraceAttribute(key, value))
 	}
 	return out
 }
 
-func toTraceAttribute(field observability.Field) attribute.KeyValue {
-	switch v := field.Value.(type) {
+func toTraceAttribute(key string, value any) attribute.KeyValue {
+	switch v := value.(type) {
 	case string:
-		return attribute.String(field.Key, v)
+		return attribute.String(key, v)
 	case bool:
-		return attribute.Bool(field.Key, v)
+		return attribute.Bool(key, v)
 	case int:
-		return attribute.Int64(field.Key, int64(v))
+		return attribute.Int64(key, int64(v))
 	case int32:
-		return attribute.Int64(field.Key, int64(v))
+		return attribute.Int64(key, int64(v))
 	case int64:
-		return attribute.Int64(field.Key, v)
+		return attribute.Int64(key, v)
 	case uint:
-		return attribute.Int64(field.Key, int64(v))
+		return attribute.Int64(key, int64(v))
 	case uint32:
-		return attribute.Int64(field.Key, int64(v))
+		return attribute.Int64(key, int64(v))
 	case uint64:
-		return attribute.Int64(field.Key, int64(v))
+		return attribute.Int64(key, int64(v))
 	case float32:
-		return attribute.Float64(field.Key, float64(v))
+		return attribute.Float64(key, float64(v))
 	case float64:
-		return attribute.Float64(field.Key, v)
+		return attribute.Float64(key, v)
 	case error:
-		return attribute.String(field.Key, v.Error())
+		return attribute.String(key, v.Error())
 	default:
-		return attribute.String(field.Key, fmt.Sprintf("%v", field.Value))
+		return attribute.String(key, fmt.Sprintf("%v", value))
 	}
 }

@@ -26,7 +26,7 @@ func NewRuntimeRepository(db dbsqlc.DBTX, tracer observability.Tracer) *RuntimeR
 
 func (r *RuntimeRepository) Ping(ctx context.Context) (err error) {
 	ctx, span := r.tracer.Start(ctx, "repository", "runtime_repository.ping",
-		observability.Fields(
+		observability.FromPairs(
 			"db.system", "postgresql",
 			"db.operation", "ping",
 		),
@@ -41,7 +41,7 @@ func (r *RuntimeRepository) Ping(ctx context.Context) (err error) {
 
 func (r *RuntimeRepository) GetServerStatus(ctx context.Context) (status repository.DBServerStatus, err error) {
 	ctx, span := r.tracer.Start(ctx, "repository", "runtime_repository.get_server_status",
-		observability.Fields(
+		observability.FromPairs(
 			"db.system", "postgresql",
 			"db.operation", "select",
 			"db.statement.type", "server_status",
@@ -78,7 +78,7 @@ func (r *RuntimeRepository) GetRuntimeValue(ctx context.Context, key string) (re
 
 func (r *RuntimeRepository) SearchRuntimeValues(ctx context.Context, prefix string, limit uint64) (result []repository.RuntimeKV, err error) {
 	ctx, span := r.tracer.Start(ctx, "repository", "runtime_repository.search_runtime_values",
-		observability.Fields(
+		observability.FromPairs(
 			"db.system", "postgresql",
 			"db.operation", "select",
 			"db.sql.table", "system_runtime_kv",
@@ -92,7 +92,7 @@ func (r *RuntimeRepository) SearchRuntimeValues(ctx context.Context, prefix stri
 	if limit == 0 {
 		limit = 50
 	}
-	span.SetAttributes(observability.FieldOf("query.limit", int64(limit)))
+	span.SetAttributes(observability.FromPairs("query.limit", int64(limit)))
 
 	query := builder.StatementBuilder.
 		Select("key", "value").
@@ -108,7 +108,7 @@ func (r *RuntimeRepository) SearchRuntimeValues(ctx context.Context, prefix stri
 	if err != nil {
 		return nil, fmt.Errorf("build dynamic runtime query: %w", err)
 	}
-	span.SetAttributes(observability.FieldOf("db.statement", sqlStr))
+	span.SetAttributes(observability.FromPairs("db.statement", sqlStr))
 
 	rows, err := r.db.Query(ctx, sqlStr, args...)
 	if err != nil {

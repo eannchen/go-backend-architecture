@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"maps"
 
 	"vocynex-api/internal/infra/logger"
 	"vocynex-api/internal/infra/observability"
@@ -10,11 +11,11 @@ import (
 func logEmitterToLogSink(emitter observability.LogEmitter) logger.LogSinkFunc {
 	return func(ctx context.Context, severity logger.Severity, message string, optionalFields ...logger.Fields) {
 		fields := logger.OptionalFields(optionalFields...)
-		obsFields := make([]observability.Field, 0, len(fields))
-		for key, value := range fields {
-			obsFields = append(obsFields, observability.FieldOf(key, value))
+		obsFields := make(observability.Fields, len(fields))
+		if len(fields) > 0 {
+			maps.Copy(obsFields, observability.Fields(fields))
 		}
-		emitter.Emit(ctx, toObservabilitySeverity(severity), message, obsFields...)
+		emitter.Emit(ctx, toObservabilitySeverity(severity), message, obsFields)
 	}
 }
 

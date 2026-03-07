@@ -25,7 +25,7 @@ func Tracing(tracer observability.Tracer) echo.MiddlewareFunc {
 				ctx,
 				"http",
 				spanName,
-				observability.Fields(
+				observability.FromPairs(
 					"http.request.method", req.Method,
 					"http.route", route,
 					"url.path", req.URL.Path,
@@ -43,7 +43,7 @@ func Tracing(tracer observability.Tracer) echo.MiddlewareFunc {
 			if sw, ok := c.Response().(interface{ Status() int }); ok {
 				statusCode = sw.Status()
 			}
-			span.SetAttributes(observability.FieldOf("http.response.status_code", statusCode))
+			span.SetAttributes(observability.FromPairs("http.response.status_code", statusCode))
 			span.Finish(err)
 
 			return err

@@ -24,7 +24,8 @@ func logScopeName(serviceName string) string {
 	return serviceName + "/logger"
 }
 
-func (e *otelLogEmitter) Emit(ctx context.Context, severity observability.Severity, message string, fields ...observability.Field) {
+func (e *otelLogEmitter) Emit(ctx context.Context, severity observability.Severity, message string, optionalFields ...observability.Fields) {
+	fields := observability.OptionalFields(optionalFields...)
 	sev := toOTelSeverity(severity)
 	if !e.logger.Enabled(ctx, otellog.EnabledParameters{Severity: sev}) {
 		return
@@ -37,7 +38,7 @@ func (e *otelLogEmitter) Emit(ctx context.Context, severity observability.Severi
 	record.SetSeverity(sev)
 	record.SetSeverityText(severity.String())
 	record.SetBody(otellog.StringValue(message))
-	record.AddAttributes(toLogAttributes(fields...)...)
+	record.AddAttributes(toLogAttributes(fields)...)
 	e.logger.Emit(ctx, record)
 }
 
@@ -54,12 +55,12 @@ func toOTelSeverity(level observability.Severity) otellog.Severity {
 	}
 }
 
-func toLogAttributes(attrs ...observability.Field) []otellog.KeyValue {
-	out := make([]otellog.KeyValue, 0, len(attrs))
-	for _, field := range attrs {
+func toLogAttributes(fields observability.Fields) []otellog.KeyValue {
+	out := make([]otellog.KeyValue, 0, len(fields))
+	for key, value := range fields {
 		out = append(out, otellog.KeyValue{
-			Key:   field.Key,
-			Value: toLogValue(field.Value),
+			Key:   key,
+			Value: toLogValue(value),
 		})
 	}
 	return out
