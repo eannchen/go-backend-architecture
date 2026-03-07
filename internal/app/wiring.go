@@ -31,7 +31,7 @@ type appUsecases struct {
 }
 
 type appHandlers struct {
-	health *healthhttp.Handler
+	health httpdelivery.RouteRegistrar
 }
 
 func newWiring(cfg config.Config, log logger.Logger, tracer observability.Tracer) wiring {
