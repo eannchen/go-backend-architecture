@@ -59,7 +59,15 @@ func New(ctx context.Context) (*App, error) {
 	repositories := wiring.buildRepositories(pool)
 	usecases := wiring.buildUsecases(repositories)
 	handlers := wiring.buildHandlers(usecases)
-	server := wiring.buildServer(handlers)
+	server, err := wiring.buildServer(handlers)
+	if err != nil {
+		return nil, joinInitErrors(
+			err,
+			stepErr("close db pool after server init failure", closePoolWithError(ctx, pool)),
+			stepErr("shutdown observability after server init failure", otelRuntime.Shutdown(ctx)),
+			stepErr("sync logger after server init failure", log.Sync()),
+		)
+	}
 
 	return &App{
 		Config:        cfg,
@@ -108,4 +116,12 @@ func joinInitErrors(base error, cleanupErrs ...error) error {
 	all = append(all, base)
 	all = append(all, cleanupErrs...)
 	return errors.Join(all...)
+}
+
+func closePoolWithError(ctx context.Context, pool *pgxpool.Pool) error {
+	if pool == nil {
+		return nil
+	}
+	pool.Close()
+	return nil
 }

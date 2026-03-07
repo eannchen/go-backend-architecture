@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -21,9 +22,13 @@ type Server struct {
 	logger     logger.Logger
 }
 
-func NewServer(cfg config.HTTPConfig, log logger.Logger, tracer observability.Tracer, registrars ...RouteRegistrar) *Server {
+func NewServer(cfg config.HTTPConfig, log logger.Logger, tracer observability.Tracer, validatorRegistrars []ValidationRegistrar, registrars ...RouteRegistrar) (*Server, error) {
 	e := echo.New()
-	e.Validator = newRequestValidator()
+	requestValidator, err := newRequestValidator(validatorRegistrars...)
+	if err != nil {
+		return nil, fmt.Errorf("initialize request validator: %w", err)
+	}
+	e.Validator = requestValidator
 
 	e.Use(echoMiddleware.Recover())
 	e.Use(middleware.ContextPropagation(cfg.ReadTimeout))
@@ -50,7 +55,7 @@ func NewServer(cfg config.HTTPConfig, log logger.Logger, tracer observability.Tr
 		httpServer: httpServer,
 		cfg:        cfg,
 		logger:     log,
-	}
+	}, nil
 }
 
 func (s *Server) Start() error {

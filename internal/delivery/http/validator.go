@@ -1,29 +1,33 @@
 package http
 
 import (
-	"github.com/go-playground/validator/v10"
+	"fmt"
 
-	usecaseHealth "vocynex-api/internal/usecase/health"
+	"github.com/go-playground/validator/v10"
 )
+
+type ValidationRegistrar func(v *validator.Validate) error
 
 type requestValidator struct {
 	validate *validator.Validate
 }
 
-func newRequestValidator() *requestValidator {
+func newRequestValidator(registrars ...ValidationRegistrar) (*requestValidator, error) {
 	v := validator.New()
-	_ = v.RegisterValidation("health_check_mode", validateHealthCheckMode)
+	for _, register := range registrars {
+		if register == nil {
+			continue
+		}
+		if err := register(v); err != nil {
+			return nil, fmt.Errorf("register validator: %w", err)
+		}
+	}
 
 	return &requestValidator{
 		validate: v,
-	}
+	}, nil
 }
 
 func (v *requestValidator) Validate(i any) error {
 	return v.validate.Struct(i)
-}
-
-func validateHealthCheckMode(fl validator.FieldLevel) bool {
-	_, err := usecaseHealth.ParseCheckMode(fl.Field().String())
-	return err == nil
 }

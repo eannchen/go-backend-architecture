@@ -61,6 +61,9 @@ func (d wiring) buildHandlers(usecases appUsecases) appHandlers {
 	}
 }
 
-func (d wiring) buildServer(handlers appHandlers) *httpdelivery.Server {
-	return httpdelivery.NewServer(d.cfg.HTTP, d.log, d.tracer, handlers.health)
+func (d wiring) buildServer(handlers appHandlers) (*httpdelivery.Server, error) {
+	validatorRegistrars := []httpdelivery.ValidationRegistrar{
+		healthhttp.RegisterValidation,
+	}
+	return httpdelivery.NewServer(d.cfg.HTTP, d.log, d.tracer, validatorRegistrars, handlers.health)
 }
