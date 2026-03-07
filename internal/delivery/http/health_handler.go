@@ -21,8 +21,14 @@ type healthCheckRequest struct {
 }
 
 type healthResponse struct {
-	Dependencies map[string]string `json:"dependencies"`
-	Details      map[string]any    `json:"details,omitempty"`
+	Database healthResponseDatabase `json:"database"`
+}
+
+type healthResponseDatabase struct {
+	Status        string `json:"status"`
+	Name          string `json:"name"`
+	InRecovery    bool   `json:"in_recovery"`
+	UptimeSeconds int64  `json:"uptime_seconds"`
 }
 
 func NewHealthHandler(log logger.Logger, tracer observability.Tracer, healthChecker usecase.HealthChecker) *HealthHandler {
@@ -72,7 +78,11 @@ func (h *HealthHandler) GetHealth(c *echo.Context) (err error) {
 
 func toHealthResponse(result usecase.HealthCheckResult) healthResponse {
 	return healthResponse{
-		Dependencies: result.Dependencies,
-		Details:      result.Details,
+		Database: healthResponseDatabase{
+			Status:        result.Database.Status,
+			Name:          result.Database.Name,
+			InRecovery:    result.Database.InRecovery,
+			UptimeSeconds: result.Database.UptimeSeconds,
+		},
 	}
 }

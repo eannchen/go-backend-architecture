@@ -11,8 +11,14 @@ import (
 )
 
 type HealthCheckResult struct {
-	Dependencies map[string]string
-	Details      map[string]any
+	Database HealthDatabase
+}
+
+type HealthDatabase struct {
+	Status        string
+	Name          string
+	InRecovery    bool
+	UptimeSeconds int64
 }
 
 type HealthCheckMode string
@@ -73,18 +79,13 @@ func (u *HealthUsecase) Check(ctx context.Context, mode HealthCheckMode) (result
 		mode = HealthCheckReady
 	}
 	if !mode.IsValid() {
-		return HealthCheckResult{}, apperr.New(
-			apperr.CodeInvalidArgument,
-			fmt.Sprintf("invalid health check mode: %q", mode),
-			apperr.Field("check", mode),
-		)
+		return HealthCheckResult{},
+			apperr.New(apperr.CodeInvalidArgument, fmt.Sprintf("invalid health check mode: %q", mode))
 	}
 
 	result = HealthCheckResult{
-		Dependencies: map[string]string{
-			"database":        "skipped",
-			"database_server": "skipped",
-			"database_tx":     "skipped",
+		Database: HealthDatabase{
+			Status: "skipped",
 		},
 	}
 
@@ -92,36 +93,21 @@ func (u *HealthUsecase) Check(ctx context.Context, mode HealthCheckMode) (result
 		return result, nil
 	}
 
-	// Quick non-transactional readiness check (simple sqlc static query).
 	if err := u.runtimeRepo.Ping(ctx); err != nil {
-		result.Dependencies["database"] = "down"
-		return result, apperr.Wrap(
-			err,
-			apperr.CodeUnavailable,
-			"database readiness failed",
-			apperr.Field("dependency", "database"),
-		)
+		result.Database.Status = "down"
+		return result, apperr.Wrap(err, apperr.CodeUnavailable, "database readiness failed")
 	}
-	result.Dependencies["database"] = "up"
 
 	serverStatus, err := u.runtimeRepo.GetServerStatus(ctx)
 	if err != nil {
-		result.Dependencies["database_server"] = "down"
-		return result, apperr.Wrap(
-			err,
-			apperr.CodeUnavailable,
-			"database server status query failed",
-			apperr.Field("dependency", "database_server"),
-		)
+		result.Database.Status = "down"
+		return result, apperr.Wrap(err, apperr.CodeUnavailable, "database server status query failed")
 	}
-	result.Dependencies["database_server"] = "up"
-	result.Details = map[string]any{
-		"database": map[string]any{
-			"name":           serverStatus.DatabaseName,
-			"in_recovery":    serverStatus.InRecovery,
-			"uptime_seconds": serverStatus.UptimeSeconds,
-		},
-	}
+
+	result.Database.Status = "up"
+	result.Database.Name = serverStatus.DatabaseName
+	result.Database.InRecovery = serverStatus.InRecovery
+	result.Database.UptimeSeconds = serverStatus.UptimeSeconds
 
 	return result, nil
 }

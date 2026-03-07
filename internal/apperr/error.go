@@ -39,25 +39,47 @@ func (e *Error) Unwrap() error {
 	return e.Cause
 }
 
-func New(code Code, message string, details Details) *Error {
+func New(code Code, message string, details ...Details) *Error {
 	return &Error{
 		Code:    code,
 		Message: message,
-		Details: details,
+		Details: optionalDetails(details...),
 	}
 }
 
-func Wrap(cause error, code Code, message string, details Details) *Error {
+func Wrap(cause error, code Code, message string, details ...Details) *Error {
 	return &Error{
 		Code:    code,
 		Message: message,
-		Details: details,
+		Details: optionalDetails(details...),
 		Cause:   cause,
 	}
 }
 
-func Field(key string, value any) Details {
-	return Details{key: value}
+func optionalDetails(details ...Details) Details {
+	if len(details) == 0 {
+		return nil
+	}
+	return details[0]
+}
+
+func Fields(pairs ...any) Details {
+	if len(pairs) == 0 {
+		return nil
+	}
+
+	details := make(Details, len(pairs)/2)
+	for i := 0; i+1 < len(pairs); i += 2 {
+		key, ok := pairs[i].(string)
+		if !ok {
+			continue
+		}
+		details[key] = pairs[i+1]
+	}
+	if len(details) == 0 {
+		return nil
+	}
+	return details
 }
 
 func As(err error) (*Error, bool) {
