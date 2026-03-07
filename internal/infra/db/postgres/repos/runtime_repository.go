@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"vocynex-api/internal/infra/db/builder"
-	"vocynex-api/internal/infra/observability"
 	dbsqlc "vocynex-api/internal/infra/db/postgres/sqlc/gen"
+	"vocynex-api/internal/infra/observability"
 	"vocynex-api/internal/repository"
 )
 
@@ -36,10 +36,32 @@ func (r *RuntimeRepository) Ping(ctx context.Context) (err error) {
 	}()
 
 	_, err = r.queries.Ping(ctx)
-	if err != nil {
-		return err
-	}
 	return err
+}
+
+func (r *RuntimeRepository) GetServerStatus(ctx context.Context) (status repository.DBServerStatus, err error) {
+	ctx, span := r.tracer.Start(ctx, "repository", "runtime_repository.get_server_status",
+		observability.Fields(
+			"db.system", "postgresql",
+			"db.operation", "select",
+			"db.statement.type", "server_status",
+		),
+	)
+	defer func() {
+		span.Finish(err)
+	}()
+
+	row, err := r.queries.GetServerStatus(ctx)
+	if err != nil {
+		return repository.DBServerStatus{}, err
+	}
+
+	status = repository.DBServerStatus{
+		DatabaseName:  row.DatabaseName,
+		InRecovery:    row.InRecovery,
+		UptimeSeconds: row.UptimeSeconds,
+	}
+	return status, nil
 }
 
 func (r *RuntimeRepository) GetRuntimeValue(ctx context.Context, key string) (repository.RuntimeKV, error) {

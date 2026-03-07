@@ -16,6 +16,15 @@ type HealthHandler struct {
 	tracer        observability.Tracer
 }
 
+type healthCheckRequest struct {
+	Check string `query:"check" validate:"omitempty,health_check_mode"`
+}
+
+type healthResponse struct {
+	Dependencies map[string]string `json:"dependencies"`
+	Details      map[string]any    `json:"details,omitempty"`
+}
+
 func NewHealthHandler(log logger.Logger, tracer observability.Tracer, healthChecker usecase.HealthChecker) *HealthHandler {
 	return &HealthHandler{
 		healthChecker: healthChecker,
@@ -35,12 +44,35 @@ func (h *HealthHandler) GetHealth(c *echo.Context) (err error) {
 		span.Finish(spanErr)
 	}()
 
-	status, err := h.healthChecker.Check(ctx)
+	var req healthCheckRequest
+	if err := c.Bind(&req); err != nil {
+		spanErr = err
+		return respondInvalidQueryError(c, "invalid query parameters", err.Error())
+	}
+	if err := c.Validate(&req); err != nil {
+		spanErr = err
+		return respondInvalidQueryError(c, "invalid query parameters", err.Error())
+	}
+
+	mode, _ := usecase.ParseHealthCheckMode(req.Check)
+
+	result, err := h.healthChecker.Check(ctx, mode)
 	if err != nil {
 		spanErr = err
 		h.logger.Warn(ctx, "health endpoint returned degraded status")
-		return c.JSON(http.StatusServiceUnavailable, status)
+		statusCode := toHTTPStatus(err)
+		if statusCode == http.StatusServiceUnavailable {
+			return respondJSON(c, statusCode, toHealthResponse(result))
+		}
+		return respondAppError(c, err)
 	}
 	h.logger.Debug(ctx, "health endpoint returned ok")
-	return c.JSON(http.StatusOK, status)
+	return respondJSON(c, http.StatusOK, toHealthResponse(result))
+}
+
+func toHealthResponse(result usecase.HealthCheckResult) healthResponse {
+	return healthResponse{
+		Dependencies: result.Dependencies,
+		Details:      result.Details,
+	}
 }

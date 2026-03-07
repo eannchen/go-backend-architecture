@@ -23,6 +23,7 @@ type Server struct {
 
 func NewServer(cfg config.HTTPConfig, log logger.Logger, tracer observability.Tracer, registrars ...RouteRegistrar) *Server {
 	e := echo.New()
+	e.Validator = newRequestValidator()
 
 	e.Use(echoMiddleware.Recover())
 	e.Use(middleware.ContextPropagation(cfg.ReadTimeout))

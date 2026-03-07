@@ -17,7 +17,7 @@ Backend scaffold for a modular-monolith API using:
 3. Run migrations: `make migrate-up`
 4. Install dev tools (one-time): `make install`
 5. Start server (Air live reload): `make run`
-6. Health check: `GET /healthz`
+6. Health check: `GET /healthz?check=ready`
 
 ## Local development (Docker + Air)
 
@@ -29,6 +29,12 @@ Infra services in `docker-compose.yml`:
 - HyperDX UI: `http://localhost:8081`
 - HyperDX ClickHouse HTTP: `http://localhost:8123`
 - HyperDX local data is persisted under `./volumes/hyperdx/`
+
+Health check modes:
+
+- `GET /healthz?check=live`: process is up (no dependency check).
+- `GET /healthz?check=ready`: DB connectivity check (`SELECT 1`).
+- `GET /healthz?check=full`: readiness + DB server status query + transactional DB ping.
 
 Recommended flow:
 

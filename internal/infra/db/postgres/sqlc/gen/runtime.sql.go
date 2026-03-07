@@ -27,6 +27,26 @@ func (q *Queries) GetRuntimeValue(ctx context.Context, key string) (GetRuntimeVa
 	return i, err
 }
 
+const getServerStatus = `-- name: GetServerStatus :one
+SELECT
+    current_database() AS database_name,
+    pg_is_in_recovery() AS in_recovery,
+    EXTRACT(EPOCH FROM (NOW() - pg_postmaster_start_time()))::BIGINT AS uptime_seconds
+`
+
+type GetServerStatusRow struct {
+	DatabaseName  string
+	InRecovery    bool
+	UptimeSeconds int64
+}
+
+func (q *Queries) GetServerStatus(ctx context.Context) (GetServerStatusRow, error) {
+	row := q.db.QueryRow(ctx, getServerStatus)
+	var i GetServerStatusRow
+	err := row.Scan(&i.DatabaseName, &i.InRecovery, &i.UptimeSeconds)
+	return i, err
+}
+
 const ping = `-- name: Ping :one
 SELECT 1
 `
