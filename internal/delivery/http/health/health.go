@@ -5,6 +5,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 
+	"vocynex-api/internal/apperr"
 	deliveryhttp "vocynex-api/internal/delivery/http"
 	"vocynex-api/internal/infra/logger"
 	"vocynex-api/internal/infra/observability"
@@ -66,9 +67,8 @@ func (h *Handler) GetHealth(c *echo.Context) (err error) {
 	result, err := h.usecase.Check(ctx, mode)
 	if err != nil {
 		spanErr = err
-		statusCode := deliveryhttp.ToStatusCode(err)
-		if statusCode == http.StatusServiceUnavailable {
-			return deliveryhttp.RespondJSON(c, statusCode, toResponse(result))
+		if appErr, ok := apperr.As(err); ok && appErr.Code == apperr.CodeUnavailable {
+			return deliveryhttp.RespondJSON(c, deliveryhttp.ToStatusCode(appErr), toResponse(result))
 		}
 		return deliveryhttp.RespondAppError(c, err)
 	}
