@@ -21,15 +21,19 @@ type Database struct {
 	UptimeSeconds int64
 }
 
-type Usecase struct {
+type Usecase interface {
+	Check(ctx context.Context, mode CheckMode) (Result, error)
+}
+
+type impl struct {
 	logger      logger.Logger
 	tracer      observability.Tracer
 	txManager   repository.TxManager
 	runtimeRepo repository.RuntimeRepository
 }
 
-func New(log logger.Logger, tracer observability.Tracer, runtimeRepo repository.RuntimeRepository, txManager repository.TxManager) *Usecase {
-	return &Usecase{
+func New(log logger.Logger, tracer observability.Tracer, runtimeRepo repository.RuntimeRepository, txManager repository.TxManager) Usecase {
+	return &impl{
 		logger:      log,
 		tracer:      tracer,
 		txManager:   txManager,
@@ -37,7 +41,7 @@ func New(log logger.Logger, tracer observability.Tracer, runtimeRepo repository.
 	}
 }
 
-func (u *Usecase) Check(ctx context.Context, mode CheckMode) (result Result, err error) {
+func (u *impl) Check(ctx context.Context, mode CheckMode) (result Result, err error) {
 	ctx, span := u.tracer.Start(ctx, "usecase", "health_usecase.check")
 	defer func() {
 		span.Finish(err)

@@ -8,7 +8,7 @@ import (
 	deliveryhttp "vocynex-api/internal/delivery/http"
 	"vocynex-api/internal/infra/logger"
 	"vocynex-api/internal/infra/observability"
-	usecaseHealth "vocynex-api/internal/usecase/health"
+	usecasehealth "vocynex-api/internal/usecase/health"
 )
 
 type request struct {
@@ -26,22 +26,22 @@ type Database struct {
 	UptimeSeconds int64  `json:"uptime_seconds"`
 }
 
-func NewHandler(log logger.Logger, tracer observability.Tracer, usecase *usecaseHealth.Usecase) *Handler {
+func NewHandler(log logger.Logger, tracer observability.Tracer, usecase usecasehealth.Usecase) *Handler {
 	return &Handler{
-		logger:        log,
-		tracer:        tracer,
-		usecaseHealth: usecase,
+		logger:  log,
+		tracer:  tracer,
+		usecase: usecase,
 	}
 }
 
 type Handler struct {
-	logger        logger.Logger
-	tracer        observability.Tracer
-	usecaseHealth *usecaseHealth.Usecase
+	logger  logger.Logger
+	tracer  observability.Tracer
+	usecase usecasehealth.Usecase
 }
 
 func (h *Handler) RegisterRoutes(e *echo.Echo) {
-	e.GET("/healthz", h.GetHealth)
+	e.GET("/health", h.GetHealth)
 }
 
 func (h *Handler) GetHealth(c *echo.Context) (err error) {
@@ -61,9 +61,9 @@ func (h *Handler) GetHealth(c *echo.Context) (err error) {
 		return deliveryhttp.RespondInvalidQueryError(c, "invalid query parameters", err.Error())
 	}
 
-	mode, _ := usecaseHealth.ParseCheckMode(req.Check)
+	mode, _ := usecasehealth.ParseCheckMode(req.Check)
 
-	result, err := h.usecaseHealth.Check(ctx, mode)
+	result, err := h.usecase.Check(ctx, mode)
 	if err != nil {
 		spanErr = err
 		statusCode := deliveryhttp.ToStatusCode(err)
@@ -76,7 +76,7 @@ func (h *Handler) GetHealth(c *echo.Context) (err error) {
 	return deliveryhttp.RespondJSON(c, http.StatusOK, toResponse(result))
 }
 
-func toResponse(result usecaseHealth.Result) response {
+func toResponse(result usecasehealth.Result) response {
 	return response{
 		Database: Database{
 			Status:        result.Database.Status,
