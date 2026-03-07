@@ -65,14 +65,13 @@ func (h *HealthHandler) GetHealth(c *echo.Context) (err error) {
 	result, err := h.healthChecker.Check(ctx, mode)
 	if err != nil {
 		spanErr = err
-		h.logger.Warn(ctx, "health endpoint returned degraded status")
 		statusCode := toHTTPStatus(err)
 		if statusCode == http.StatusServiceUnavailable {
 			return respondJSON(c, statusCode, toHealthResponse(result))
 		}
 		return respondAppError(c, err)
 	}
-	h.logger.Debug(ctx, "health endpoint returned ok")
+
 	return respondJSON(c, http.StatusOK, toHealthResponse(result))
 }
 
