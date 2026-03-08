@@ -3,8 +3,8 @@ package otel
 import (
 	"context"
 	"fmt"
-	"time"
 	"go-backend-architecture/internal/infra/observability"
+	"time"
 
 	otellog "go.opentelemetry.io/otel/log"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
