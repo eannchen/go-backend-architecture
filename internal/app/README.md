@@ -5,8 +5,9 @@ Composition root for dependency injection.
 ## Pattern used
 
 - Manual DI via constructor wiring (no service locator).
-- Build in stages: repositories -> usecases -> handlers -> server.
+- Build in stages: infra stores -> repositories -> usecases -> handlers -> server.
 - Return startup errors early and clean up already-initialized resources.
+- Keep provider-specific adapter assembly in wiring helpers (for example Redis store bundle).
 
 ## How to extend
 

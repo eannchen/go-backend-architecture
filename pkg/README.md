@@ -2,5 +2,12 @@
 
 Public reusable packages (optional).
 
-- Keep minimal and stable APIs intended for external reuse.
-- Prefer `internal` unless sharing across modules is required.
+## Pattern used
+
+- Host only APIs intentionally exported for reuse outside this module.
+- Keep package surface stable and version-friendly.
+
+## How to extend
+
+- Prefer `internal` by default; move to `pkg` only when external reuse is required.
+- Document compatibility expectations before adding new public packages.

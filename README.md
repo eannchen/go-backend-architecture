@@ -1,12 +1,12 @@
 # go-backend-architecture
 
-Go modular-monolith backend architecture template for clean, testable, observability-ready APIs.
+Go modular-monolith backend architecture template for clean, testable APIs with built-in caching and observability.
 
 ## Purpose
 
 - Provide a reusable backend starter that follows clean architecture.
 - Keep business logic isolated from frameworks and vendors.
-- Offer production-ready foundations: HTTP, DB, migrations, tracing, and structured logging.
+- Offer production-ready foundations: HTTP, DB, cache/KV integration, migrations, tracing, and structured logging.
 - Serve as a base repo to clone for new app projects.
 
 ## Architecture and Principles Used
@@ -16,6 +16,7 @@ Go modular-monolith backend architecture template for clean, testable, observabi
 - [SOLID principles](https://en.wikipedia.org/wiki/SOLID)
 - [Consumer-owned interfaces](https://go.dev/doc/effective_go#interfaces_and_types)
 - [Adapter pattern](https://refactoring.guru/design-patterns/adapter)
+- [Decorator pattern](https://refactoring.guru/design-patterns/decorator)
 - [Repository pattern](https://martinfowler.com/eaaCatalog/repository.html)
 - [Facade pattern](https://refactoring.guru/design-patterns/facade)
 - [Builder pattern](https://refactoring.guru/design-patterns/builder)
@@ -27,9 +28,10 @@ See inner `README.md` files and `.cursor/rules/` for implementation guidance.
 
 - [`Echo v5`](https://github.com/labstack/echo) for HTTP server
 - [`pgx/v5`](https://github.com/jackc/pgx) for PostgreSQL driver and pool
-- [`sqlc`](https://sqlc.dev/) for static SQL query generation
+- [`sqlc`](https://github.com/sqlc-dev/sqlc) for static SQL query generation
 - [`Masterminds/squirrel`](https://github.com/Masterminds/squirrel) for dynamic SQL building
 - [`pressly/goose`](https://github.com/pressly/goose) for DB migrations
+- [`go-redis/v9`](https://github.com/redis/go-redis) for Redis client integration
 - [`air`](https://github.com/air-verse/air) for local hot reload
 - [`zap`](https://github.com/uber-go/zap) for structured logging
 - [`OpenTelemetry`](https://opentelemetry.io/) SDK + [`OTLP`](https://opentelemetry.io/docs/specs/otlp/) exporters for tracing/logs

@@ -12,5 +12,5 @@ Key-value store adapters.
 
 - Add provider package (`dynamodb/`, `badger/`, etc.) implementing the same contracts.
 - Keep provider command/API usage isolated to this layer.
-- Keep business semantics explicit in contract names (for example `IdempotencyStore`), not generic "bag of key-values".
+- Keep business semantics explicit in contract names, not generic "bag of key-values".
 - Keep each concrete capability in its own store file under `*/store/` for consistent structure.

@@ -1,0 +1,16 @@
+---
+description: Keep README and documentation consistent with architecture and code
+alwaysApply: true
+---
+
+# Documentation And README Standards
+
+- Update documentation in the same change when architecture, naming, or wiring changes.
+- Prefer short, direct language; avoid repeated explanation.
+- Each package `README.md` should include:
+  - `Pattern used`
+  - `How to extend`
+- Prefer concept-first, tech-knowledge-oriented explanation over concrete file-by-file narration.
+- Use concrete names/paths from code only when an example is needed for clarity.
+- Keep examples reusable for template consumers (avoid project-specific business stories).
+- If a README statement no longer matches code, fix the README immediately.

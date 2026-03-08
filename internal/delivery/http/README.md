@@ -12,6 +12,6 @@ Echo HTTP server and handlers.
 ## How to extend
 
 - Add new feature package under `http/<feature>/`.
-- Register routes via `RegisterRoutes(...)`; choose proper route group.
+- Register routes via feature `RouteRegistrar` implementations.
 - Keep handler thin: bind/validate -> call usecase -> map response/error.
 - Do not place business rules in this package.
