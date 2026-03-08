@@ -2,14 +2,14 @@
 
 Private application code for this backend architecture template.
 
-## Core rules
+## Pattern used
 
 - Keep dependencies pointing inward: `delivery -> usecase -> repository contracts`.
 - `infra` implements contracts; inner layers never import infra packages.
 - Use constructor injection in `internal/app` only (composition root).
 - Prefer small interfaces owned by consumers (SOLID interface segregation).
 
-## How to add a new feature
+## How to extend
 
 1. Add usecase package in `internal/usecase/<feature>`.
 2. Add contracts in `internal/repository` if persistence is needed.

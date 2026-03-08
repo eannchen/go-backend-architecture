@@ -65,7 +65,7 @@ Useful commands:
 Notes:
 
 - For zsh inline migration URL, quote `DB_URL`:
-  - `make migrate-up DB_URL='postgres://postgres:postgres@localhost:5432/vocynex?sslmode=disable'`
+  - `make migrate-up DB_URL='postgres://postgres:postgres@localhost:5432/myapp?sslmode=disable'`
 - Local infra endpoints:
   - PostgreSQL: `localhost:5432`
   - Redis: `localhost:6379`
