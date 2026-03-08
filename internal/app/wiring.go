@@ -57,12 +57,12 @@ func (d wiring) buildRepositories(
 ) appRepositories {
 	accountSummaryStore := postgresstore.NewAccountSummaryStore(pool, d.tracer)
 	dbHealthStore := postgresstore.NewDBHealthStore(pool, d.tracer)
-	cachedAccountSummaryRepo := repoimplaccountsummary.NewCachedRepository(d.log, d.tracer, accountSummaryStore, accountSummaryCacheStore)
+	accountSummaryCachedStore := repoimplaccountsummary.NewAccountSummaryCachedStore(d.log, d.tracer, accountSummaryStore, accountSummaryCacheStore)
 	return appRepositories{
 		txManager:                postgres.NewTxManager(pool, d.tracer),
 		dbHealthRepo:             dbHealthStore,
 		accountSummaryRepo:       accountSummaryStore,
-		accountSummaryCachedRepo: cachedAccountSummaryRepo,
+		accountSummaryCachedRepo: accountSummaryCachedStore,
 		cacheHealthStore:         cacheHealthStore,
 		kvHealthStore:            kvHealthStore,
 	}

@@ -8,7 +8,7 @@ import (
 	"go-backend-architecture/internal/repository"
 )
 
-type CachedRepository struct {
+type AccountSummaryCachedStore struct {
 	base   repository.AccountSummaryRepository
 	cache  accountSummaryCacheStore
 	log    logger.Logger
@@ -20,8 +20,8 @@ type accountSummaryCacheStore interface {
 	SetAccountSummaryByID(ctx context.Context, id int64, item repository.AccountSummary) error
 }
 
-func NewCachedRepository(log logger.Logger, tracer observability.Tracer, base repository.AccountSummaryRepository, cache accountSummaryCacheStore) *CachedRepository {
-	return &CachedRepository{
+func NewAccountSummaryCachedStore(log logger.Logger, tracer observability.Tracer, base repository.AccountSummaryRepository, cache accountSummaryCacheStore) *AccountSummaryCachedStore {
+	return &AccountSummaryCachedStore{
 		base:   base,
 		cache:  cache,
 		log:    log,
@@ -29,8 +29,8 @@ func NewCachedRepository(log logger.Logger, tracer observability.Tracer, base re
 	}
 }
 
-func (r *CachedRepository) GetByID(ctx context.Context, id int64) (item repository.AccountSummary, err error) {
-	ctx, span := r.tracer.Start(ctx, "repository", "account_summary_cached_repository.get_by_id",
+func (r *AccountSummaryCachedStore) GetByID(ctx context.Context, id int64) (item repository.AccountSummary, err error) {
+	ctx, span := r.tracer.Start(ctx, "repository", "account_summary_cached_store.get_by_id",
 		observability.FromPairs(
 			"cache.system", "redis",
 			"cache.operation", "cache_aside",
@@ -74,8 +74,8 @@ func (r *CachedRepository) GetByID(ctx context.Context, id int64) (item reposito
 	return item, nil
 }
 
-func (r *CachedRepository) Search(ctx context.Context, filter repository.AccountSummarySearchFilter) (items []repository.AccountSummary, err error) {
-	ctx, span := r.tracer.Start(ctx, "repository", "account_summary_cached_repository.search",
+func (r *AccountSummaryCachedStore) Search(ctx context.Context, filter repository.AccountSummarySearchFilter) (items []repository.AccountSummary, err error) {
+	ctx, span := r.tracer.Start(ctx, "repository", "account_summary_cached_store.search",
 		observability.FromPairs(
 			"cache.system", "redis",
 			"cache.operation", "bypass",
@@ -88,3 +88,5 @@ func (r *CachedRepository) Search(ctx context.Context, filter repository.Account
 	// Search query shape is dynamic and can return sets, so this template keeps it on DB side.
 	return r.base.Search(ctx, filter)
 }
+
+var _ repository.AccountSummaryRepository = (*AccountSummaryCachedStore)(nil)
