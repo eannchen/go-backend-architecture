@@ -73,3 +73,18 @@ func (r *CachedRepository) GetByID(ctx context.Context, id int64) (item reposito
 
 	return item, nil
 }
+
+func (r *CachedRepository) Search(ctx context.Context, filter repository.AccountSummarySearchFilter) (items []repository.AccountSummary, err error) {
+	ctx, span := r.tracer.Start(ctx, "repository", "account_summary_cached_repository.search",
+		observability.FromPairs(
+			"cache.system", "redis",
+			"cache.operation", "bypass",
+		),
+	)
+	defer func() {
+		span.Finish(err)
+	}()
+
+	// Search query shape is dynamic and can return sets, so this template keeps it on DB side.
+	return r.base.Search(ctx, filter)
+}
