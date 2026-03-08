@@ -18,6 +18,8 @@ type request struct {
 
 type response struct {
 	Database Database `json:"database"`
+	Cache    Status   `json:"cache"`
+	KVStore  Status   `json:"kvstore"`
 }
 
 type Database struct {
@@ -25,6 +27,10 @@ type Database struct {
 	Name          string `json:"name"`
 	InRecovery    bool   `json:"in_recovery"`
 	UptimeSeconds int64  `json:"uptime_seconds"`
+}
+
+type Status struct {
+	Status string `json:"status"`
 }
 
 func NewHandler(log logger.Logger, tracer observability.Tracer, usecase usecasehealth.Usecase) *Handler {
@@ -83,6 +89,12 @@ func toResponse(result usecasehealth.Result) response {
 			Name:          result.Database.Name,
 			InRecovery:    result.Database.InRecovery,
 			UptimeSeconds: result.Database.UptimeSeconds,
+		},
+		Cache: Status{
+			Status: result.Cache.Status,
+		},
+		KVStore: Status{
+			Status: result.KVStore.Status,
 		},
 	}
 }

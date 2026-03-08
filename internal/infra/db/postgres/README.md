@@ -7,7 +7,7 @@ PostgreSQL-specific implementations.
 - Infrastructure adapter package for PostgreSQL only.
 - `connection.go` handles `pgx` pool lifecycle.
 - `tx_manager.go` owns transaction boundaries for usecases.
-- `store` implements repository contracts with `sqlc` (static SQL) + `Squirrel` (dynamic SQL).
+- `store` implements repository contracts with `sqlc` (static SQL).
 
 ## How to extend
 

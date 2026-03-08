@@ -8,8 +8,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type SystemRuntimeKv struct {
-	Key       string
-	Value     string
-	UpdatedAt pgtype.Timestamptz
+type AccountSummary struct {
+	ID          int64
+	Email       string
+	DisplayName string
+	Plan        string
+	Status      string
+	UpdatedAt   pgtype.Timestamptz
 }

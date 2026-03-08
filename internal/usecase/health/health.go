@@ -12,6 +12,8 @@ import (
 
 type Result struct {
 	Database Database
+	Cache    Dependency
+	KVStore  Dependency
 }
 
 type Database struct {
@@ -21,6 +23,10 @@ type Database struct {
 	UptimeSeconds int64
 }
 
+type Dependency struct {
+	Status string
+}
+
 type Usecase interface {
 	Check(ctx context.Context, mode CheckMode) (Result, error)
 }
@@ -28,16 +34,24 @@ type Usecase interface {
 type impl struct {
 	logger      logger.Logger
 	tracer      observability.Tracer
-	txManager   repository.TxManager
-	runtimeRepo repository.RuntimeRepository
+	dbHealth    repository.DBHealthRepository
+	cacheHealth repository.CacheHealthStore
+	kvHealth    repository.KVHealthStore
 }
 
-func New(log logger.Logger, tracer observability.Tracer, runtimeRepo repository.RuntimeRepository, txManager repository.TxManager) Usecase {
+func New(
+	log logger.Logger,
+	tracer observability.Tracer,
+	dbHealth repository.DBHealthRepository,
+	cacheHealth repository.CacheHealthStore,
+	kvHealth repository.KVHealthStore,
+) Usecase {
 	return &impl{
 		logger:      log,
 		tracer:      tracer,
-		txManager:   txManager,
-		runtimeRepo: runtimeRepo,
+		dbHealth:    dbHealth,
+		cacheHealth: cacheHealth,
+		kvHealth:    kvHealth,
 	}
 }
 
@@ -58,18 +72,24 @@ func (u *impl) Check(ctx context.Context, mode CheckMode) (result Result, err er
 		Database: Database{
 			Status: "skipped",
 		},
+		Cache: Dependency{
+			Status: "skipped",
+		},
+		KVStore: Dependency{
+			Status: "skipped",
+		},
 	}
 
 	if mode == CheckModeLive {
 		return result, nil
 	}
 
-	if err := u.runtimeRepo.Ping(ctx); err != nil {
+	if err := u.dbHealth.Ping(ctx); err != nil {
 		result.Database.Status = "down"
 		return result, apperr.Wrap(err, apperr.CodeUnavailable, "database readiness failed")
 	}
 
-	serverStatus, err := u.runtimeRepo.GetServerStatus(ctx)
+	serverStatus, err := u.dbHealth.GetServerStatus(ctx)
 	if err != nil {
 		result.Database.Status = "down"
 		return result, apperr.Wrap(err, apperr.CodeUnavailable, "database server status query failed")
@@ -79,6 +99,18 @@ func (u *impl) Check(ctx context.Context, mode CheckMode) (result Result, err er
 	result.Database.Name = serverStatus.DatabaseName
 	result.Database.InRecovery = serverStatus.InRecovery
 	result.Database.UptimeSeconds = serverStatus.UptimeSeconds
+
+	if err := u.cacheHealth.Ping(ctx); err != nil {
+		result.Cache.Status = "down"
+		return result, apperr.Wrap(err, apperr.CodeUnavailable, "cache readiness failed")
+	}
+	result.Cache.Status = "up"
+
+	if err := u.kvHealth.Ping(ctx); err != nil {
+		result.KVStore.Status = "down"
+		return result, apperr.Wrap(err, apperr.CodeUnavailable, "kv readiness failed")
+	}
+	result.KVStore.Status = "up"
 
 	return result, nil
 }

@@ -5,11 +5,14 @@ import (
 
 	httpdelivery "go-backend-architecture/internal/delivery/http"
 	healthhttp "go-backend-architecture/internal/delivery/http/health"
+	rediscachestore "go-backend-architecture/internal/infra/cache/redis/store"
 	"go-backend-architecture/internal/infra/config"
 	"go-backend-architecture/internal/infra/db/postgres"
 	postgresstore "go-backend-architecture/internal/infra/db/postgres/store"
+	rediskvstore "go-backend-architecture/internal/infra/kvstore/redis/store"
 	"go-backend-architecture/internal/infra/logger"
 	"go-backend-architecture/internal/infra/observability"
+	repoimplaccountsummary "go-backend-architecture/internal/infra/repoimpl/accountsummary"
 	"go-backend-architecture/internal/repository"
 	usecasehealth "go-backend-architecture/internal/usecase/health"
 )
@@ -22,8 +25,12 @@ type wiring struct {
 }
 
 type appRepositories struct {
-	runtimeRepo repository.RuntimeRepository
-	txManager   repository.TxManager
+	dbHealthRepo             repository.DBHealthRepository
+	accountSummaryRepo       repository.AccountSummaryRepository
+	accountSummaryCachedRepo repository.AccountSummaryRepository
+	txManager                repository.TxManager
+	cacheHealthStore         repository.CacheHealthStore
+	kvHealthStore            repository.KVHealthStore
 }
 
 type appUsecases struct {
@@ -42,16 +49,28 @@ func newWiring(cfg config.Config, log logger.Logger, tracer observability.Tracer
 	}
 }
 
-func (d wiring) buildRepositories(pool *pgxpool.Pool) appRepositories {
+func (d wiring) buildRepositories(
+	pool *pgxpool.Pool,
+	accountSummaryCacheStore *rediscachestore.AccountSummaryStore,
+	cacheHealthStore *rediscachestore.HealthStore,
+	kvHealthStore *rediskvstore.HealthStore,
+) appRepositories {
+	accountSummaryStore := postgresstore.NewAccountSummaryStore(pool, d.tracer)
+	dbHealthStore := postgresstore.NewDBHealthStore(pool, d.tracer)
+	cachedAccountSummaryRepo := repoimplaccountsummary.NewCachedRepository(d.log, d.tracer, accountSummaryStore, accountSummaryCacheStore)
 	return appRepositories{
-		txManager:   postgres.NewTxManager(pool, d.tracer),
-		runtimeRepo: postgresstore.NewRuntimeRepository(pool, d.tracer),
+		txManager:                postgres.NewTxManager(pool, d.tracer),
+		dbHealthRepo:             dbHealthStore,
+		accountSummaryRepo:       accountSummaryStore,
+		accountSummaryCachedRepo: cachedAccountSummaryRepo,
+		cacheHealthStore:         cacheHealthStore,
+		kvHealthStore:            kvHealthStore,
 	}
 }
 
 func (d wiring) buildUsecases(repos appRepositories) appUsecases {
 	return appUsecases{
-		health: usecasehealth.New(d.log, d.tracer, repos.runtimeRepo, repos.txManager),
+		health: usecasehealth.New(d.log, d.tracer, repos.dbHealthRepo, repos.cacheHealthStore, repos.kvHealthStore),
 	}
 }
 

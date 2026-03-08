@@ -48,18 +48,18 @@ func (m *TxManager) WithTx(ctx context.Context, fn repository.TxFunc) error {
 }
 
 type txRepositories struct {
-	tx      pgx.Tx
-	tracer  observability.Tracer
-	runtime repository.RuntimeRepository
+	tx             pgx.Tx
+	tracer         observability.Tracer
+	accountSummary repository.AccountSummaryRepository
 }
 
 func newTxRepositories(tx pgx.Tx, tracer observability.Tracer) *txRepositories {
 	return &txRepositories{tx: tx, tracer: tracer}
 }
 
-func (r *txRepositories) Runtime() repository.RuntimeRepository {
-	if r.runtime == nil {
-		r.runtime = postgresstore.NewRuntimeRepository(r.tx, r.tracer)
+func (r *txRepositories) AccountSummary() repository.AccountSummaryRepository {
+	if r.accountSummary == nil {
+		r.accountSummary = postgresstore.NewAccountSummaryStore(r.tx, r.tracer)
 	}
-	return r.runtime
+	return r.accountSummary
 }

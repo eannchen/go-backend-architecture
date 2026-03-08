@@ -3,4 +3,5 @@
 PostgreSQL-backed store implementations for repository contracts.
 
 - Implements interfaces from `internal/repository`.
-- Can mix `sqlc` static queries and `Squirrel` dynamic queries.
+- Current template example: account summary read model + DB health checks.
+- Prefer `sqlc` static queries for predictability and reviewability.

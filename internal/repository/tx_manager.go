@@ -6,7 +6,7 @@ import "context"
 //
 // As more repositories are added, expose them here (User(), Order(), etc.).
 type TxRepository interface {
-	Runtime() RuntimeRepository
+	AccountSummary() AccountSummaryRepository
 }
 
 type TxFunc func(ctx context.Context, repos TxRepository) error

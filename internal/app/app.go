@@ -6,20 +6,25 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	goredis "github.com/redis/go-redis/v9"
 
 	httpDelivery "go-backend-architecture/internal/delivery/http"
+	rediscachestore "go-backend-architecture/internal/infra/cache/redis/store"
 	"go-backend-architecture/internal/infra/config"
 	"go-backend-architecture/internal/infra/db/postgres"
+	rediskvstore "go-backend-architecture/internal/infra/kvstore/redis/store"
 	"go-backend-architecture/internal/infra/logger"
 	zaplogger "go-backend-architecture/internal/infra/logger/zap"
 	"go-backend-architecture/internal/infra/observability"
 	otelobs "go-backend-architecture/internal/infra/observability/otel"
+	"go-backend-architecture/internal/infra/redisconn"
 )
 
 type App struct {
 	Config        config.Config
 	Logger        logger.Logger
 	DBPool        *pgxpool.Pool
+	RedisClient   *goredis.Client
 	Server        *httpDelivery.Server
 	Observability observability.Runtime
 }
@@ -55,14 +60,20 @@ func New(ctx context.Context) (*App, error) {
 		)
 	}
 
+	redisClient := redisconn.NewClient(cfg.Redis)
+	accountSummaryCacheStore := rediscachestore.NewAccountSummaryStore(redisClient, cfg.Redis.CacheTTL)
+	cacheHealthStore := rediscachestore.NewHealthStore(redisClient)
+	kvHealthStore := rediskvstore.NewHealthStore(redisClient)
+
 	wiring := newWiring(cfg, log, tracer)
-	repositories := wiring.buildRepositories(pool)
+	repositories := wiring.buildRepositories(pool, accountSummaryCacheStore, cacheHealthStore, kvHealthStore)
 	usecases := wiring.buildUsecases(repositories)
 	handlers := wiring.buildHandlers(usecases)
 	server, err := wiring.buildServer(handlers)
 	if err != nil {
 		return nil, joinInitErrors(
 			err,
+			stepErr("close redis client after server init failure", closeRedisWithError(ctx, redisClient)),
 			stepErr("close db pool after server init failure", closePoolWithError(ctx, pool)),
 			stepErr("shutdown observability after server init failure", otelRuntime.Shutdown(ctx)),
 			stepErr("sync logger after server init failure", log.Sync()),
@@ -73,6 +84,7 @@ func New(ctx context.Context) (*App, error) {
 		Config:        cfg,
 		Logger:        log,
 		DBPool:        pool,
+		RedisClient:   redisClient,
 		Server:        server,
 		Observability: otelRuntime,
 	}, nil
@@ -90,6 +102,9 @@ func (a *App) Shutdown(ctx context.Context) error {
 	}
 
 	postgres.ClosePool(ctx, a.DBPool, a.Logger)
+	if err := closeRedisWithError(ctx, a.RedisClient); err != nil {
+		shutdownErr = errors.Join(shutdownErr, err)
+	}
 
 	if a.Observability != nil {
 		if err := a.Observability.Shutdown(ctx); err != nil {
@@ -124,4 +139,11 @@ func closePoolWithError(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	pool.Close()
 	return nil
+}
+
+func closeRedisWithError(ctx context.Context, client *goredis.Client) error {
+	if client == nil {
+		return nil
+	}
+	return client.Close()
 }
