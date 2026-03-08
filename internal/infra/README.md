@@ -1,6 +1,15 @@
 # internal/infra
 
-Infrastructure implementations.
+Infrastructure adapters and external integrations.
 
-- Hosts adapters for DB, cache, config, logging, and observability.
-- Implements interfaces declared in inner layers.
+## Pattern used
+
+- Adapter pattern: implement inner-layer contracts.
+- Keep package boundaries explicit (`db`, `logger`, `observability`, etc.).
+- Hide vendor-specific code behind project contracts.
+
+## How to extend
+
+- Add a new subpackage per infrastructure concern.
+- Keep constructors explicit and injectable.
+- Expose only contract-friendly types to outer packages.

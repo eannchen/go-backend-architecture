@@ -1,6 +1,15 @@
 # internal/infra/observability
 
-Observability integration points.
+Observability contracts and OTel implementation.
 
-- Placeholder for OpenTelemetry tracer/meter setup.
-- Provides context helpers now so logging/tracing hooks can evolve safely.
+## Pattern used
+
+- Contract + implementation split (`observability` vs `observability/otel`).
+- `Tracer` and `LogEmitter` are framework-agnostic interfaces.
+- Context helpers carry request/trace correlation across layers.
+
+## How to extend
+
+- Add new telemetry capabilities behind contracts first.
+- Keep OTel/vendor details inside `otel/`.
+- Ensure shutdown and startup errors are propagated to app wiring.

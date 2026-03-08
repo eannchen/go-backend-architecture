@@ -2,5 +2,14 @@
 
 Dynamic SQL builder setup.
 
-- Provides Squirrel configuration for PostgreSQL placeholders.
-- Used when query shape changes at runtime.
+## Pattern used
+
+- Builder pattern for dynamic SQL construction.
+- Centralizes shared `Squirrel` configuration (placeholder format, defaults).
+- Used by repositories when query shape is conditional at runtime.
+
+## How to extend
+
+- Add reusable builder helpers here (sorting/filter/paging snippets).
+- Keep generated/static SQL (`sqlc`) out of this package.
+- Do not add business logic here; this package is SQL-shape utilities only.

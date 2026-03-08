@@ -2,5 +2,14 @@
 
 Transport-level middleware.
 
-- Adds cross-cutting request behavior like context propagation and request metadata.
-- Must not implement domain decisions.
+## Pattern used
+
+- Chain of responsibility for cross-cutting transport concerns.
+- Handles request context enrichment, tracing boundaries, and generic request policies.
+- Must stay transport-focused and domain-agnostic.
+
+## How to extend
+
+- Add middleware only for cross-cutting behavior (auth, tracing, rate limit, request-id).
+- Keep middleware reusable and configurable through constructor params.
+- Avoid business decisions or repository/usecase calls inside middleware.

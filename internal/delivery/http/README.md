@@ -2,5 +2,16 @@
 
 Echo HTTP server and handlers.
 
-- Owns route registration and HTTP response shaping.
-- Should delegate logic to usecases/services.
+## Pattern used
+
+- Adapter pattern from HTTP transport to usecase calls.
+- `server.go` owns Echo setup, global middleware, and route registration flow.
+- Feature handlers live under `http/<feature>/` and implement `RouteRegistrar`.
+- Response mapping and validation stay in delivery layer.
+
+## How to extend
+
+- Add new feature package under `http/<feature>/`.
+- Register routes via `RegisterRoutes(...)`; choose proper route group.
+- Keep handler thin: bind/validate -> call usecase -> map response/error.
+- Do not place business rules in this package.
