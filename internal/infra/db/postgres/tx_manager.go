@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"go-backend-architecture/internal/infra/db/postgres/repos"
+	postgresstore "go-backend-architecture/internal/infra/db/postgres/store"
 	"go-backend-architecture/internal/infra/observability"
 	"go-backend-architecture/internal/repository"
 )
@@ -59,7 +59,7 @@ func newTxRepositories(tx pgx.Tx, tracer observability.Tracer) *txRepositories {
 
 func (r *txRepositories) Runtime() repository.RuntimeRepository {
 	if r.runtime == nil {
-		r.runtime = repos.NewRuntimeRepository(r.tx, r.tracer)
+		r.runtime = postgresstore.NewRuntimeRepository(r.tx, r.tracer)
 	}
 	return r.runtime
 }

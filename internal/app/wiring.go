@@ -7,7 +7,7 @@ import (
 	healthhttp "go-backend-architecture/internal/delivery/http/health"
 	"go-backend-architecture/internal/infra/config"
 	"go-backend-architecture/internal/infra/db/postgres"
-	"go-backend-architecture/internal/infra/db/postgres/repos"
+	postgresstore "go-backend-architecture/internal/infra/db/postgres/store"
 	"go-backend-architecture/internal/infra/logger"
 	"go-backend-architecture/internal/infra/observability"
 	"go-backend-architecture/internal/repository"
@@ -45,7 +45,7 @@ func newWiring(cfg config.Config, log logger.Logger, tracer observability.Tracer
 func (d wiring) buildRepositories(pool *pgxpool.Pool) appRepositories {
 	return appRepositories{
 		txManager:   postgres.NewTxManager(pool, d.tracer),
-		runtimeRepo: repos.NewRuntimeRepository(pool, d.tracer),
+		runtimeRepo: postgresstore.NewRuntimeRepository(pool, d.tracer),
 	}
 }
 

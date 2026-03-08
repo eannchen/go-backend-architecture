@@ -14,6 +14,7 @@ type Config struct {
 	ServiceName string
 	HTTP        HTTPConfig
 	DB          DBConfig
+	Redis       RedisConfig
 	OTel        OTelConfig
 	Log         LogConfig
 	Shutdown    ShutdownConfig
@@ -34,6 +35,16 @@ type DBConfig struct {
 	MaxConnIdleTime   time.Duration
 	HealthCheckPeriod time.Duration
 	ConnectTimeout    time.Duration
+}
+
+type RedisConfig struct {
+	Addr         string
+	Password     string
+	DB           int
+	DialTimeout  time.Duration
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
+	CacheTTL     time.Duration
 }
 
 type LogConfig struct {
@@ -74,6 +85,15 @@ func Load() (Config, error) {
 			HealthCheckPeriod: getDuration("DB_HEALTH_CHECK_PERIOD", time.Minute),
 			ConnectTimeout:    getDuration("DB_CONNECT_TIMEOUT", 5*time.Second),
 		},
+		Redis: RedisConfig{
+			Addr:         getEnv("REDIS_ADDR", "localhost:6379"),
+			Password:     getEnv("REDIS_PASSWORD", ""),
+			DB:           getInt("REDIS_DB", 0),
+			DialTimeout:  getDuration("REDIS_DIAL_TIMEOUT", 3*time.Second),
+			ReadTimeout:  getDuration("REDIS_READ_TIMEOUT", 2*time.Second),
+			WriteTimeout: getDuration("REDIS_WRITE_TIMEOUT", 2*time.Second),
+			CacheTTL:     getDuration("REDIS_CACHE_TTL", 2*time.Minute),
+		},
 		OTel: OTelConfig{
 			Enabled:            getBool("OTEL_ENABLED", true),
 			ExporterEndpoint:   getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"),
@@ -95,6 +115,15 @@ func Load() (Config, error) {
 	}
 	if cfg.DB.MinConns < 0 || cfg.DB.MaxConns < 1 || cfg.DB.MinConns > cfg.DB.MaxConns {
 		return Config{}, fmt.Errorf("invalid DB pool configuration: min=%d max=%d", cfg.DB.MinConns, cfg.DB.MaxConns)
+	}
+	if cfg.Redis.Addr == "" {
+		return Config{}, fmt.Errorf("REDIS_ADDR must not be empty")
+	}
+	if cfg.Redis.DB < 0 {
+		return Config{}, fmt.Errorf("REDIS_DB must be >= 0")
+	}
+	if cfg.Redis.CacheTTL <= 0 {
+		return Config{}, fmt.Errorf("REDIS_CACHE_TTL must be > 0")
 	}
 	if cfg.HTTP.Address == "" {
 		return Config{}, fmt.Errorf("HTTP_ADDRESS must not be empty")
