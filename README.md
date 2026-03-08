@@ -1,6 +1,6 @@
 # go-backend-architecture
 
-Go backend architecture template for building modular, maintainable APIs quickly.
+Go modular-monolith backend architecture template for clean, testable, observability-ready APIs.
 
 ## Purpose
 
@@ -8,32 +8,6 @@ Go backend architecture template for building modular, maintainable APIs quickly
 - Keep business logic isolated from frameworks and vendors.
 - Offer production-ready foundations: HTTP, DB, migrations, tracing, and structured logging.
 - Serve as a base repo to clone for new app projects.
-
-## Setup and Run
-
-1. Copy environment file: `cp .env.example .env`
-2. Install tools (one-time): `make install`
-3. Start local infra: `make dev-up`
-4. Run migrations: `make migrate-up`
-5. Start API with live reload: `make run`
-6. Check health endpoint: `GET /health?check=ready`
-
-Useful commands:
-
-- Tail infra logs: `make dev-logs`
-- Stop infra: `make dev-down`
-- Check migration status: `make migrate-status`
-- Stop stale API process on `:8080`: `make run-stop`
-
-Notes:
-
-- For zsh inline migration URL, quote `DB_URL`:
-  - `make migrate-up DB_URL='postgres://postgres:postgres@localhost:5432/vocynex?sslmode=disable'`
-- Local infra endpoints:
-  - PostgreSQL: `localhost:5432`
-  - Redis: `localhost:6379`
-  - OTel Collector: `localhost:4317` (gRPC), `localhost:4318` (HTTP)
-  - HyperDX UI: `http://localhost:8081`
 
 ## Architecture and Principles Used
 
@@ -69,3 +43,29 @@ Why no ORM:
   - `sqlc` generated typed mappings to reduce runtime schema/query mismatch risk.
   - `squirrel` composable dynamic SQL to avoid fragile string concatenation.
   - clean architecture + repository boundaries to keep SQL isolated in infra adapters and usecases storage-agnostic.
+
+## Setup and Run
+
+1. Copy environment file: `cp .env.example .env`
+2. Install tools (one-time): `make install`
+3. Start local infra: `make dev-up`
+4. Run migrations: `make migrate-up`
+5. Start API with live reload: `make run`
+6. Check health endpoint: `GET /health?check=ready`
+
+Useful commands:
+
+- Tail infra logs: `make dev-logs`
+- Stop infra: `make dev-down`
+- Check migration status: `make migrate-status`
+- Stop stale API process on `:8080`: `make run-stop`
+
+Notes:
+
+- For zsh inline migration URL, quote `DB_URL`:
+  - `make migrate-up DB_URL='postgres://postgres:postgres@localhost:5432/vocynex?sslmode=disable'`
+- Local infra endpoints:
+  - PostgreSQL: `localhost:5432`
+  - Redis: `localhost:6379`
+  - OTel Collector: `localhost:4317` (gRPC), `localhost:4318` (HTTP)
+  - HyperDX UI: `http://localhost:8081`
