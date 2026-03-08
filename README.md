@@ -37,27 +37,35 @@ Notes:
 
 ## Architecture and Principles Used
 
-- Clean Architecture
-- Dependency Injection (constructor-based composition root)
-- SOLID principles
-- Consumer-owned interfaces
-- Adapter pattern
-- Repository pattern
-- Facade pattern
-- Builder pattern
-- Middleware pattern
+- [Clean Architecture](https://8thlight.com/insights/uncle-bob/2012/08/13/the-clean-architecture.html)
+- [Dependency Injection](https://martinfowler.com/articles/injection.html) (constructor-based composition root)
+- [SOLID principles](https://en.wikipedia.org/wiki/SOLID)
+- [Consumer-owned interfaces](https://go.dev/doc/effective_go#interfaces_and_types)
+- [Adapter pattern](https://refactoring.guru/design-patterns/adapter)
+- [Repository pattern](https://martinfowler.com/eaaCatalog/repository.html)
+- [Facade pattern](https://refactoring.guru/design-patterns/facade)
+- [Builder pattern](https://refactoring.guru/design-patterns/builder)
+- [Middleware pattern](https://www.alexedwards.net/blog/making-and-using-middleware)
 
 See inner `README.md` files and `.cursor/rules/` for implementation guidance.
 
 ## Third-Party Tools Used
 
-- `echo/v5` for HTTP server
-- `pgx/v5` for PostgreSQL driver and pool
-- `sqlc` for static SQL query generation
-- `Masterminds/squirrel` for dynamic SQL building
-- `pressly/goose` for DB migrations
-- `air` for local hot reload
-- `zap` for structured logging
-- OpenTelemetry SDK + OTLP exporters for tracing/logs
-- Docker Compose for local infra orchestration
-- HyperDX + OTel Collector for local observability
+- [`Echo v5`](https://github.com/labstack/echo) for HTTP server
+- [`pgx/v5`](https://github.com/jackc/pgx) for PostgreSQL driver and pool
+- [`sqlc`](https://sqlc.dev/) for static SQL query generation
+- [`Masterminds/squirrel`](https://github.com/Masterminds/squirrel) for dynamic SQL building
+- [`pressly/goose`](https://github.com/pressly/goose) for DB migrations
+- [`air`](https://github.com/air-verse/air) for local hot reload
+- [`zap`](https://github.com/uber-go/zap) for structured logging
+- [`OpenTelemetry`](https://opentelemetry.io/) SDK + [`OTLP`](https://opentelemetry.io/docs/specs/otlp/) exporters for tracing/logs
+- [`HyperDX`](https://www.hyperdx.io/) + [`OpenTelemetry Collector`](https://opentelemetry.io/docs/collector/) for local observability
+- [`Docker Compose`](https://docs.docker.com/compose/) for local infra orchestration
+
+Why no ORM:
+
+- Raw SQL with [`sqlc`](https://sqlc.dev/) + [`squirrel`](https://github.com/Masterminds/squirrel) gives clear query control, predictable performance tuning, and compile-time type safety.
+- Common downsides are handled by:
+  - `sqlc` generated typed mappings to reduce runtime schema/query mismatch risk.
+  - `squirrel` composable dynamic SQL to avoid fragile string concatenation.
+  - clean architecture + repository boundaries to keep SQL isolated in infra adapters and usecases storage-agnostic.

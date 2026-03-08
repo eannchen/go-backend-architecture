@@ -33,4 +33,6 @@ volumes/
 
 # Editor/IDE
 # .idea/
-# .vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
