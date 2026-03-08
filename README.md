@@ -1,82 +1,63 @@
-# vocynex-api
+# go-backend-architecture
 
-Backend scaffold for a modular-monolith API using:
+Go backend architecture template for building modular, maintainable APIs quickly.
 
-- Go + Echo v5
-- PostgreSQL (`pgx/v5`)
-- `sqlc` for static queries
-- Squirrel for dynamic queries
-- goose for migrations
-- Manual dependency injection (constructor composition)
-- Clean Architecture layering
+## Purpose
 
-## Quick start
+- Provide a reusable backend starter that follows clean architecture.
+- Keep business logic isolated from frameworks and vendors.
+- Offer production-ready foundations: HTTP, DB, migrations, tracing, and structured logging.
+- Serve as a base repo to clone for new app projects.
 
-1. Copy env file: `cp .env.example .env`
-2. Start local infra: `make dev-up`
-3. Run migrations: `make migrate-up`
-4. Install dev tools (one-time): `make install`
-5. Start server (Air live reload): `make run`
-6. Health check: `GET /healthz?check=ready`
+## Setup and Run
 
-## Local development (Docker + Air)
-
-Infra services in `docker-compose.yml`:
-
-- PostgreSQL: `localhost:5432`
-- Redis: `localhost:6379`
-- OTel Collector: `localhost:4317` (gRPC), `localhost:4318` (HTTP)
-- HyperDX UI: `http://localhost:8081`
-- HyperDX ClickHouse HTTP: `http://localhost:8123`
-- HyperDX local data is persisted under `./volumes/hyperdx/`
-
-Health check modes:
-
-- `GET /healthz?check=live`: process is up (no dependency check).
-- `GET /healthz?check=ready`: DB connectivity check (`SELECT 1`).
-- `GET /healthz?check=full`: readiness + DB server status query + transactional DB ping.
-
-Recommended flow:
-
-1. `cp .env.example .env`
-2. `make dev-up`
-3. `make migrate-up`
-4. `make install` (one-time)
-5. `make run`
+1. Copy environment file: `cp .env.example .env`
+2. Install tools (one-time): `make install`
+3. Start local infra: `make dev-up`
+4. Run migrations: `make migrate-up`
+5. Start API with live reload: `make run`
+6. Check health endpoint: `GET /health?check=ready`
 
 Useful commands:
 
 - Tail infra logs: `make dev-logs`
 - Stop infra: `make dev-down`
-- Migration status: `make migrate-status`
-- Start API with Air: `make run`
-- Stop stale local API on `:8080`: `make run-stop`
+- Check migration status: `make migrate-status`
+- Stop stale API process on `:8080`: `make run-stop`
 
-## Migration note (zsh)
+Notes:
 
-If you pass `DB_URL` inline in zsh, quote it because of `?sslmode=...`:
+- For zsh inline migration URL, quote `DB_URL`:
+  - `make migrate-up DB_URL='postgres://postgres:postgres@localhost:5432/vocynex?sslmode=disable'`
+- Local infra endpoints:
+  - PostgreSQL: `localhost:5432`
+  - Redis: `localhost:6379`
+  - OTel Collector: `localhost:4317` (gRPC), `localhost:4318` (HTTP)
+  - HyperDX UI: `http://localhost:8081`
 
-`make migrate-up DB_URL='postgres://postgres:postgres@localhost:5432/vocynex?sslmode=disable'`
+## Architecture and Principles Used
 
-Without quoting, zsh may treat `?` as a wildcard.
+- Clean Architecture
+- Dependency Injection (constructor-based composition root)
+- SOLID principles
+- Consumer-owned interfaces
+- Adapter pattern
+- Repository pattern
+- Facade pattern
+- Builder pattern
+- Middleware pattern
 
-## Local observability config
+See inner `README.md` files and `.cursor/rules/` for implementation guidance.
 
-- OTel Collector config file is at project root: `otel-collector.yaml`
-- Compose mounts it into the collector container at `/etc/otel-collector/config.yaml`
-- API OTel environment defaults are in `.env.example`
-- `OTEL_EXPORTER_OTLP_ENDPOINT` is the single default endpoint; traces/logs paths are auto-derived (`/v1/traces`, `/v1/logs`).
-- Use `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` and `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` only when custom per-signal endpoints are needed.
-- `OTEL_LOG_LEVEL` controls minimum level exported to OTel logs (`LOG_LEVEL` still controls terminal output).
-- HTTP requests (including `GET /healthz`) are traced via Echo middleware and exported to OTLP endpoint.
+## Third-Party Tools Used
 
-## Layout
-
-- `cmd/api`: process entrypoint and lifecycle.
-- `internal/domain`: pure domain models (infra-free).
-- `internal/usecase`: application orchestration.
-- `internal/repository`: repository interfaces only.
-- `internal/service`: domain services.
-- `internal/infra`: adapters (config/logger/db/cache/observability).
-- `internal/delivery`: HTTP handlers and middleware.
-- `pkg`: optional public reusable packages.
+- `echo/v5` for HTTP server
+- `pgx/v5` for PostgreSQL driver and pool
+- `sqlc` for static SQL query generation
+- `Masterminds/squirrel` for dynamic SQL building
+- `pressly/goose` for DB migrations
+- `air` for local hot reload
+- `zap` for structured logging
+- OpenTelemetry SDK + OTLP exporters for tracing/logs
+- Docker Compose for local infra orchestration
+- HyperDX + OTel Collector for local observability

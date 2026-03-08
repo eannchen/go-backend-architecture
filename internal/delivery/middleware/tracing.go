@@ -6,7 +6,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	"vocynex-api/internal/infra/observability"
+	"go-backend-architecture/internal/infra/observability"
 )
 
 func Tracing(tracer observability.Tracer) echo.MiddlewareFunc {

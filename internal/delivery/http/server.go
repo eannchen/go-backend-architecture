@@ -9,10 +9,10 @@ import (
 	"github.com/labstack/echo/v5"
 	echoMiddleware "github.com/labstack/echo/v5/middleware"
 
-	"vocynex-api/internal/delivery/middleware"
-	"vocynex-api/internal/infra/config"
-	"vocynex-api/internal/infra/logger"
-	"vocynex-api/internal/infra/observability"
+	"go-backend-architecture/internal/delivery/middleware"
+	"go-backend-architecture/internal/infra/config"
+	"go-backend-architecture/internal/infra/logger"
+	"go-backend-architecture/internal/infra/observability"
 )
 
 type Server struct {

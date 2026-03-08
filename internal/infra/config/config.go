@@ -58,7 +58,7 @@ type ShutdownConfig struct {
 func Load() (Config, error) {
 	cfg := Config{
 		AppEnv:      getEnv("APP_ENV", "local"),
-		ServiceName: getEnv("SERVICE_NAME", getEnv("SERVICE_NAME", "vocynex-api")),
+		ServiceName: getEnv("SERVICE_NAME", getEnv("SERVICE_NAME", "go-backend-architecture")),
 		HTTP: HTTPConfig{
 			Address:      getEnv("HTTP_ADDRESS", ":8080"),
 			ReadTimeout:  getDuration("HTTP_READ_TIMEOUT", 10*time.Second),

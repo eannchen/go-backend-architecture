@@ -5,7 +5,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	"vocynex-api/internal/apperr"
+	"go-backend-architecture/internal/apperr"
 )
 
 const (

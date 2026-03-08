@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"vocynex-api/internal/app"
-	"vocynex-api/internal/infra/logger"
+	"go-backend-architecture/internal/app"
+	"go-backend-architecture/internal/infra/logger"
 )
 
 func main() {

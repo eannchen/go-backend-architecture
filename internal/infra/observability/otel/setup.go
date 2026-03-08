@@ -13,8 +13,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
-	"vocynex-api/internal/infra/config"
-	"vocynex-api/internal/infra/observability"
+	"go-backend-architecture/internal/infra/config"
+	"go-backend-architecture/internal/infra/observability"
 )
 
 // otelRuntime is a lifecycle manager for OTel providers.

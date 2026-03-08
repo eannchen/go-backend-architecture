@@ -4,8 +4,8 @@ import (
 	"context"
 	"maps"
 
-	"vocynex-api/internal/infra/logger"
-	"vocynex-api/internal/infra/observability"
+	"go-backend-architecture/internal/infra/logger"
+	"go-backend-architecture/internal/infra/observability"
 )
 
 func logEmitterToLogSink(emitter observability.LogEmitter) logger.LogSinkFunc {

@@ -7,9 +7,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"vocynex-api/internal/infra/db/postgres/repos"
-	"vocynex-api/internal/infra/observability"
-	"vocynex-api/internal/repository"
+	"go-backend-architecture/internal/infra/db/postgres/repos"
+	"go-backend-architecture/internal/infra/observability"
+	"go-backend-architecture/internal/repository"
 )
 
 type TxManager struct {

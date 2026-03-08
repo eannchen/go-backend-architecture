@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"vocynex-api/internal/infra/observability"
+	"go-backend-architecture/internal/infra/observability"
 )
 
 type tracer struct {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
-	"vocynex-api/internal/infra/observability"
+	"go-backend-architecture/internal/infra/observability"
 
 	otellog "go.opentelemetry.io/otel/log"
 	sdklog "go.opentelemetry.io/otel/sdk/log"

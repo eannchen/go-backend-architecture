@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"vocynex-api/internal/infra/db/builder"
-	dbsqlc "vocynex-api/internal/infra/db/postgres/sqlc/gen"
-	"vocynex-api/internal/infra/observability"
-	"vocynex-api/internal/repository"
+	"go-backend-architecture/internal/infra/db/builder"
+	dbsqlc "go-backend-architecture/internal/infra/db/postgres/sqlc/gen"
+	"go-backend-architecture/internal/infra/observability"
+	"go-backend-architecture/internal/repository"
 )
 
 type RuntimeRepository struct {

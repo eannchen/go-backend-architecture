@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"vocynex-api/internal/apperr"
-	"vocynex-api/internal/infra/logger"
-	"vocynex-api/internal/infra/observability"
-	"vocynex-api/internal/repository"
+	"go-backend-architecture/internal/apperr"
+	"go-backend-architecture/internal/infra/logger"
+	"go-backend-architecture/internal/infra/observability"
+	"go-backend-architecture/internal/repository"
 )
 
 type Result struct {

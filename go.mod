@@ -1,4 +1,4 @@
-module vocynex-api
+module go-backend-architecture
 
 go 1.25.0
 

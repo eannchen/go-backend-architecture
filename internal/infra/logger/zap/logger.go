@@ -8,8 +8,8 @@ import (
 	uzap "go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"vocynex-api/internal/infra/config"
-	"vocynex-api/internal/infra/logger"
+	"go-backend-architecture/internal/infra/config"
+	"go-backend-architecture/internal/infra/logger"
 )
 
 type impl struct {

@@ -7,13 +7,13 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	httpDelivery "vocynex-api/internal/delivery/http"
-	"vocynex-api/internal/infra/config"
-	"vocynex-api/internal/infra/db/postgres"
-	"vocynex-api/internal/infra/logger"
-	zaplogger "vocynex-api/internal/infra/logger/zap"
-	"vocynex-api/internal/infra/observability"
-	otelobs "vocynex-api/internal/infra/observability/otel"
+	httpDelivery "go-backend-architecture/internal/delivery/http"
+	"go-backend-architecture/internal/infra/config"
+	"go-backend-architecture/internal/infra/db/postgres"
+	"go-backend-architecture/internal/infra/logger"
+	zaplogger "go-backend-architecture/internal/infra/logger/zap"
+	"go-backend-architecture/internal/infra/observability"
+	otelobs "go-backend-architecture/internal/infra/observability/otel"
 )
 
 type App struct {

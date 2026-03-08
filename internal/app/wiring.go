@@ -3,15 +3,15 @@ package app
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	httpdelivery "vocynex-api/internal/delivery/http"
-	healthhttp "vocynex-api/internal/delivery/http/health"
-	"vocynex-api/internal/infra/config"
-	"vocynex-api/internal/infra/db/postgres"
-	"vocynex-api/internal/infra/db/postgres/repos"
-	"vocynex-api/internal/infra/logger"
-	"vocynex-api/internal/infra/observability"
-	"vocynex-api/internal/repository"
-	usecasehealth "vocynex-api/internal/usecase/health"
+	httpdelivery "go-backend-architecture/internal/delivery/http"
+	healthhttp "go-backend-architecture/internal/delivery/http/health"
+	"go-backend-architecture/internal/infra/config"
+	"go-backend-architecture/internal/infra/db/postgres"
+	"go-backend-architecture/internal/infra/db/postgres/repos"
+	"go-backend-architecture/internal/infra/logger"
+	"go-backend-architecture/internal/infra/observability"
+	"go-backend-architecture/internal/repository"
+	usecasehealth "go-backend-architecture/internal/usecase/health"
 )
 
 // wiring centralizes shared dependencies used when wiring constructors.

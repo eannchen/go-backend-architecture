@@ -8,7 +8,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	"vocynex-api/internal/infra/observability"
+	"go-backend-architecture/internal/infra/observability"
 )
 
 const requestIDHeader = "X-Request-ID"

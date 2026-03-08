@@ -5,11 +5,11 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	"vocynex-api/internal/apperr"
-	deliveryhttp "vocynex-api/internal/delivery/http"
-	"vocynex-api/internal/infra/logger"
-	"vocynex-api/internal/infra/observability"
-	usecasehealth "vocynex-api/internal/usecase/health"
+	"go-backend-architecture/internal/apperr"
+	deliveryhttp "go-backend-architecture/internal/delivery/http"
+	"go-backend-architecture/internal/infra/logger"
+	"go-backend-architecture/internal/infra/observability"
+	usecasehealth "go-backend-architecture/internal/usecase/health"
 )
 
 type request struct {
