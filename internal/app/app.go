@@ -9,10 +9,8 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	httpDelivery "go-backend-architecture/internal/delivery/http"
-	rediscachestore "go-backend-architecture/internal/infra/cache/redis/store"
 	"go-backend-architecture/internal/infra/config"
 	"go-backend-architecture/internal/infra/db/postgres"
-	rediskvstore "go-backend-architecture/internal/infra/kvstore/redis/store"
 	"go-backend-architecture/internal/infra/logger"
 	zaplogger "go-backend-architecture/internal/infra/logger/zap"
 	"go-backend-architecture/internal/infra/observability"
@@ -60,13 +58,11 @@ func New(ctx context.Context) (*App, error) {
 		)
 	}
 
-	redisClient := redisconn.NewClient(cfg.Redis)
-	accountSummaryCacheStore := rediscachestore.NewAccountSummaryStore(redisClient, cfg.Redis.CacheTTL)
-	cacheHealthStore := rediscachestore.NewHealthStore(redisClient)
-	kvHealthStore := rediskvstore.NewHealthStore(redisClient)
-
 	wiring := newWiring(cfg, log, tracer)
-	repositories := wiring.buildRepositories(pool, accountSummaryCacheStore, cacheHealthStore, kvHealthStore)
+	redisClient := redisconn.NewClient(cfg.Redis)
+	redisStores := wiring.buildRedisStores(redisClient)
+
+	repositories := wiring.buildRepositories(pool, redisStores)
 	usecases := wiring.buildUsecases(repositories)
 	handlers := wiring.buildHandlers(usecases)
 	server, err := wiring.buildServer(handlers)

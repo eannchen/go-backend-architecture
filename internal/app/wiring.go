@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
+	goredis "github.com/redis/go-redis/v9"
 
 	httpdelivery "go-backend-architecture/internal/delivery/http"
 	healthhttp "go-backend-architecture/internal/delivery/http/health"
@@ -41,6 +42,12 @@ type appHandlers struct {
 	health httpdelivery.RouteRegistrar
 }
 
+type redisStores struct {
+	accountSummaryCache *rediscachestore.AccountSummaryStore
+	cacheHealth         repository.CacheHealthStore
+	kvHealth            repository.KVHealthStore
+}
+
 func newWiring(cfg config.Config, log logger.Logger, tracer observability.Tracer) wiring {
 	return wiring{
 		cfg:    cfg,
@@ -49,22 +56,25 @@ func newWiring(cfg config.Config, log logger.Logger, tracer observability.Tracer
 	}
 }
 
-func (d wiring) buildRepositories(
-	pool *pgxpool.Pool,
-	accountSummaryCacheStore *rediscachestore.AccountSummaryStore,
-	cacheHealthStore *rediscachestore.HealthStore,
-	kvHealthStore *rediskvstore.HealthStore,
-) appRepositories {
-	accountSummaryStore := postgresstore.NewAccountSummaryStore(pool, d.tracer)
+func (d wiring) buildRedisStores(client *goredis.Client) redisStores {
+	return redisStores{
+		cacheHealth:         rediscachestore.NewHealthStore(client),
+		kvHealth:            rediskvstore.NewHealthStore(client),
+		accountSummaryCache: rediscachestore.NewAccountSummaryStore(client, d.cfg.Redis.CacheTTL),
+	}
+}
+
+func (d wiring) buildRepositories(pool *pgxpool.Pool, redis redisStores) appRepositories {
 	dbHealthStore := postgresstore.NewDBHealthStore(pool, d.tracer)
-	accountSummaryCachedStore := repoimplaccountsummary.NewAccountSummaryCachedStore(d.log, d.tracer, accountSummaryStore, accountSummaryCacheStore)
+	accountSummaryStore := postgresstore.NewAccountSummaryStore(pool, d.tracer)
+	accountSummaryCachedStore := repoimplaccountsummary.NewAccountSummaryCachedStore(d.log, d.tracer, accountSummaryStore, redis.accountSummaryCache)
 	return appRepositories{
 		txManager:                postgres.NewTxManager(pool, d.tracer),
 		dbHealthRepo:             dbHealthStore,
+		cacheHealthStore:         redis.cacheHealth,
+		kvHealthStore:            redis.kvHealth,
 		accountSummaryRepo:       accountSummaryStore,
 		accountSummaryCachedRepo: accountSummaryCachedStore,
-		cacheHealthStore:         cacheHealthStore,
-		kvHealthStore:            kvHealthStore,
 	}
 }
 
