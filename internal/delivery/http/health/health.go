@@ -18,6 +18,9 @@ type request struct {
 }
 
 func NewHandler(log logger.Logger, tracer observability.Tracer, usecase usecasehealth.Usecase) *Handler {
+	if tracer == nil {
+		tracer = observability.NoopTracer{}
+	}
 	return &Handler{
 		logger:  log,
 		tracer:  tracer,

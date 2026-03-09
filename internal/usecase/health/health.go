@@ -50,6 +50,9 @@ func New(
 	cacheHealth repository.CacheHealthStore,
 	kvHealth repository.KVHealthStore,
 ) Usecase {
+	if tracer == nil {
+		tracer = observability.NoopTracer{}
+	}
 	if meter == nil {
 		meter = observability.NoopMeter{}
 	}

@@ -9,6 +9,9 @@ import (
 )
 
 func Tracing(tracer observability.Tracer) echo.MiddlewareFunc {
+	if tracer == nil {
+		tracer = observability.NoopTracer{}
+	}
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			req := c.Request()
