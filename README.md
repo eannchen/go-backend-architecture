@@ -6,7 +6,7 @@ Go modular-monolith backend architecture template for clean, testable APIs with 
 
 - Provide a reusable backend starter that follows clean architecture.
 - Keep business logic isolated from frameworks and vendors.
-- Offer production-ready foundations: HTTP, DB, cache/KV integration, migrations, tracing, and structured logging.
+- Offer production-ready foundations: HTTP, DB, cache/KV integration, migrations, tracing, metrics, and structured logging.
 - Serve as a base repo to clone for new app projects.
 
 ## Architecture and Principles Used
@@ -22,7 +22,7 @@ Go modular-monolith backend architecture template for clean, testable APIs with 
 - [Builder pattern](https://refactoring.guru/design-patterns/builder)
 - [Middleware pattern](https://www.alexedwards.net/blog/making-and-using-middleware)
 
-See inner `README.md` files and `AGENTS.md` for implementation guidance.
+See inner `README.md` files and `AGENTS.md` for implementation guidance, so AI agents can follow the same architecture rules.
 
 ## Third-Party Tools Used
 
@@ -36,7 +36,7 @@ See inner `README.md` files and `AGENTS.md` for implementation guidance.
 - [`air`](https://github.com/air-verse/air) for local hot reload
 - [`OpenAPI 3`](https://spec.openapis.org/oas/latest.html) as the shareable HTTP contract format
 - [`oapi-codegen`](https://github.com/oapi-codegen/oapi-codegen) for generating backend transport models from the OpenAPI spec
-- [`OpenTelemetry`](https://opentelemetry.io/) SDK + [`OTLP`](https://opentelemetry.io/docs/specs/otlp/) exporters for tracing/logs
+- [`OpenTelemetry`](https://opentelemetry.io/) SDK + [`OTLP`](https://opentelemetry.io/docs/specs/otlp/) exporters for tracing/logs/metrics
 - [`HyperDX`](https://www.hyperdx.io/) + [`OpenTelemetry Collector`](https://opentelemetry.io/docs/collector/) for local observability integration
 - [`Docker Compose`](https://docs.docker.com/compose/) for local infra orchestration
 
