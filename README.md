@@ -72,7 +72,7 @@ Optional flags:
 
 3. If you cloned this repository directly, rename your local project directory and update the Git remote URL to your new repository. (`bootstrap-template.sh` does not change directory names or Git remotes.)
 4. Validate with `make openapi-generate && go test ./...`.
-5. Review `docker-compose.yml`, `.env.example`, and `docs/openapi.yaml` for project-specific values.
+5. Review `docker-compose.yml`, `.env.example`, and `docs/openapi.yaml` for project-specific values. The included account/health code is example domain; replace or remove it and add your own migrations and features.
 6. Review `AGENTS.md` and package-level `README.md` files before feature development.
 
 ## Setup and Run
