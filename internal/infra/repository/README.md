@@ -1,6 +1,6 @@
-# internal/infra/repoimpl
+# internal/infra/repository
 
-Composite repository implementations (e.g. cached, decorated). Wraps store implementations; repository contracts stay in `internal/repository`.
+Composite repository implementations (e.g. cached, decorated). Contract lives in `internal/repository`; concrete store implementations live under `internal/infra/db/.../store` and elsewhere.
 
 ## Pattern used
 

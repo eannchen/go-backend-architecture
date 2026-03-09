@@ -13,7 +13,7 @@ import (
 	rediskvstore "go-backend-architecture/internal/infra/kvstore/redis/store"
 	"go-backend-architecture/internal/logger"
 	"go-backend-architecture/internal/observability"
-	repoimplaccountsummary "go-backend-architecture/internal/infra/repoimpl/accountsummary"
+	repocomposite "go-backend-architecture/internal/infra/repository/accountsummary"
 	"go-backend-architecture/internal/repository"
 	usecasehealth "go-backend-architecture/internal/usecase/health"
 )
@@ -67,7 +67,7 @@ func (d wiring) buildRedisStores(client *goredis.Client) redisStores {
 func (d wiring) buildRepositories(pool *pgxpool.Pool, redis redisStores) appRepositories {
 	dbHealthStore := postgresstore.NewDBHealthStore(pool, d.tracer)
 	accountSummaryStore := postgresstore.NewAccountSummaryStore(pool, d.tracer)
-	accountSummaryCachedStore := repoimplaccountsummary.NewAccountSummaryCachedStore(d.log, d.tracer, accountSummaryStore, redis.accountSummaryCache)
+	accountSummaryCachedStore := repocomposite.NewAccountSummaryCachedStore(d.log, d.tracer, accountSummaryStore, redis.accountSummaryCache)
 	return appRepositories{
 		txManager:                postgres.NewTxManager(pool, d.tracer),
 		dbHealthRepo:             dbHealthStore,
