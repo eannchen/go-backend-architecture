@@ -48,6 +48,12 @@ Why SQL-first data access (no ORM):
   - `squirrel` composable dynamic SQL to avoid fragile string concatenation.
   - Clean Architecture + repository boundaries to isolate SQL in infra adapters and keep usecases storage-agnostic.
 
+## Requirements
+
+- Go (current stable version)
+- Docker + Docker Compose
+- GNU Make
+
 ## Use as a Starter
 
 1. Create a new repository from this template.
@@ -64,15 +70,10 @@ Optional flags:
 - `--project-slug`: sets the local stack slug used by docker/container/database naming.
 - `--api-title`: sets `info.title` in `docs/openapi.yaml`.
 
-3. Validate with `make openapi-generate && go test ./...`.
-4. Review `docker-compose.yml`, `.env.example`, and `docs/openapi.yaml` for project-specific values.
-5. Review `AGENTS.md` and package-level `README.md` files before feature development.
-
-## Requirements
-
-- Go (current stable version)
-- Docker + Docker Compose
-- GNU Make
+3. If you cloned this repository directly, rename your local project directory and update the Git remote URL to your new repository. (`bootstrap-template.sh` does not change directory names or Git remotes.)
+4. Validate with `make openapi-generate && go test ./...`.
+5. Review `docker-compose.yml`, `.env.example`, and `docs/openapi.yaml` for project-specific values.
+6. Review `AGENTS.md` and package-level `README.md` files before feature development.
 
 ## Setup and Run
 
