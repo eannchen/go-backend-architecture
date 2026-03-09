@@ -1,16 +1,15 @@
 # internal/infra/kvstore
 
-Key-value store adapters.
+Key-value store implementation(s). Implements KV-related repository contracts; contracts live in `internal/repository`.
 
 ## Pattern used
 
-- Adapter implementations for focused `internal/repository` KV contracts.
-- Provider-specific code under subpackages (`redis/`, future others).
-- For Redis: keep client construction in `redis/connection.go`, and concrete stores in `redis/store/`.
+- One implementation subpackage per backend; each subpackage owns connection and store logic.
+- Backend usage and key semantics stay in this layer; usecases depend only on repository interfaces.
+- Contract names reflect business semantics, not a generic key-value API.
 
 ## How to extend
 
-- Add provider package (`dynamodb/`, `badger/`, etc.) implementing the same contracts.
-- Keep provider command/API usage isolated to this layer.
-- Keep business semantics explicit in contract names, not generic "bag of key-values".
-- Keep each concrete capability in its own store file under `*/store/` for consistent structure.
+- Add a new subpackage per backend, implementing the same repository contracts.
+- Keep each concrete capability in its own store under the backend subpackage for clear structure.
+- Do not push backend-specific or key-policy details into usecase.

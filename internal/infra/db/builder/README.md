@@ -1,15 +1,14 @@
 # internal/infra/db/builder
 
-Dynamic SQL builder setup.
+Dynamic SQL builder used by repository implementations when query shape depends on runtime conditions.
 
 ## Pattern used
 
-- Builder pattern for dynamic SQL construction.
-- Centralizes shared `Squirrel` configuration (placeholder format, defaults).
-- Used by repositories when query shape is conditional at runtime.
+- Shared builder configuration and placeholder format; used only from infra store packages.
+- No static or generated SQL in this package; no business logic—only SQL-shape utilities (filters, sort, paging).
+- Aligns with project SQL rules: static queries elsewhere, dynamic shape here.
 
 ## How to extend
 
-- Add reusable builder helpers here (sorting/filter/paging snippets).
-- Keep generated/static SQL (`sqlc`) out of this package.
-- Do not add business logic here; this package is SQL-shape utilities only.
+- Add reusable builder helpers (e.g. common filter or paging fragments) here.
+- Do not add business rules or static SQL; keep generated/static SQL in the appropriate store and SQL layer.

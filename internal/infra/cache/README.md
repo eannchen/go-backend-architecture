@@ -1,16 +1,15 @@
 # internal/infra/cache
 
-Cache adapters.
+Cache implementation(s). Implements cache-related repository contracts; contracts live in `internal/repository`.
 
 ## Pattern used
 
-- Adapter implementations for cache capabilities.
-- Provider-specific code under subpackages (`redis/`, future others).
-- For Redis: keep client construction in `redis/connection.go`, and concrete stores in `redis/store/`.
+- One implementation subpackage per backend; each subpackage owns connection and store logic.
+- Serialization and key policy stay in this layer; usecases depend only on repository interfaces.
+- Store types implement narrow contracts (e.g. read-model cache, health) rather than a single generic cache.
 
 ## How to extend
 
-- Keep cache interfaces small and focused (for example: read model cache, health ping).
-- Add new provider packages (`memcached/`, `ristretto/`) implementing the same contracts.
-- Keep serialization and key-policy logic in this layer, not in usecases.
-- Keep each concrete capability in its own store file under `*/store/` for consistent structure.
+- Add a new subpackage per backend, implementing the same repository contracts.
+- Keep interfaces small and focused in `internal/repository`; add new store files under the backend subpackage for new capabilities.
+- Do not push serialization or backend-specific policy into usecase.

@@ -7,8 +7,8 @@ import (
 
 	"go-backend-architecture/internal/apperr"
 	deliveryhttp "go-backend-architecture/internal/delivery/http"
-	"go-backend-architecture/internal/infra/logger"
-	"go-backend-architecture/internal/infra/observability"
+	"go-backend-architecture/internal/logger"
+	"go-backend-architecture/internal/observability"
 	usecasehealth "go-backend-architecture/internal/usecase/health"
 )
 

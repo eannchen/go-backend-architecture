@@ -14,13 +14,7 @@ const (
 // Fields is a logger-agnostic key/value hashmap.
 type Fields map[string]any
 
-// FromPairs creates fields from key/value pairs.
-//
-// Example:
-//
-//	FromPairs("address", ":8080", "component", "http_server")
-//
-// If pairs length is odd, the last dangling key is ignored.
+// FromPairs creates fields from key/value pairs. If pairs length is odd, the last key is ignored.
 func FromPairs(pairs ...any) Fields {
 	out := make(Fields, len(pairs)/2)
 	for i := 0; i+1 < len(pairs); i += 2 {

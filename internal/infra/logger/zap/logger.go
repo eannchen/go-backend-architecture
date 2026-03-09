@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"go-backend-architecture/internal/infra/config"
-	"go-backend-architecture/internal/infra/logger"
+	"go-backend-architecture/internal/logger"
 )
 
 type impl struct {

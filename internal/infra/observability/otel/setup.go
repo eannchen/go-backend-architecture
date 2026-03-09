@@ -14,7 +14,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"go-backend-architecture/internal/infra/config"
-	"go-backend-architecture/internal/infra/observability"
+	"go-backend-architecture/internal/observability"
 )
 
 // otelRuntime is a lifecycle manager for OTel providers.

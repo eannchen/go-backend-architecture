@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	postgresstore "go-backend-architecture/internal/infra/db/postgres/store"
-	"go-backend-architecture/internal/infra/observability"
+	"go-backend-architecture/internal/observability"
 	"go-backend-architecture/internal/repository"
 )
 

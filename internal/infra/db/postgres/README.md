@@ -1,18 +1,15 @@
 # internal/infra/db/postgres
 
-PostgreSQL-specific implementations.
+PostgreSQL implementation of repository contracts. Contracts live in `internal/repository`; this package owns connection, transactions, and store implementations.
 
 ## Pattern used
 
-- Infrastructure adapter package for PostgreSQL only.
-- `connection.go` handles `pgx` pool lifecycle.
-- `tx_manager.go` owns transaction boundaries for usecases.
-- `store` implements repository contracts with `sqlc` (static SQL) and builder-backed dynamic SQL when query shape is conditional.
+- Connection lifecycle and pool in one place; transaction boundary exposed via repository contract (TxManager).
+- Store subpackage implements repository interfaces using static SQL (generated) and a shared builder for dynamic SQL.
+- No PostgreSQL or driver types are exposed outside this package.
 
 ## How to extend
 
-- Add new PostgreSQL repository implementations under `store/`.
-- Add static queries under `sqlc/*.sql`, then regenerate code.
-- Use `internal/infra/db/builder` for runtime-conditional SQL shape.
-- Add schema/migration changes under `sqlc/schema.sql` and `migrations/`.
-- Keep PostgreSQL-only details in this package; expose contract-friendly behavior upward.
+- Add new repository implementations under the store subpackage; add static queries to the SQL layer and regenerate, or use the builder for conditional query shape.
+- Schema and migrations live in the SQL layer; keep all PostgreSQL-specific logic here.
+- Expose only contract types and behavior to app and usecase.

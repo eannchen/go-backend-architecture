@@ -11,8 +11,8 @@ import (
 	"go-backend-architecture/internal/infra/db/postgres"
 	postgresstore "go-backend-architecture/internal/infra/db/postgres/store"
 	rediskvstore "go-backend-architecture/internal/infra/kvstore/redis/store"
-	"go-backend-architecture/internal/infra/logger"
-	"go-backend-architecture/internal/infra/observability"
+	"go-backend-architecture/internal/logger"
+	"go-backend-architecture/internal/observability"
 	repoimplaccountsummary "go-backend-architecture/internal/infra/repoimpl/accountsummary"
 	"go-backend-architecture/internal/repository"
 	usecasehealth "go-backend-architecture/internal/usecase/health"
@@ -94,5 +94,11 @@ func (d wiring) buildServer(handlers appHandlers) (*httpdelivery.Server, error) 
 	validatorRegistrars := []httpdelivery.ValidationRegistrar{
 		healthhttp.RegisterValidation,
 	}
-	return httpdelivery.NewServer(d.cfg.HTTP, d.log, d.tracer, validatorRegistrars, handlers.health)
+	serverCfg := httpdelivery.ServerConfig{
+		Address:      d.cfg.HTTP.Address,
+		ReadTimeout:  d.cfg.HTTP.ReadTimeout,
+		WriteTimeout: d.cfg.HTTP.WriteTimeout,
+		IdleTimeout:  d.cfg.HTTP.IdleTimeout,
+	}
+	return httpdelivery.NewServer(serverCfg, d.log, d.tracer, validatorRegistrars, handlers.health)
 }

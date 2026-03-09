@@ -7,9 +7,10 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 
+	"go-backend-architecture/internal/apperr"
 	"go-backend-architecture/internal/infra/db/builder"
 	dbsqlc "go-backend-architecture/internal/infra/db/postgres/sqlc/gen"
-	"go-backend-architecture/internal/infra/observability"
+	"go-backend-architecture/internal/observability"
 	"go-backend-architecture/internal/repository"
 )
 
@@ -42,7 +43,7 @@ func (r *AccountSummaryStore) GetByID(ctx context.Context, id int64) (summary re
 
 	row, err := r.queries.GetAccountSummaryByID(ctx, id)
 	if err != nil {
-		return repository.AccountSummary{}, err
+		return repository.AccountSummary{}, apperr.Wrap(err, apperr.CodeUnavailable, "get account summary by id failed")
 	}
 	return repository.AccountSummary{
 		ID:          row.ID,

@@ -8,7 +8,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	"go-backend-architecture/internal/infra/observability"
+	"go-backend-architecture/internal/observability"
 )
 
 const requestIDHeader = "X-Request-ID"

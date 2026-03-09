@@ -22,7 +22,7 @@ Go modular-monolith backend architecture template for clean, testable APIs with 
 - [Builder pattern](https://refactoring.guru/design-patterns/builder)
 - [Middleware pattern](https://www.alexedwards.net/blog/making-and-using-middleware)
 
-See inner `README.md` files and `.cursor/rules/` for implementation guidance.
+See inner `README.md` files and `AGENTS.md` for implementation guidance.
 
 ## Third-Party Tools Used
 

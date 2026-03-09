@@ -4,8 +4,10 @@ import (
 	"context"
 
 	dbsqlc "go-backend-architecture/internal/infra/db/postgres/sqlc/gen"
-	"go-backend-architecture/internal/infra/observability"
+	"go-backend-architecture/internal/observability"
 	"go-backend-architecture/internal/repository"
+
+	"go-backend-architecture/internal/apperr"
 )
 
 type DBHealthStore struct {
@@ -32,7 +34,10 @@ func (r *DBHealthStore) Ping(ctx context.Context) (err error) {
 	}()
 
 	_, err = r.queries.Ping(ctx)
-	return err
+	if err != nil {
+		return apperr.Wrap(err, apperr.CodeUnavailable, "database ping failed")
+	}
+	return nil
 }
 
 func (r *DBHealthStore) GetServerStatus(ctx context.Context) (status repository.DBServerStatus, err error) {
@@ -49,7 +54,7 @@ func (r *DBHealthStore) GetServerStatus(ctx context.Context) (status repository.
 
 	row, err := r.queries.GetServerStatus(ctx)
 	if err != nil {
-		return repository.DBServerStatus{}, err
+		return repository.DBServerStatus{}, apperr.Wrap(err, apperr.CodeUnavailable, "database server status query failed")
 	}
 
 	status = repository.DBServerStatus{

@@ -11,11 +11,11 @@ import (
 	httpDelivery "go-backend-architecture/internal/delivery/http"
 	"go-backend-architecture/internal/infra/config"
 	"go-backend-architecture/internal/infra/db/postgres"
-	"go-backend-architecture/internal/infra/logger"
 	zaplogger "go-backend-architecture/internal/infra/logger/zap"
-	"go-backend-architecture/internal/infra/observability"
-	otelobs "go-backend-architecture/internal/infra/observability/otel"
+	"go-backend-architecture/internal/infra/observability/otel"
 	"go-backend-architecture/internal/infra/redisconn"
+	"go-backend-architecture/internal/logger"
+	"go-backend-architecture/internal/observability"
 )
 
 type App struct {
@@ -33,7 +33,7 @@ func New(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 
-	otelRuntime, err := otelobs.Setup(ctx, cfg.OTel, cfg.ServiceName, cfg.AppEnv)
+	otelRuntime, err := otel.Setup(ctx, cfg.OTel, cfg.ServiceName, cfg.AppEnv)
 	if err != nil {
 		return nil, err
 	}

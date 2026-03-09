@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"go-backend-architecture/internal/infra/config"
-	"go-backend-architecture/internal/infra/logger"
+	"go-backend-architecture/internal/logger"
 )
 
 func NewPool(ctx context.Context, cfg config.DBConfig, log logger.Logger) (*pgxpool.Pool, error) {

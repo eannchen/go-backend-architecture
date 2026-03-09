@@ -10,19 +10,26 @@ import (
 	echoMiddleware "github.com/labstack/echo/v5/middleware"
 
 	"go-backend-architecture/internal/delivery/middleware"
-	"go-backend-architecture/internal/infra/config"
-	"go-backend-architecture/internal/infra/logger"
-	"go-backend-architecture/internal/infra/observability"
+	"go-backend-architecture/internal/logger"
+	"go-backend-architecture/internal/observability"
 )
+
+// ServerConfig holds HTTP server settings. Filled by app from infra config so delivery does not depend on infra.
+type ServerConfig struct {
+	Address      string
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
+	IdleTimeout  time.Duration
+}
 
 type Server struct {
 	echo       *echo.Echo
 	httpServer *http.Server
-	cfg        config.HTTPConfig
+	cfg        ServerConfig
 	logger     logger.Logger
 }
 
-func NewServer(cfg config.HTTPConfig, log logger.Logger, tracer observability.Tracer, validatorRegistrars []ValidationRegistrar, registrars ...RouteRegistrar) (*Server, error) {
+func NewServer(cfg ServerConfig, log logger.Logger, tracer observability.Tracer, validatorRegistrars []ValidationRegistrar, registrars ...RouteRegistrar) (*Server, error) {
 	e := echo.New()
 	requestValidator, err := newRequestValidator(validatorRegistrars...)
 	if err != nil {
@@ -69,7 +76,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	err := s.httpServer.Shutdown(ctx)
 	s.logger.Info(ctx, "http server shutdown complete", logger.FromPairs("duration_ms", time.Since(start).Milliseconds()))
 	if err != nil && err != http.ErrServerClosed {
-		return err
+		return fmt.Errorf("http server shutdown: %w", err)
 	}
 	return nil
 }

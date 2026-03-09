@@ -1,15 +1,15 @@
 # internal/infra/observability
 
-Observability contracts and OTel implementation.
+Observability implementation. Contracts live in `internal/observability`; app layers depend on the contract package only.
 
 ## Pattern used
 
-- Contract + implementation split (`observability` vs `observability/otel`).
-- `Tracer` and `LogEmitter` are framework-agnostic interfaces.
-- Context helpers carry request/trace correlation across layers.
+- Contract (tracing and log emission) in a separate package; this package provides the implementation.
+- All vendor and SDK details stay inside this package and its subpackages; context helpers and no-ops live in the contract package.
+- Lifecycle (startup/shutdown) is part of the implementation; app wiring propagates errors.
 
 ## How to extend
 
-- Add new telemetry capabilities behind contracts first.
-- Keep OTel/vendor details inside `otel/`.
-- Ensure shutdown and startup errors are propagated to app wiring.
+- Extend the contract in `internal/observability` when app or infra needs new capability.
+- Add or change implementation here; keep vendor and SDK types inside infra.
+- Ensure lifecycle hooks are invoked from app wiring and that startup/shutdown errors are propagated.

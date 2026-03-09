@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"go-backend-architecture/internal/apperr"
-	"go-backend-architecture/internal/infra/logger"
-	"go-backend-architecture/internal/infra/observability"
+	"go-backend-architecture/internal/logger"
+	"go-backend-architecture/internal/observability"
 	"go-backend-architecture/internal/repository"
 )
 

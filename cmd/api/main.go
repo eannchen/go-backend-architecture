@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"go-backend-architecture/internal/app"
-	"go-backend-architecture/internal/infra/logger"
+	"go-backend-architecture/internal/logger"
 )
 
 func main() {

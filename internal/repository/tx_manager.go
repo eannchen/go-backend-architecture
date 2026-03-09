@@ -2,9 +2,7 @@ package repository
 
 import "context"
 
-// TxRepository exposes repository set bound to one DB transaction.
-//
-// As more repositories are added, expose them here (User(), Order(), etc.).
+// TxRepository scopes repository access to a single transaction so usecases can run multiple repo calls atomically.
 type TxRepository interface {
 	AccountSummary() AccountSummaryRepository
 }

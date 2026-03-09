@@ -27,13 +27,7 @@ func (s Severity) String() string {
 // Fields is an observability-agnostic key/value hashmap.
 type Fields map[string]any
 
-// FromPairs creates attributes from key/value pairs.
-//
-// Example:
-//
-//	FromPairs("http.method", "GET", "http.route", "/healthz")
-//
-// If pairs length is odd, the last dangling key is ignored.
+// FromPairs creates attributes from key/value pairs. If pairs length is odd, the last key is ignored.
 func FromPairs(pairs ...any) Fields {
 	out := make(Fields, len(pairs)/2)
 	for i := 0; i+1 < len(pairs); i += 2 {

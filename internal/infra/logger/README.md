@@ -1,15 +1,15 @@
 # internal/infra/logger
 
-Project logging contract and implementations.
+Logger implementation(s). Contract lives in `internal/logger`; app layers depend on the contract only.
 
 ## Pattern used
 
-- Interface-first logger contract, implementation in `logger/zap`.
-- `Fields` hashmap for structured logs.
-- Optional sink adapter for exporting logs to observability backend.
+- Contract (interface + types) in a separate package; this package provides the implementation.
+- Structured key-value logging and optional secondary sink; no vendor types leak across the boundary.
+- Single implementation subpackage; additional backends go in further subpackages.
 
 ## How to extend
 
-- Keep call-site API stable in `logger_contract.go`.
-- Add vendor-specific implementation in a subpackage.
-- Do not leak vendor types outside logger package.
+- Extend the contract in `internal/logger` when app layers need new capability.
+- Add or change implementation here; keep vendor and config types inside infra.
+- Wire the implementation in app; do not expose vendor types to usecase or delivery.
