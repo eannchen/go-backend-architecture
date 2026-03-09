@@ -111,6 +111,12 @@ func Load() (Config, error) {
 		},
 	}
 
+	cfg.ServiceName = strings.TrimSpace(cfg.ServiceName)
+	cfg.HTTP.Address = strings.TrimSpace(cfg.HTTP.Address)
+	cfg.DB.URL = strings.TrimSpace(cfg.DB.URL)
+	cfg.Redis.Addr = strings.TrimSpace(cfg.Redis.Addr)
+	cfg.OTel.ExporterEndpoint = strings.TrimSpace(cfg.OTel.ExporterEndpoint)
+
 	if cfg.DB.URL == "" {
 		return Config{}, fmt.Errorf("DB_URL must not be empty")
 	}
