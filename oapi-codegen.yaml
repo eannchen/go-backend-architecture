@@ -1,0 +1,6 @@
+package: openapi
+generate:
+  models: true
+output: internal/delivery/http/openapi/gen/openapi.go
+output-options:
+  skip-prune: true

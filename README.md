@@ -32,10 +32,12 @@ See inner `README.md` files and `AGENTS.md` for implementation guidance.
 - [`Masterminds/squirrel`](https://github.com/Masterminds/squirrel) for dynamic SQL building
 - [`pressly/goose`](https://github.com/pressly/goose) for DB migrations
 - [`go-redis/v9`](https://github.com/redis/go-redis) for Redis client integration
+- [`uber-go/zap`](https://github.com/uber-go/zap) for structured logging
 - [`air`](https://github.com/air-verse/air) for local hot reload
-- [`zap`](https://github.com/uber-go/zap) for structured logging
+- [`OpenAPI 3`](https://spec.openapis.org/oas/latest.html) as the shareable HTTP contract format
+- [`oapi-codegen`](https://github.com/oapi-codegen/oapi-codegen) for generating backend transport models from the OpenAPI spec
 - [`OpenTelemetry`](https://opentelemetry.io/) SDK + [`OTLP`](https://opentelemetry.io/docs/specs/otlp/) exporters for tracing/logs
-- [`HyperDX`](https://www.hyperdx.io/) + [`OpenTelemetry Collector`](https://opentelemetry.io/docs/collector/) for local observability
+- [`HyperDX`](https://www.hyperdx.io/) + [`OpenTelemetry Collector`](https://opentelemetry.io/docs/collector/) for local observability integration
 - [`Docker Compose`](https://docs.docker.com/compose/) for local infra orchestration
 
 Why no ORM:
@@ -60,6 +62,7 @@ Useful commands:
 - Tail infra logs: `make dev-logs`
 - Stop infra: `make dev-down`
 - Check migration status: `make migrate-status`
+- Regenerate OpenAPI types: `make openapi-generate`
 - Stop stale API process on `:8080`: `make run-stop`
 
 Notes:

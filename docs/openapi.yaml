@@ -1,0 +1,95 @@
+openapi: 3.0.3
+info:
+  title: Go Backend Architecture Template API
+  version: 0.1.0
+  description: HTTP contract for the backend template.
+servers:
+  - url: http://localhost:8080
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Check service liveness or readiness
+      description: >
+        The default mode is ready. Use check=live to skip dependency checks and
+        verify only that the process can serve requests.
+      parameters:
+        - name: check
+          in: query
+          required: false
+          description: Health check mode.
+          schema:
+            type: string
+            enum:
+              - live
+              - ready
+            default: ready
+      responses:
+        "200":
+          description: The requested health check passed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "400":
+          description: Query parameters failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIError"
+        "503":
+          description: A readiness dependency is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - database
+        - cache
+        - kvstore
+      properties:
+        database:
+          $ref: "#/components/schemas/HealthDatabase"
+        cache:
+          $ref: "#/components/schemas/HealthDependency"
+        kvstore:
+          $ref: "#/components/schemas/HealthDependency"
+    HealthDatabase:
+      type: object
+      required:
+        - status
+        - name
+        - in_recovery
+        - uptime_seconds
+      properties:
+        status:
+          type: string
+        name:
+          type: string
+        in_recovery:
+          type: boolean
+        uptime_seconds:
+          type: integer
+          format: int64
+    HealthDependency:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+    APIError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details: {}

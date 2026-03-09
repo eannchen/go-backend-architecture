@@ -7,6 +7,7 @@ import (
 
 	"go-backend-architecture/internal/apperr"
 	deliveryhttp "go-backend-architecture/internal/delivery/http"
+	openapi "go-backend-architecture/internal/delivery/http/openapi/gen"
 	"go-backend-architecture/internal/logger"
 	"go-backend-architecture/internal/observability"
 	usecasehealth "go-backend-architecture/internal/usecase/health"
@@ -14,23 +15,6 @@ import (
 
 type request struct {
 	Check string `query:"check" validate:"omitempty,health_check_mode"`
-}
-
-type response struct {
-	Database Database `json:"database"`
-	Cache    Status   `json:"cache"`
-	KVStore  Status   `json:"kvstore"`
-}
-
-type Database struct {
-	Status        string `json:"status"`
-	Name          string `json:"name"`
-	InRecovery    bool   `json:"in_recovery"`
-	UptimeSeconds int64  `json:"uptime_seconds"`
-}
-
-type Status struct {
-	Status string `json:"status"`
 }
 
 func NewHandler(log logger.Logger, tracer observability.Tracer, usecase usecasehealth.Usecase) *Handler {
@@ -82,18 +66,18 @@ func (h *Handler) GetHealth(c *echo.Context) (err error) {
 	return deliveryhttp.RespondJSON(c, http.StatusOK, toResponse(result))
 }
 
-func toResponse(result usecasehealth.Result) response {
-	return response{
-		Database: Database{
+func toResponse(result usecasehealth.Result) openapi.HealthResponse {
+	return openapi.HealthResponse{
+		Database: openapi.HealthDatabase{
 			Status:        result.Database.Status,
 			Name:          result.Database.Name,
 			InRecovery:    result.Database.InRecovery,
 			UptimeSeconds: result.Database.UptimeSeconds,
 		},
-		Cache: Status{
+		Cache: openapi.HealthDependency{
 			Status: result.Cache.Status,
 		},
-		KVStore: Status{
+		Kvstore: openapi.HealthDependency{
 			Status: result.KVStore.Status,
 		},
 	}
