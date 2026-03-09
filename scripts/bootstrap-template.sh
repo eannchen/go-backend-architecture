@@ -64,7 +64,6 @@ replace_slug_tokens() {
   replace_in_files "go-backend-architecture" "$slug" "$@"
   replace_in_files "go_backend_architecture" "$slug" "$@"
   replace_in_files "go-backend-architecture-local" "${slug}-local" "$@"
-  replace_in_files "vocynex" "$slug" "$@"
 }
 
 replace_local_db_name() {
