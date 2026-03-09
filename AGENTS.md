@@ -94,6 +94,8 @@ Prefer **consumer-owned interfaces**: define the interface where it is used. Exa
 
 Transport DTOs (with `json`, `query`, `form`, `validate`) belong in **delivery only**. Usecase models must NOT contain transport tags. In delivery, map between DTOs and usecase models.
 
+When OpenAPI is used, treat `docs/openapi.yaml` as the external contract for frontend repos and AI agents. Generated models in `internal/delivery/http/openapi/gen` are mainly for shared contract types and response mapping. Keep request DTOs in delivery when Echo binding or `validator/v10` depends on delivery or usecase parsing rules.
+
 ---
 
 # SQL Rules
@@ -142,6 +144,7 @@ Short, accurate, architecture-focused. Each package `README.md` includes **Patte
 
 - **Tone:** Technical and structure-oriented. Explain patterns, boundaries, and where types live rather than step-by-step or concrete usage examples.
 - **Concrete examples:** Omit file names, vendor names, and example code unless they are necessary to explain the structure or avoid ambiguity.
+- **Avoid duplication:** Do not repeat the same explanation across documents, including this file, unless the repetition adds needed context at that location.
 
 ---
 
@@ -154,5 +157,6 @@ When generating code:
 3. Prefer modifying existing structures over new abstractions.
 4. Use the same constructor and wiring patterns as the codebase.
 5. Match commenting style of nearby code; add comments for complex logic, skip unnecessary ones.
+6. For HTTP contract changes, update `docs/openapi.yaml` first, run `make openapi-generate`, and then adapt delivery handlers.
 
 The architecture should stay predictable for humans, AI agents, and future maintainers.
