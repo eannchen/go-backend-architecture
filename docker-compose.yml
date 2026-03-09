@@ -1,13 +1,13 @@
-name: vocynex-local
+name: go-backend-architecture-local
 
 services:
   postgres:
     image: postgres:18-alpine
-    container_name: vocynex-postgres
+    container_name: go-backend-architecture-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: vocynex
+      POSTGRES_DB: go-backend-architecture
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
@@ -15,14 +15,14 @@ services:
       # For postgres 18+, mount parent dir as recommended by upstream image.
       - ./volumes/postgres:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d vocynex"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d go-backend-architecture"]
       interval: 5s
       timeout: 3s
       retries: 20
 
   redis:
     image: redis:8-alpine
-    container_name: vocynex-redis
+    container_name: go-backend-architecture-redis
     ports:
       - "6379:6379"
     volumes:
@@ -35,7 +35,7 @@ services:
 
   hyperdx:
     image: docker.hyperdx.io/hyperdx/hyperdx-local:2-beta
-    container_name: vocynex-hyperdx
+    container_name: go-backend-architecture-hyperdx
     ports:
       - "8081:8080"
       - "8123:8123"
@@ -52,7 +52,7 @@ services:
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.102.1
-    container_name: vocynex-otel-collector
+    container_name: go-backend-architecture-otel-collector
     command: ["--config=/etc/otel-collector/config.yaml"]
     volumes:
       - ./otel-collector.yaml:/etc/otel-collector/config.yaml:ro
@@ -69,4 +69,3 @@ services:
       interval: 10s
       timeout: 5s
       retries: 20
-

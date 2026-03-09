@@ -48,29 +48,34 @@ Why no ORM:
   - `squirrel` composable dynamic SQL to avoid fragile string concatenation.
   - clean architecture + repository boundaries to keep SQL isolated in infra adapters and usecases storage-agnostic.
 
+## Use As A Starter
+
+1. Create a new repository from this template.
+2. Run:
+
+```bash
+./scripts/bootstrap-template.sh --module github.com/your-org/your-backend
+```
+
+It updates module/import paths, service/stack naming, OpenAPI title, and README title.
+
+Optional flags:
+- `--service-name`: sets the service identity used in `.env.example` and the root README title.
+- `--project-slug`: sets the local stack slug used by docker/container/database naming.
+- `--api-title`: sets `info.title` in `docs/openapi.yaml`.
+
+3. Run `make openapi-generate && go test ./...`.
+4. Review `docker-compose.yml`, `.env.example`, and `docs/openapi.yaml` for project-specific values.
+5. Review `AGENTS.md` and inner package `README.md` files before starting feature development.
+
 ## Setup and Run
 
-1. Copy environment file: `cp .env.example .env`
-2. Install tools (one-time): `make install`
-3. Start local infra: `make dev-up`
-4. Run migrations: `make migrate-up`
-5. Start API with live reload: `make run`
-6. Check health endpoint: `GET /health?check=ready`
+1. `cp .env.example .env`
+2. `make install`
+3. `make dev-up && make migrate-up`
+4. `make run`
+5. Check `GET /health?check=ready`
 
-Useful commands:
+Common commands: `make dev-logs`, `make dev-down`, `make migrate-status`, `make openapi-generate`, `make run-stop`.
 
-- Tail infra logs: `make dev-logs`
-- Stop infra: `make dev-down`
-- Check migration status: `make migrate-status`
-- Regenerate OpenAPI types: `make openapi-generate`
-- Stop stale API process on `:8080`: `make run-stop`
-
-Notes:
-
-- For zsh inline migration URL, quote `DB_URL`:
-  - `make migrate-up DB_URL='postgres://postgres:postgres@localhost:5432/myapp?sslmode=disable'`
-- Local infra endpoints:
-  - PostgreSQL: `localhost:5432`
-  - Redis: `localhost:6379`
-  - OTel Collector: `localhost:4317` (gRPC), `localhost:4318` (HTTP)
-  - HyperDX UI: `http://localhost:8081`
+Default local ports: Postgres `5432`, Redis `6379`, OTel `4317/4318`, HyperDX `8081`.
