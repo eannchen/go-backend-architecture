@@ -1,0 +1,8 @@
+---
+description: Logging
+---
+
+# Logging
+
+Use structured logging (`logger.Fields(...)`). Log meaningful events only. Handlers should not log business errors already handled by response helpers.
+

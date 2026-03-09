@@ -1,0 +1,8 @@
+---
+description: DTO Rules
+---
+
+# DTO Rules
+
+Transport DTOs (with `json`, `query`, `form`, `validate`) belong in **delivery only**. Usecase models must NOT contain transport tags. In delivery, map between DTOs and usecase models.
+

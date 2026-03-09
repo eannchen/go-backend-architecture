@@ -1,0 +1,8 @@
+---
+description: Interfaces
+---
+
+# Interfaces
+
+Prefer **consumer-owned interfaces**: define the interface where it is used. Example: server depends on `RouteRegistrar`, not concrete handlers. Keep interfaces small. Add interfaces only for multiple implementations, test seams, or cross-layer contracts. Avoid unnecessary abstraction.
+

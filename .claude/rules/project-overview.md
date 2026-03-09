@@ -1,0 +1,8 @@
+---
+description: Project Overview
+---
+
+# Project Overview
+
+**Go backend architecture template** implementing a **modular monolith with Clean Architecture**. Goals: strong dependency boundaries, clear separation of business logic and infrastructure, testable usecases, predictable structure, and AI agents generating correct code consistently.
+
