@@ -58,6 +58,7 @@ type OTelConfig struct {
 	ExporterEndpoint   string
 	TracesEndpoint     string
 	LogsEndpoint       string
+	MetricsEndpoint    string
 	Insecure           bool
 	TraceSamplingRatio float64
 }
@@ -136,12 +137,16 @@ func Load() (Config, error) {
 	}
 	cfg.OTel.TracesEndpoint = withOTLPPath(cfg.OTel.ExporterEndpoint, "/v1/traces")
 	cfg.OTel.LogsEndpoint = withOTLPPath(cfg.OTel.ExporterEndpoint, "/v1/logs")
+	cfg.OTel.MetricsEndpoint = withOTLPPath(cfg.OTel.ExporterEndpoint, "/v1/metrics")
 	// Optional per-signal overrides if a collector exposes custom paths.
 	if v := strings.TrimSpace(getEnv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "")); v != "" {
 		cfg.OTel.TracesEndpoint = v
 	}
 	if v := strings.TrimSpace(getEnv("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "")); v != "" {
 		cfg.OTel.LogsEndpoint = v
+	}
+	if v := strings.TrimSpace(getEnv("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "")); v != "" {
+		cfg.OTel.MetricsEndpoint = v
 	}
 
 	return cfg, nil

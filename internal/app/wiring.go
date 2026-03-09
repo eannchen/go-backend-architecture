@@ -11,9 +11,9 @@ import (
 	"go-backend-architecture/internal/infra/db/postgres"
 	postgresstore "go-backend-architecture/internal/infra/db/postgres/store"
 	rediskvstore "go-backend-architecture/internal/infra/kvstore/redis/store"
+	repocomposite "go-backend-architecture/internal/infra/repository/accountsummary"
 	"go-backend-architecture/internal/logger"
 	"go-backend-architecture/internal/observability"
-	repocomposite "go-backend-architecture/internal/infra/repository/accountsummary"
 	"go-backend-architecture/internal/repository"
 	usecasehealth "go-backend-architecture/internal/usecase/health"
 )
@@ -23,6 +23,7 @@ type wiring struct {
 	cfg    config.Config
 	log    logger.Logger
 	tracer observability.Tracer
+	meter  observability.Meter
 }
 
 type appRepositories struct {
@@ -48,11 +49,12 @@ type redisStores struct {
 	kvHealth            repository.KVHealthStore
 }
 
-func newWiring(cfg config.Config, log logger.Logger, tracer observability.Tracer) wiring {
+func newWiring(cfg config.Config, log logger.Logger, tracer observability.Tracer, meter observability.Meter) wiring {
 	return wiring{
 		cfg:    cfg,
 		log:    log,
 		tracer: tracer,
+		meter:  meter,
 	}
 }
 
@@ -80,7 +82,7 @@ func (d wiring) buildRepositories(pool *pgxpool.Pool, redis redisStores) appRepo
 
 func (d wiring) buildUsecases(repos appRepositories) appUsecases {
 	return appUsecases{
-		health: usecasehealth.New(d.log, d.tracer, repos.dbHealthRepo, repos.cacheHealthStore, repos.kvHealthStore),
+		health: usecasehealth.New(d.log, d.tracer, d.meter, repos.dbHealthRepo, repos.cacheHealthStore, repos.kvHealthStore),
 	}
 }
 

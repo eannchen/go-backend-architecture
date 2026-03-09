@@ -1,6 +1,6 @@
 # internal/observability
 
-Observability contracts (Tracer, Span, LogEmitter, Runtime) used by usecase, delivery, and infra. Implementations live in infra.
+Observability contracts (Tracer, Span, Meter, LogEmitter, Runtime) used by usecase, delivery, and infra. Implementations live in infra.
 
 ## Pattern used
 

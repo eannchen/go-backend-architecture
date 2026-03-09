@@ -4,7 +4,7 @@ Observability implementation. Contracts live in `internal/observability`; app la
 
 ## Pattern used
 
-- Contract (tracing and log emission) in a separate package; this package provides the implementation.
+- Contract (tracing, metrics, and log emission) in a separate package; this package provides the implementation.
 - All vendor and SDK details stay inside this package and its subpackages; context helpers and no-ops live in the contract package.
 - Lifecycle (startup/shutdown) is part of the implementation; app wiring propagates errors.
 

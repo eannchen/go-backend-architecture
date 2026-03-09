@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	goredis "github.com/redis/go-redis/v9"
@@ -16,6 +15,7 @@ import (
 	"go-backend-architecture/internal/infra/redisconn"
 	"go-backend-architecture/internal/logger"
 	"go-backend-architecture/internal/observability"
+	"go-backend-architecture/internal/util/errutil"
 )
 
 type App struct {
@@ -38,12 +38,13 @@ func New(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 	tracer := otelRuntime.Tracer()
+	meter := otelRuntime.Meter()
 
 	log, err := zaplogger.New(cfg.Log)
 	if err != nil {
-		return nil, joinInitErrors(
+		return nil, errutil.Join(
 			err,
-			stepErr("shutdown observability after logger init failure", otelRuntime.Shutdown(ctx)),
+			errutil.Step("shutdown observability after logger init failure", otelRuntime.Shutdown(ctx)),
 		)
 	}
 	log.SetLogSink(logEmitterToLogSink(otelRuntime.LogEmitter()))
@@ -51,14 +52,14 @@ func New(ctx context.Context) (*App, error) {
 
 	pool, err := postgres.NewPool(ctx, cfg.DB, log)
 	if err != nil {
-		return nil, joinInitErrors(
+		return nil, errutil.Join(
 			err,
-			stepErr("shutdown observability after db init failure", otelRuntime.Shutdown(ctx)),
-			stepErr("sync logger after db init failure", log.Sync()),
+			errutil.Step("shutdown observability after db init failure", otelRuntime.Shutdown(ctx)),
+			errutil.Step("sync logger after db init failure", log.Sync()),
 		)
 	}
 
-	wiring := newWiring(cfg, log, tracer)
+	wiring := newWiring(cfg, log, tracer, meter)
 	redisClient := redisconn.NewClient(cfg.Redis)
 	redisStores := wiring.buildRedisStores(redisClient)
 
@@ -67,12 +68,12 @@ func New(ctx context.Context) (*App, error) {
 	handlers := wiring.buildHandlers(usecases)
 	server, err := wiring.buildServer(handlers)
 	if err != nil {
-		return nil, joinInitErrors(
+		return nil, errutil.Join(
 			err,
-			stepErr("close redis client after server init failure", closeRedisWithError(ctx, redisClient)),
-			stepErr("close db pool after server init failure", closePoolWithError(ctx, pool)),
-			stepErr("shutdown observability after server init failure", otelRuntime.Shutdown(ctx)),
-			stepErr("sync logger after server init failure", log.Sync()),
+			errutil.Step("close redis client after server init failure", closeRedisWithError(ctx, redisClient)),
+			errutil.Step("close db pool after server init failure", closePoolWithError(ctx, pool)),
+			errutil.Step("shutdown observability after server init failure", otelRuntime.Shutdown(ctx)),
+			errutil.Step("sync logger after server init failure", log.Sync()),
 		)
 	}
 
@@ -113,20 +114,6 @@ func (a *App) Shutdown(ctx context.Context) error {
 	}
 
 	return shutdownErr
-}
-
-func stepErr(step string, err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%s: %w", step, err)
-}
-
-func joinInitErrors(base error, cleanupErrs ...error) error {
-	all := make([]error, 0, len(cleanupErrs)+1)
-	all = append(all, base)
-	all = append(all, cleanupErrs...)
-	return errors.Join(all...)
 }
 
 func closePoolWithError(ctx context.Context, pool *pgxpool.Pool) error {

@@ -6,6 +6,7 @@ import "context"
 type Runtime interface {
 	LogEmitter() LogEmitter
 	Tracer() Tracer
+	Meter() Meter
 	Shutdown(ctx context.Context) error
 }
 
@@ -15,5 +16,7 @@ type NoopRuntime struct{}
 func (NoopRuntime) LogEmitter() LogEmitter { return NoopLogEmitter{} }
 
 func (NoopRuntime) Tracer() Tracer { return NoopTracer{} }
+
+func (NoopRuntime) Meter() Meter { return NoopMeter{} }
 
 func (NoopRuntime) Shutdown(context.Context) error { return nil }
