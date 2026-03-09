@@ -69,7 +69,7 @@ type ShutdownConfig struct {
 func Load() (Config, error) {
 	cfg := Config{
 		AppEnv:      getEnv("APP_ENV", "local"),
-		ServiceName: getEnv("SERVICE_NAME", getEnv("SERVICE_NAME", "go-backend-architecture")),
+		ServiceName: getEnv("SERVICE_NAME", "app"),
 		HTTP: HTTPConfig{
 			Address:      getEnv("HTTP_ADDRESS", ":8080"),
 			ReadTimeout:  getDuration("HTTP_READ_TIMEOUT", 10*time.Second),
@@ -77,7 +77,7 @@ func Load() (Config, error) {
 			IdleTimeout:  getDuration("HTTP_IDLE_TIMEOUT", 60*time.Second),
 		},
 		DB: DBConfig{
-			URL:               getEnv("DB_URL", "postgres://postgres:postgres@localhost:5432/vocynex?sslmode=disable"),
+			URL:               getEnv("DB_URL", "postgres://postgres:postgres@localhost:5432/app?sslmode=disable"),
 			MaxConns:          int32(getInt("DB_MAX_CONNS", 10)),
 			MinConns:          int32(getInt("DB_MIN_CONNS", 2)),
 			MaxConnLifetime:   getDuration("DB_MAX_CONN_LIFETIME", 30*time.Minute),
@@ -102,7 +102,7 @@ func Load() (Config, error) {
 		},
 		Log: LogConfig{
 			Level:       getEnv("LOG_LEVEL", "info"),
-			OTELevel:    getEnv("OTEL_LOG_LEVEL", getEnv("LOG_LEVEL", "info")),
+			OTELevel:    getEnv("OTEL_LOG_LEVEL", "info"),
 			Development: getBool("LOG_DEVELOPMENT", true),
 		},
 		Shutdown: ShutdownConfig{

@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/labstack/echo/v5"
 
@@ -39,10 +38,7 @@ func Tracing(tracer observability.Tracer) echo.MiddlewareFunc {
 
 			err := next(c)
 
-			statusCode := http.StatusOK
-			if sw, ok := c.Response().(interface{ Status() int }); ok {
-				statusCode = sw.Status()
-			}
+			_, statusCode := echo.ResolveResponseStatus(c.Response(), err)
 			span.SetAttributes(observability.FromPairs("http.response.status_code", statusCode))
 			span.Finish(err)
 

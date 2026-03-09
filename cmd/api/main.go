@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,7 +19,8 @@ func main() {
 
 	application, err := app.New(rootCtx)
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "bootstrap failed: %v\n", err)
+		os.Exit(1)
 	}
 
 	go func() {
