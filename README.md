@@ -60,7 +60,7 @@ Why SQL-first data access (no ORM):
 2. Bootstrap the project:
 
 ```bash
-./scripts/bootstrap-template.sh --module github.com/your-org/your-backend
+./scripts/bootstrap-**template**.sh --module github.com/your-org/your-backend
 ```
 
 This updates module/import paths, service and stack naming, OpenAPI title, and README title.

@@ -1,4 +1,4 @@
-module go-backend-architecture
+module github.com/eannchen/go-backend-architecture
 
 go 1.26
 
