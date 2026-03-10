@@ -1,4 +1,6 @@
 # go-backend-architecture
+
+![Go Version](https://img.shields.io/github/go-mod/go-version/eannchen/go-backend-architecture)
 [![Go Report Card](https://goreportcard.com/badge/github.com/eannchen/go-backend-architecture)](https://goreportcard.com/report/github.com/eannchen/go-backend-architecture)
 
 Go modular-monolith backend template for building maintainable, testable APIs with built-in caching and observability.
