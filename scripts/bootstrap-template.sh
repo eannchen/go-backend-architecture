@@ -136,12 +136,21 @@ main() {
     api_title="${service_name} API"
   fi
 
-  replace_in_files "module go-backend-architecture" "module ${module}" "go.mod"
+  # Derive template module from go.mod so bootstrap works for any module path
+  # (e.g. "go-backend-architecture" or "github.com/eannchen/go-backend-architecture").
+  local template_module
+  template_module="$(grep -E '^module ' go.mod | sed -E 's/^module +//' | head -1)"
+  if [[ -z "$template_module" ]]; then
+    echo "could not read module from go.mod" >&2
+    exit 1
+  fi
+
+  replace_in_file "go.mod" "module ${template_module}" "module ${module}"
 
   # Replace imports only in Go source files.
   local go_file
   while IFS= read -r go_file; do
-    replace_in_file "$go_file" "\"github.com/eannchen/go-backend-architecture/" "\"${module}/"
+    replace_in_file "$go_file" "\"${template_module}/" "\"${module}/"
   done < <(find . -type f -name '*.go' -not -path './.git/*' -not -path './volumes/*' -not -path './tmp/*')
 
   replace_in_files \
