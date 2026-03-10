@@ -141,7 +141,7 @@ main() {
   # Replace imports only in Go source files.
   local go_file
   while IFS= read -r go_file; do
-    replace_in_file "$go_file" "\"go-backend-architecture/" "\"${module}/"
+    replace_in_file "$go_file" "\"github.com/eannchen/go-backend-architecture/" "\"${module}/"
   done < <(find . -type f -name '*.go' -not -path './.git/*' -not -path './volumes/*' -not -path './tmp/*')
 
   replace_in_files \

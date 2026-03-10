@@ -8,7 +8,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	"go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
 )
 
 type stubLogger struct{}

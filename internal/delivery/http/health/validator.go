@@ -3,7 +3,7 @@ package health
 import (
 	"github.com/go-playground/validator/v10"
 
-	usecasehealth "go-backend-architecture/internal/usecase/health"
+	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
 func RegisterValidation(v *validator.Validate) error {

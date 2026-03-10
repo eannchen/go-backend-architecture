@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
 type tracer struct {

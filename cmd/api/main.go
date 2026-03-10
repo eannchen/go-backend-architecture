@@ -9,8 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"go-backend-architecture/internal/app"
-	"go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/app"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
 )
 
 func main() {

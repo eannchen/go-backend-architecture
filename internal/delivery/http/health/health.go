@@ -5,12 +5,12 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	"go-backend-architecture/internal/apperr"
-	deliveryhttp "go-backend-architecture/internal/delivery/http"
-	openapi "go-backend-architecture/internal/delivery/http/openapi/gen"
-	"go-backend-architecture/internal/logger"
-	"go-backend-architecture/internal/observability"
-	usecasehealth "go-backend-architecture/internal/usecase/health"
+	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	deliveryhttp "github.com/eannchen/go-backend-architecture/internal/delivery/http"
+	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
+	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
 type request struct {

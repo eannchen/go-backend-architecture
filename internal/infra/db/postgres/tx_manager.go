@@ -7,9 +7,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	postgresstore "go-backend-architecture/internal/infra/db/postgres/store"
-	"go-backend-architecture/internal/observability"
-	"go-backend-architecture/internal/repository"
+	postgresstore "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/store"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/repository"
 )
 
 type TxManager struct {

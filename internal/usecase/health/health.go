@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"go-backend-architecture/internal/apperr"
-	"go-backend-architecture/internal/logger"
-	"go-backend-architecture/internal/observability"
-	"go-backend-architecture/internal/repository"
+	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/repository"
 )
 
 type Result struct {

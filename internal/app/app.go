@@ -7,15 +7,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	goredis "github.com/redis/go-redis/v9"
 
-	httpDelivery "go-backend-architecture/internal/delivery/http"
-	"go-backend-architecture/internal/infra/config"
-	"go-backend-architecture/internal/infra/db/postgres"
-	zaplogger "go-backend-architecture/internal/infra/logger/zap"
-	"go-backend-architecture/internal/infra/observability/otel"
-	"go-backend-architecture/internal/infra/redisconn"
-	"go-backend-architecture/internal/logger"
-	"go-backend-architecture/internal/observability"
-	"go-backend-architecture/internal/util/errutil"
+	httpDelivery "github.com/eannchen/go-backend-architecture/internal/delivery/http"
+	"github.com/eannchen/go-backend-architecture/internal/infra/config"
+	"github.com/eannchen/go-backend-architecture/internal/infra/db/postgres"
+	zaplogger "github.com/eannchen/go-backend-architecture/internal/infra/logger/zap"
+	"github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
+	"github.com/eannchen/go-backend-architecture/internal/infra/redisconn"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
 )
 
 type App struct {

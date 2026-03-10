@@ -9,9 +9,9 @@ import (
 	"github.com/labstack/echo/v5"
 	echoMiddleware "github.com/labstack/echo/v5/middleware"
 
-	"go-backend-architecture/internal/delivery/middleware"
-	"go-backend-architecture/internal/logger"
-	"go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/middleware"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
 // ServerConfig holds HTTP server settings. Filled by app from infra config so delivery does not depend on infra.

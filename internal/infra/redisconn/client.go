@@ -3,7 +3,7 @@ package redisconn
 import (
 	goredis "github.com/redis/go-redis/v9"
 
-	"go-backend-architecture/internal/infra/config"
+	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 )
 
 // NewClient builds a shared Redis client from project config.

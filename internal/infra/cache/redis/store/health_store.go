@@ -5,7 +5,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	"go-backend-architecture/internal/repository"
+	"github.com/eannchen/go-backend-architecture/internal/repository"
 )
 
 type HealthStore struct {

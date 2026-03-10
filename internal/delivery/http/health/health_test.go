@@ -10,11 +10,11 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v5"
 
-	"go-backend-architecture/internal/apperr"
-	deliveryhttp "go-backend-architecture/internal/delivery/http"
-	openapi "go-backend-architecture/internal/delivery/http/openapi/gen"
-	"go-backend-architecture/internal/logger"
-	usecasehealth "go-backend-architecture/internal/usecase/health"
+	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	deliveryhttp "github.com/eannchen/go-backend-architecture/internal/delivery/http"
+	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
+	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
 type stubLogger struct{}

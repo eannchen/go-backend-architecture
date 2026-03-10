@@ -7,11 +7,11 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 
-	"go-backend-architecture/internal/apperr"
-	"go-backend-architecture/internal/infra/db/builder"
-	dbsqlc "go-backend-architecture/internal/infra/db/postgres/sqlc/gen"
-	"go-backend-architecture/internal/observability"
-	"go-backend-architecture/internal/repository"
+	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	"github.com/eannchen/go-backend-architecture/internal/infra/db/builder"
+	dbsqlc "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/sqlc/gen"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/repository"
 )
 
 type AccountSummaryStore struct {

@@ -7,7 +7,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
 type meter struct {

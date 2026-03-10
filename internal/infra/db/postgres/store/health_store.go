@@ -3,11 +3,11 @@ package store
 import (
 	"context"
 
-	dbsqlc "go-backend-architecture/internal/infra/db/postgres/sqlc/gen"
-	"go-backend-architecture/internal/observability"
-	"go-backend-architecture/internal/repository"
+	dbsqlc "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/sqlc/gen"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/repository"
 
-	"go-backend-architecture/internal/apperr"
+	"github.com/eannchen/go-backend-architecture/internal/apperr"
 )
 
 type DBHealthStore struct {
