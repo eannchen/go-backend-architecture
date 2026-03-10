@@ -1,4 +1,5 @@
 # go-backend-architecture
+[![Go Report Card](https://goreportcard.com/badge/github.com/eannchen/go-backend-architecture)](https://goreportcard.com/report/github.com/eannchen/go-backend-architecture)
 
 Go modular-monolith backend template for building maintainable, testable APIs with built-in caching and observability.
 
@@ -60,7 +61,7 @@ Why SQL-first data access (no ORM):
 2. Bootstrap the project:
 
 ```bash
-./scripts/bootstrap-**template**.sh --module github.com/your-org/your-backend
+./scripts/bootstrap-template.sh --module github.com/your-org/your-backend
 ```
 
 This updates module/import paths, service and stack naming, OpenAPI title, and README title.
