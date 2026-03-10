@@ -14,7 +14,7 @@ Examples:
 Options:
   --module        Required. New Go module path.
   --service-name  Optional. Replaces SERVICE_NAME and the root README title. Default: basename of module path.
-  --project-slug  Optional. Replaces local stack/database/container naming. Default: service name lowercased with non-alphanumerics replaced by underscores.
+  --project-slug  Optional. Replaces local stack/database/container naming. Default: service name lowercased; non-alphanumerics (except hyphens) become underscores.
   --api-title     Optional. Replaces the OpenAPI title. Default: "<service-name> API".
   --help          Show this help.
 EOF
@@ -27,8 +27,9 @@ require_cmd() {
   fi
 }
 
+# Only [a-z0-9_-] allowed; hyphens preserved so e.g. vocynex-api stays vocynex-api.
 to_project_slug() {
-  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g; s/^_+//; s/_+$//'
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]+/_/g; s/^_+//; s/_+$//'
 }
 
 replace_in_file() {
