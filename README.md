@@ -7,10 +7,12 @@ Go modular-monolith backend template for building maintainable, testable APIs wi
 
 ## Purpose
 
-- Provide a reusable backend starter that follows clean architecture.
-- Keep business logic isolated from frameworks and vendors.
-- Offer production-ready foundations: HTTP, DB, cache/KV integration, migrations, tracing, metrics, and structured logging.
-- Serve as a base repo to clone for new app projects.
+For both engineers and AI agents. Shared rules in [`AGENTS.md`](AGENTS.md) keep structure consistent. The template:
+
+- Provides a reusable backend starter that follows clean architecture.
+- Keeps business logic isolated from frameworks and vendors.
+- Offers production-ready foundations: HTTP, DB, cache/KV integration, migrations, tracing, metrics, and structured logging.
+- Serves as a base repo to clone for new app projects.
 
 ## Architecture and Principles
 
@@ -25,7 +27,7 @@ Go modular-monolith backend template for building maintainable, testable APIs wi
 - [Repository pattern](https://martinfowler.com/eaaCatalog/repository.html)
 - [Middleware pattern](https://www.alexedwards.net/blog/making-and-using-middleware)
 
-See package-level `README.md` files and `AGENTS.md` for implementation guidance and shared architecture rules for both engineers and AI agents.
+See package-level `README.md` files and [`AGENTS.md`](AGENTS.md) for implementation guidance and shared architecture rules for both engineers and AI agents.
 
 ## Third-Party Tools
 
@@ -53,9 +55,9 @@ Why SQL-first data access (no ORM):
 
 ## Requirements
 
-- Go (current stable version)
-- Docker + Docker Compose
-- GNU Make
+- [Go 1.26+](https://go.dev/doc/install)
+- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
+- [GNU Make](https://www.gnu.org/software/make/)
 
 ## Use as a Starter
 
@@ -73,9 +75,9 @@ Optional flags:
 - `--project-slug`: sets the local stack slug used by docker/container/database naming.
 - `--api-title`: sets `info.title` in `docs/openapi.yaml`.
 
-3. If you cloned this repository directly, rename your local project directory and update the Git remote URL to your new repository. (`bootstrap-template.sh` does not change directory names or Git remotes.)
+3. If you cloned this repo directly, rename your project directory and set the Git remote to your new repository. The script does not change directory names or remotes.
 4. Validate with `make openapi-generate && go test ./...`.
-5. Review `docker-compose.yml`, `.env.example`, and `docs/openapi.yaml` for project-specific values. The included account/health code is example domain; replace or remove it and add your own migrations and features.
+5. Review `docker-compose.yml`, `.env.example`, and `docs/openapi.yaml` for project-specific values. The account/health code is example domain—replace or remove it and add your own migrations and features.
 6. Review `AGENTS.md` and package-level `README.md` files before feature development.
 
 ## Setup and Run
