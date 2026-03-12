@@ -36,14 +36,14 @@ func contextFieldsProvider() logger.ContextFieldsProviderFunc {
 	return func(ctx context.Context) logger.Fields {
 		fields := make(logger.Fields)
 		if requestID := observability.RequestIDFromContext(ctx); requestID != "" {
-			fields["request_id"] = requestID
+			fields["request.id"] = requestID
 		}
 		traceID, spanID := observability.TraceFromContext(ctx)
 		if traceID != "" {
-			fields["trace_id"] = traceID
+			fields["trace.id"] = traceID
 		}
 		if spanID != "" {
-			fields["span_id"] = spanID
+			fields["span.id"] = spanID
 		}
 		if len(fields) == 0 {
 			return nil

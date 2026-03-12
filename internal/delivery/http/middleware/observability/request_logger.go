@@ -7,7 +7,6 @@ import (
 
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
 // AccessLogMiddleware writes a single access log line per completed request.
@@ -28,6 +27,8 @@ func NewAccessLogMiddleware(log logger.Logger, meta httpresponse.Meta) *AccessLo
 }
 
 // Handler builds the Echo middleware function for request logs.
+// Fields like request.id, trace.id, and span.id are injected automatically
+// by the logger's ContextFieldsProvider; do not add them here.
 func (m *AccessLogMiddleware) Handler() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
@@ -43,8 +44,6 @@ func (m *AccessLogMiddleware) Handler() echo.MiddlewareFunc {
 				route = req.URL.Path
 			}
 
-			requestID := observability.RequestIDFromContext(ctx)
-			traceID, spanID := observability.TraceFromContext(ctx)
 			_, status := echo.ResolveResponseStatus(c.Response(), handlerErr)
 
 			fields := logger.FromPairs(
@@ -52,15 +51,8 @@ func (m *AccessLogMiddleware) Handler() echo.MiddlewareFunc {
 				keyHTTPRoute, route,
 				keyURLPath, req.URL.Path,
 				keyHTTPResponseStatus, status,
-				keyRequestID, requestID,
 				keyDurationMS, duration.Milliseconds(),
 			)
-			if traceID != "" {
-				fields[keyTraceID] = traceID
-			}
-			if spanID != "" {
-				fields[keySpanID] = spanID
-			}
 
 			originalErr := m.meta.GetError(c)
 			errorDetails := m.meta.GetErrorDetails(c)
