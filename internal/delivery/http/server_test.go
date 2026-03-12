@@ -31,7 +31,7 @@ func (stubRegistrar) RegisterRoutes(e *echo.Echo) {
 	})
 }
 
-func TestNewServerWithNilTracer(t *testing.T) {
+func TestNewServerRegistersRoutes(t *testing.T) {
 	server, err := NewServer(ServerConfig{Address: ":0"}, stubLogger{}, nil, nil, stubRegistrar{})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)

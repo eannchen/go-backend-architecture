@@ -51,12 +51,15 @@ components:
         - database
         - cache
         - kvstore
+        - vectorstore
       properties:
         database:
           $ref: "#/components/schemas/HealthDatabase"
         cache:
           $ref: "#/components/schemas/HealthDependency"
         kvstore:
+          $ref: "#/components/schemas/HealthDependency"
+        vectorstore:
           $ref: "#/components/schemas/HealthDependency"
     HealthDatabase:
       type: object

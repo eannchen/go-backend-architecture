@@ -39,7 +39,7 @@ sqlc-generate:
 check-goose-dbstring:
 	@if [ -z "$(GOOSE_DBSTRING)" ]; then \
 		echo "GOOSE_DBSTRING is empty. Set DB_URL in .env or run:"; \
-		echo "make migrate-up DB_URL='postgres://postgres:postgres@localhost:5432/vocynex?sslmode=disable'"; \
+		echo "make migrate-up DB_URL='postgres://postgres:postgres@localhost:5432/go-backend-architecture?sslmode=disable'"; \
 		exit 1; \
 	fi
 
