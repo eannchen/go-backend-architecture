@@ -47,6 +47,9 @@ type Responder interface {
 	Error(c *echo.Context, err error, code Code, message string, details ...Details) error
 	InvalidQuery(c *echo.Context, err error, message string, details ...Details) error
 	AppError(c *echo.Context, err error) error
+	// AppErrorWithPayload records the app error for observability and responds with payload
+	// instead of the standard error body; status is derived from the error like AppError.
+	AppErrorWithPayload(c *echo.Context, err error, payload any) error
 }
 
 type responder struct {
@@ -98,6 +101,17 @@ func (r *responder) writeError(c *echo.Context, code Code, message string) error
 		Code:    string(code),
 		Message: message,
 	})
+}
+
+func (r *responder) AppErrorWithPayload(c *echo.Context, err error, payload any) error {
+	r.meta.SetError(c, err)
+	appErr, ok := apperr.As(err)
+	if !ok {
+		return c.JSON(Code(apperr.CodeInternal).toHTTPStatus(), payload)
+	}
+	r.meta.SetErrorDetails(c, Details(appErr.Details))
+	r.meta.SetTransportError(c, string(appErr.Code), appErr.Message)
+	return c.JSON(Code(appErr.Code).toHTTPStatus(), payload)
 }
 
 func optionalDetails(details ...Details) Details {

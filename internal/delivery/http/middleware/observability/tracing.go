@@ -68,7 +68,7 @@ func (m *TraceMiddleware) Handler() echo.MiddlewareFunc {
 			if originalError != nil {
 				span.SetAttributes(observability.FromPairs(
 					keyError, originalError.Error(),
-					keyErrorCauseChain, errorCauseChain(originalError),
+					keyErrorChain, errorCauseChain(originalError),
 				))
 			}
 			if len(errorDetails) > 0 {

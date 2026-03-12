@@ -67,6 +67,7 @@ func (m *AccessLogMiddleware) Handler() echo.MiddlewareFunc {
 			transportCode, transportMsg := m.meta.GetTransportError(c)
 			if originalErr != nil {
 				fields[keyError] = originalErr.Error()
+				fields[keyErrorChain] = errorCauseChain(originalErr)
 			}
 			if len(errorDetails) > 0 {
 				fields[keyErrorDetails] = errorDetails.String()

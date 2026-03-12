@@ -10,7 +10,7 @@ const (
 	keySpanID             = "span.id"
 	keyDurationMS         = "duration.ms"
 	keyError              = "error"
-	keyErrorCauseChain    = "error.cause_chain"
+	keyErrorChain         = "error.chain"
 	keyErrorDetails       = "error.details"
 	keyTransportCode      = "error.transport.code"
 	keyTransportMessage   = "error.transport.message"

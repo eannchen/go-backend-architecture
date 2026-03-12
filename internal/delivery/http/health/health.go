@@ -66,7 +66,7 @@ func (h *Handler) GetHealth(c *echo.Context) (err error) {
 	if err != nil {
 		spanErr = err
 		if appErr, ok := apperr.As(err); ok && appErr.Code == apperr.CodeUnavailable {
-			return h.responder.Success(c, http.StatusServiceUnavailable, toResponse(result))
+			return h.responder.AppErrorWithPayload(c, err, toResponse(result))
 		}
 		return h.responder.AppError(c, err)
 	}
