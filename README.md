@@ -17,13 +17,14 @@ For both engineers and AI agents. Shared rules in [`AGENTS.md`](AGENTS.md) keep 
 ## Architecture and Principles
 
 - [Clean Architecture](https://8thlight.com/insights/uncle-bob/2012/08/13/the-clean-architecture.html)
-- [Dependency Injection](https://martinfowler.com/articles/injection.html)
+- [Dependency Injection](https://martinfowler.com/articles/injection.html) ([Composition root](https://blog.ploeh.dk/2011/07/28/CompositionRoot/))
 - [SOLID principles](https://en.wikipedia.org/wiki/SOLID)
 - [Consumer-owned interfaces](https://go.dev/doc/effective_go#interfaces_and_types)
 - [Adapter pattern](https://refactoring.guru/design-patterns/adapter)
 - [Decorator pattern](https://refactoring.guru/design-patterns/decorator)
 - [Facade pattern](https://refactoring.guru/design-patterns/facade)
 - [Builder pattern](https://refactoring.guru/design-patterns/builder)
+- [Null object pattern](https://en.wikipedia.org/wiki/Null_object_pattern)
 - [Repository pattern](https://martinfowler.com/eaaCatalog/repository.html)
 - [Middleware pattern](https://www.alexedwards.net/blog/making-and-using-middleware)
 
@@ -76,7 +77,7 @@ Optional flags:
 - `--api-title`: sets `info.title` in `docs/openapi.yaml`.
 
 3. If you cloned this repo directly, rename your project directory and set the Git remote to your new repository. The script does not change directory names or remotes.
-4. Validate with `make openapi-generate && go test ./...`.
+4. Validate with `make openapi-generate && make test`.
 5. Review `docker-compose.yml`, `.env.example`, and `docs/openapi.yaml` for project-specific values. The account/health code is example domain—replace or remove it and add your own migrations and features.
 6. Review `AGENTS.md` and package-level `README.md` files before feature development.
 

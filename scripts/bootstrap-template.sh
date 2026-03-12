@@ -189,7 +189,7 @@ Updated template identifiers:
 Next steps:
   1. Review .env.example, docker-compose.yml, and docs/openapi.yaml.
   2. Run make openapi-generate
-  3. Run go test ./...
+  3. Run make test
 EOF
 }
 
