@@ -1,4 +1,4 @@
-# go-backend-architecture
+# Go Backend Architecture
 
 ![Go Version](https://img.shields.io/github/go-mod/go-version/eannchen/go-backend-architecture)
 [![Go Report Card](https://goreportcard.com/badge/github.com/eannchen/go-backend-architecture)](https://goreportcard.com/report/github.com/eannchen/go-backend-architecture)
@@ -11,7 +11,7 @@ For both engineers and AI agents. Shared rules in [`AGENTS.md`](AGENTS.md) keep 
 
 - Provides a reusable backend starter that follows clean architecture.
 - Keeps business logic isolated from frameworks and vendors.
-- Offers production-ready foundations: HTTP, DB, cache/KV integration, migrations, tracing, metrics, and structured logging.
+- Offers production-ready foundations: HTTP, DB (PostgreSQL with [pgvector](https://github.com/pgvector/pgvector)), cache/KV integration, migrations, tracing, metrics, and structured logging.
 - Serves as a base repo to clone for new app projects.
 
 ## Architecture and Principles
