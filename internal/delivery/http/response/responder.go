@@ -93,6 +93,7 @@ func (r *responder) AppError(c *echo.Context, err error) error {
 }
 
 func (r *responder) writeError(c *echo.Context, code Code, message string) error {
+	r.meta.SetTransportError(c, string(code), message)
 	return c.JSON(code.toHTTPStatus(), errorPayload{
 		Code:    string(code),
 		Message: message,

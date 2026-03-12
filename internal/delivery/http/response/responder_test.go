@@ -67,6 +67,14 @@ func TestResponderAppErrorCopiesAppErrorFields(t *testing.T) {
 	if _, ok := body["details"]; ok {
 		t.Fatalf("details should not be exposed in response payload")
 	}
+
+	code, msg := ContextMeta{}.GetTransportError(c)
+	if code != string(apperr.CodeInvalidArgument) {
+		t.Fatalf("expected transport code %q, got %q", apperr.CodeInvalidArgument, code)
+	}
+	if msg != "bad input" {
+		t.Fatalf("expected transport message %q, got %q", "bad input", msg)
+	}
 }
 
 func TestResponderErrorWritesBody(t *testing.T) {
@@ -86,6 +94,14 @@ func TestResponderErrorWritesBody(t *testing.T) {
 	}
 	if body.Code != "BAD_INPUT" || body.Message != "bad input" {
 		t.Fatalf("expected error body to match written payload, got %#v", body)
+	}
+
+	code, msg := ContextMeta{}.GetTransportError(c)
+	if code != "BAD_INPUT" {
+		t.Fatalf("expected transport code %q, got %q", "BAD_INPUT", code)
+	}
+	if msg != "bad input" {
+		t.Fatalf("expected transport message %q, got %q", "bad input", msg)
 	}
 }
 

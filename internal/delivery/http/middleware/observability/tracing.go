@@ -64,6 +64,7 @@ func (m *TraceMiddleware) Handler() echo.MiddlewareFunc {
 
 			originalError := m.meta.GetError(c)
 			errorDetails := m.meta.GetErrorDetails(c)
+			transportCode, transportMsg := m.meta.GetTransportError(c)
 			if originalError != nil {
 				span.SetAttributes(observability.FromPairs(
 					keyError, originalError.Error(),
@@ -72,6 +73,12 @@ func (m *TraceMiddleware) Handler() echo.MiddlewareFunc {
 			}
 			if len(errorDetails) > 0 {
 				span.SetAttributes(observability.FromPairs(keyErrorDetails, errorDetails.String()))
+			}
+			if transportCode != "" {
+				span.SetAttributes(observability.FromPairs(
+					keyTransportCode, transportCode,
+					keyTransportMessage, transportMsg,
+				))
 			}
 
 			span.Finish(originalError)

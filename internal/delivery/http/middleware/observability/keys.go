@@ -12,4 +12,6 @@ const (
 	keyError              = "error"
 	keyErrorCauseChain    = "error.cause_chain"
 	keyErrorDetails       = "error.details"
+	keyTransportCode      = "error.transport.code"
+	keyTransportMessage   = "error.transport.message"
 )

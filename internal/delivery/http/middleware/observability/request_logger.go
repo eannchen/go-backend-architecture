@@ -64,11 +64,16 @@ func (m *AccessLogMiddleware) Handler() echo.MiddlewareFunc {
 
 			originalErr := m.meta.GetError(c)
 			errorDetails := m.meta.GetErrorDetails(c)
+			transportCode, transportMsg := m.meta.GetTransportError(c)
 			if originalErr != nil {
 				fields[keyError] = originalErr.Error()
 			}
 			if len(errorDetails) > 0 {
 				fields[keyErrorDetails] = errorDetails.String()
+			}
+			if transportCode != "" {
+				fields[keyTransportCode] = transportCode
+				fields[keyTransportMessage] = transportMsg
 			}
 
 			if status >= 500 {

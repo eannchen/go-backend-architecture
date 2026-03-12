@@ -8,16 +8,20 @@ import (
 )
 
 const (
-	keyError        = "observability.error"
-	keyErrorDetails = "observability.error_details"
+	keyError          = "observability.error"
+	keyErrorDetails   = "observability.error_details"
+	keyTransportCode  = "observability.transport_code"
+	keyTransportMsg   = "observability.transport_message"
 )
 
 // Meta defines transport response metadata access for HTTP components.
 type Meta interface {
 	GetError(c *echo.Context) error
 	GetErrorDetails(c *echo.Context) Details
+	GetTransportError(c *echo.Context) (code string, message string)
 	SetError(c *echo.Context, err error)
 	SetErrorDetails(c *echo.Context, details Details)
+	SetTransportError(c *echo.Context, code string, message string)
 }
 
 type Details map[string]any
@@ -63,4 +67,15 @@ func (ContextMeta) GetErrorDetails(c *echo.Context) Details {
 		return nil
 	}
 	return v
+}
+
+func (ContextMeta) SetTransportError(c *echo.Context, code string, message string) {
+	c.Set(keyTransportCode, code)
+	c.Set(keyTransportMsg, message)
+}
+
+func (ContextMeta) GetTransportError(c *echo.Context) (string, string) {
+	code, _ := c.Get(keyTransportCode).(string)
+	msg, _ := c.Get(keyTransportMsg).(string)
+	return code, msg
 }
