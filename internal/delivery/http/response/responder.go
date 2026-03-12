@@ -8,10 +8,43 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 )
 
+// Code represents a transport-level error code. All handler and middleware error
+// types are declared here so the full set is visible in one place.
+type Code string
+
+const (
+	CodeInvalidQuery     Code = "INVALID_QUERY"
+	CodeInvalidRequestID Code = "INVALID_REQUEST_ID"
+)
+
+func (c Code) toHTTPStatus() int {
+	if status, ok := codeStatusMap[c]; ok {
+		return status
+	}
+	return http.StatusInternalServerError
+}
+
+// codeStatusMap maps every known error code to its HTTP status.
+// Delivery-level codes and apperr codes share the same lookup.
+var codeStatusMap = map[Code]int{
+	CodeInvalidQuery:     http.StatusBadRequest,
+	CodeInvalidRequestID: http.StatusBadRequest,
+
+	Code(apperr.CodeInvalidArgument): http.StatusBadRequest,
+	Code(apperr.CodeUnauthorized):    http.StatusUnauthorized,
+	Code(apperr.CodeForbidden):       http.StatusForbidden,
+	Code(apperr.CodeNotFound):        http.StatusNotFound,
+	Code(apperr.CodeConflict):        http.StatusConflict,
+	Code(apperr.CodeTooManyRequests): http.StatusTooManyRequests,
+	Code(apperr.CodeUnavailable):     http.StatusServiceUnavailable,
+	Code(apperr.CodeTimeout):         http.StatusGatewayTimeout,
+	Code(apperr.CodeInternal):        http.StatusInternalServerError,
+}
+
 // Responder writes transport responses and records metadata for observability middleware.
 type Responder interface {
 	Success(c *echo.Context, status int, payload any) error
-	Error(c *echo.Context, err error, status int, code string, message string, details ...Details) error
+	Error(c *echo.Context, err error, code Code, message string, details ...Details) error
 	InvalidQuery(c *echo.Context, err error, message string, details ...Details) error
 	AppError(c *echo.Context, err error) error
 }
@@ -37,56 +70,33 @@ func (r *responder) Success(c *echo.Context, status int, payload any) error {
 	return c.JSON(status, payload)
 }
 
-func (r *responder) Error(c *echo.Context, err error, status int, code string, message string, details ...Details) error {
+func (r *responder) Error(c *echo.Context, err error, code Code, message string, details ...Details) error {
 	r.meta.SetError(c, err)
 	r.meta.SetErrorDetails(c, optionalDetails(details...))
-	return r.writeError(c, status, code, message)
+	return r.writeError(c, code, message)
 }
 
 func (r *responder) InvalidQuery(c *echo.Context, err error, message string, details ...Details) error {
 	r.meta.SetError(c, err)
 	r.meta.SetErrorDetails(c, optionalDetails(details...))
-	return r.writeError(c, http.StatusBadRequest, "INVALID_QUERY", message)
+	return r.writeError(c, CodeInvalidQuery, message)
 }
 
 func (r *responder) AppError(c *echo.Context, err error) error {
 	r.meta.SetError(c, err)
 	appErr, ok := apperr.As(err)
 	if !ok {
-		return r.writeError(c, http.StatusInternalServerError, string(apperr.CodeInternal), "internal server error")
+		return r.writeError(c, Code(apperr.CodeInternal), "internal server error")
 	}
 	r.meta.SetErrorDetails(c, Details(appErr.Details))
-	return r.writeError(c, appErrCodeToStatusCode(appErr.Code), string(appErr.Code), appErr.Message)
+	return r.writeError(c, Code(appErr.Code), appErr.Message)
 }
 
-func (r *responder) writeError(c *echo.Context, status int, code string, message string) error {
-	return c.JSON(status, errorPayload{
-		Code:    code,
+func (r *responder) writeError(c *echo.Context, code Code, message string) error {
+	return c.JSON(code.toHTTPStatus(), errorPayload{
+		Code:    string(code),
 		Message: message,
 	})
-}
-
-func appErrCodeToStatusCode(code apperr.Code) int {
-	switch code {
-	case apperr.CodeInvalidArgument:
-		return http.StatusBadRequest
-	case apperr.CodeUnauthorized:
-		return http.StatusUnauthorized
-	case apperr.CodeForbidden:
-		return http.StatusForbidden
-	case apperr.CodeNotFound:
-		return http.StatusNotFound
-	case apperr.CodeConflict:
-		return http.StatusConflict
-	case apperr.CodeTooManyRequests:
-		return http.StatusTooManyRequests
-	case apperr.CodeUnavailable:
-		return http.StatusServiceUnavailable
-	case apperr.CodeTimeout:
-		return http.StatusGatewayTimeout
-	default:
-		return http.StatusInternalServerError
-	}
 }
 
 func optionalDetails(details ...Details) Details {

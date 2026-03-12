@@ -16,7 +16,9 @@ type Logger interface {
 	Info(ctx context.Context, message string, fields ...Fields)
 	Warn(ctx context.Context, message string, fields ...Fields)
 	Error(ctx context.Context, message string, err error, fields ...Fields)
+	// SetLogSink sets a secondary log sink. Must be called during startup before concurrent logging begins.
 	SetLogSink(sink LogSinkFunc)
+	// SetContextFieldsProvider sets the provider for context-bound fields. Must be called during startup before concurrent logging begins.
 	SetContextFieldsProvider(provider ContextFieldsProviderFunc)
 	Sync() error
 }

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/repository"
 )
@@ -34,7 +33,6 @@ type Usecase interface {
 }
 
 type impl struct {
-	logger       logger.Logger
 	tracer       observability.Tracer
 	checkTotal   observability.Counter
 	checkLatency observability.Histogram
@@ -44,7 +42,6 @@ type impl struct {
 }
 
 func New(
-	log logger.Logger,
 	tracer observability.Tracer,
 	meter observability.Meter,
 	dbHealth repository.DBHealthRepository,
@@ -58,7 +55,6 @@ func New(
 		meter = observability.NoopMeter{}
 	}
 	return &impl{
-		logger: log,
 		tracer: tracer,
 		checkTotal: meter.Counter("health_check_total",
 			observability.MetricOption{

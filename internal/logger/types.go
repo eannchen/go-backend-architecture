@@ -30,6 +30,7 @@ func FromPairs(pairs ...any) Fields {
 	return out
 }
 
+// OptionalFields returns the first variadic Fields argument, or nil if none provided.
 func OptionalFields(optionalFields ...Fields) Fields {
 	if len(optionalFields) == 0 {
 		return nil
@@ -37,6 +38,7 @@ func OptionalFields(optionalFields ...Fields) Fields {
 	return optionalFields[0]
 }
 
+// CloneFields returns a shallow copy of fields. Nested values (maps, slices, pointers) are shared.
 func CloneFields(fields Fields) Fields {
 	if len(fields) == 0 {
 		return nil

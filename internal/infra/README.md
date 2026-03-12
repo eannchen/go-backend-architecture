@@ -7,6 +7,7 @@ Infrastructure implementations. Implements repository and other inner-layer cont
 - Adapter pattern: each subpackage implements one kind of contract (persistence, cache, logging, observability, config).
 - Package boundaries are per concern; vendor and SDK details stay inside infra.
 - Only contract-friendly types and interfaces are used by outer layers.
+- Infra returns standard Go errors (`fmt.Errorf` with `%w`). Usecases are responsible for wrapping infra errors into application errors (`apperr`).
 
 ## How to extend
 

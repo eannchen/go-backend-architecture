@@ -76,7 +76,7 @@ func TestResponderErrorWritesBody(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	responder := NewResponder(nil)
-	if err := responder.Error(c, errors.New("bad input"), http.StatusBadRequest, "BAD_INPUT", "bad input"); err != nil {
+	if err := responder.Error(c, errors.New("bad input"), Code("BAD_INPUT"), "bad input"); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 
 	goredis "github.com/redis/go-redis/v9"
 
@@ -17,7 +18,11 @@ func NewHealthStore(client *goredis.Client) *HealthStore {
 }
 
 func (s *HealthStore) Ping(ctx context.Context) error {
-	return s.client.Ping(ctx).Err()
+	err := s.client.Ping(ctx).Err()
+	if err != nil {
+		return fmt.Errorf("redis ping failed: %w", err)
+	}
+	return nil
 }
 
 var _ repository.CacheHealthStore = (*HealthStore)(nil)

@@ -43,6 +43,7 @@ func FromPairs(pairs ...any) Fields {
 	return out
 }
 
+// OptionalFields returns the first variadic Fields argument, or nil if none provided.
 func OptionalFields(fieldSets ...Fields) Fields {
 	if len(fieldSets) == 0 {
 		return nil

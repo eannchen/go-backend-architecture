@@ -8,6 +8,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	httpDelivery "github.com/eannchen/go-backend-architecture/internal/delivery/http"
+	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/eannchen/go-backend-architecture/internal/infra/db/postgres"
 	zaplogger "github.com/eannchen/go-backend-architecture/internal/infra/logger/zap"
@@ -65,8 +66,9 @@ func New(ctx context.Context) (*App, error) {
 
 	repositories := wiring.buildRepositories(pool, redisStores)
 	usecases := wiring.buildUsecases(repositories)
-	handlers := wiring.buildHandlers(usecases)
-	server, err := wiring.buildServer(handlers)
+	responder := httpresponse.NewResponder(httpresponse.NewContextMeta())
+	handlers := wiring.buildHandlers(responder, usecases)
+	server, err := wiring.buildServer(responder, handlers)
 	if err != nil {
 		return nil, errutil.Join(
 			err,

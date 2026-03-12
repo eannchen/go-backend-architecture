@@ -87,24 +87,23 @@ func (d wiring) buildRepositories(pool *pgxpool.Pool, redis redisStores) appRepo
 
 func (d wiring) buildUsecases(repos appRepositories) appUsecases {
 	return appUsecases{
-		health: usecasehealth.New(d.log, d.tracer, d.meter, repos.dbHealthRepo, repos.cacheHealthStore, repos.kvHealthStore),
+		health: usecasehealth.New(d.tracer, d.meter, repos.dbHealthRepo, repos.cacheHealthStore, repos.kvHealthStore),
 	}
 }
 
-func (d wiring) buildHandlers(usecases appUsecases) appHandlers {
-	responder := httpresponse.NewResponder(nil)
+func (d wiring) buildHandlers(responder httpresponse.Responder, usecases appUsecases) appHandlers {
 	return appHandlers{
 		health: healthhttp.NewHandler(d.log, d.tracer, responder, usecases.health),
 	}
 }
 
-func (d wiring) buildServer(handlers appHandlers) (*httpdelivery.Server, error) {
+func (d wiring) buildServer(responder httpresponse.Responder, handlers appHandlers) (*httpdelivery.Server, error) {
 	validatorRegistrars := []httpdelivery.ValidationRegistrar{
 		healthhttp.RegisterValidation,
 	}
 	middlewares := []echo.MiddlewareFunc{
 		echoMiddleware.Recover(),
-		contextmw.NewRequestContextMiddleware(d.cfg.HTTP.ReadTimeout).Handler(),
+		contextmw.NewRequestContextMiddleware(d.cfg.HTTP.ReadTimeout, responder).Handler(),
 		observabilitymw.New(d.tracer, d.log).Handler(),
 	}
 	serverCfg := httpdelivery.ServerConfig{

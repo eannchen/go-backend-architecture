@@ -4,5 +4,5 @@ description: Error Handling
 
 # Error Handling
 
-Use application errors from `internal/apperr` (`apperr.New`, `apperr.Wrap`). Usecases return app errors; handlers convert them to transport responses. Handlers must NOT return raw errors. Wrap infrastructure errors before leaving infra.
+Usecases return application errors from `internal/apperr` (`apperr.New`, `apperr.Wrap`); handlers convert them to transport responses. Infra returns standard Go errors (`fmt.Errorf` with `%w`); usecases wrap infra errors into app errors at the boundary. Handlers must NOT return raw errors.
 

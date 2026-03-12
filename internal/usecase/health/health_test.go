@@ -6,22 +6,9 @@ import (
 	"testing"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/repository"
 )
-
-type stubLogger struct{}
-
-func (stubLogger) Debug(context.Context, string, ...logger.Fields) {}
-func (stubLogger) Info(context.Context, string, ...logger.Fields)  {}
-func (stubLogger) Warn(context.Context, string, ...logger.Fields)  {}
-func (stubLogger) Error(context.Context, string, error, ...logger.Fields) {
-}
-func (stubLogger) SetLogSink(logger.LogSinkFunc) {}
-func (stubLogger) SetContextFieldsProvider(logger.ContextFieldsProviderFunc) {
-}
-func (stubLogger) Sync() error { return nil }
 
 type stubDBHealthRepo struct {
 	pingErr               error
@@ -71,7 +58,7 @@ func TestCheckReadySuccess(t *testing.T) {
 	}
 	cache := &stubHealthStore{}
 	kv := &stubHealthStore{}
-	uc := New(stubLogger{}, observability.NoopTracer{}, observability.NoopMeter{}, db, cache, kv)
+	uc := New(observability.NoopTracer{}, observability.NoopMeter{}, db, cache, kv)
 
 	got, err := uc.Check(context.Background(), "")
 	if err != nil {
@@ -93,7 +80,7 @@ func TestCheckLiveSkipsDependencies(t *testing.T) {
 	db := &stubDBHealthRepo{}
 	cache := &stubHealthStore{}
 	kv := &stubHealthStore{}
-	uc := New(stubLogger{}, observability.NoopTracer{}, observability.NoopMeter{}, db, cache, kv)
+	uc := New(observability.NoopTracer{}, observability.NoopMeter{}, db, cache, kv)
 
 	got, err := uc.Check(context.Background(), CheckModeLive)
 	if err != nil {
@@ -108,7 +95,7 @@ func TestCheckLiveSkipsDependencies(t *testing.T) {
 }
 
 func TestCheckInvalidMode(t *testing.T) {
-	uc := New(stubLogger{}, observability.NoopTracer{}, observability.NoopMeter{}, &stubDBHealthRepo{}, &stubHealthStore{}, &stubHealthStore{})
+	uc := New(observability.NoopTracer{}, observability.NoopMeter{}, &stubDBHealthRepo{}, &stubHealthStore{}, &stubHealthStore{})
 
 	_, err := uc.Check(context.Background(), CheckMode("bad"))
 	if err == nil {
@@ -129,7 +116,7 @@ func TestCheckCacheFailure(t *testing.T) {
 	}
 	cache := &stubHealthStore{err: errors.New("cache down")}
 	kv := &stubHealthStore{}
-	uc := New(stubLogger{}, observability.NoopTracer{}, observability.NoopMeter{}, db, cache, kv)
+	uc := New(observability.NoopTracer{}, observability.NoopMeter{}, db, cache, kv)
 
 	got, err := uc.Check(context.Background(), CheckModeReady)
 	if err == nil {
@@ -154,7 +141,7 @@ func TestCheckVectorExtensionFailure(t *testing.T) {
 	}
 	cache := &stubHealthStore{}
 	kv := &stubHealthStore{}
-	uc := New(stubLogger{}, observability.NoopTracer{}, observability.NoopMeter{}, db, cache, kv)
+	uc := New(observability.NoopTracer{}, observability.NoopMeter{}, db, cache, kv)
 
 	got, err := uc.Check(context.Background(), CheckModeReady)
 	if err == nil {
@@ -173,7 +160,7 @@ func TestCheckVectorExtensionFailure(t *testing.T) {
 }
 
 func TestNewWithNilTracerDoesNotPanic(t *testing.T) {
-	uc := New(stubLogger{}, nil, observability.NoopMeter{}, &stubDBHealthRepo{}, &stubHealthStore{}, &stubHealthStore{})
+	uc := New(nil, observability.NoopMeter{}, &stubDBHealthRepo{}, &stubHealthStore{}, &stubHealthStore{})
 
 	if _, err := uc.Check(context.Background(), CheckModeLive); err != nil {
 		t.Fatalf("expected nil error, got %v", err)

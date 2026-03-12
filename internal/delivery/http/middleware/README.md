@@ -14,5 +14,6 @@ Transport-level middleware.
 - Add middleware only for cross-cutting behavior (auth, tracing, rate limit, request-id).
 - Create a new middleware subdirectory and keep one middleware concern per package.
 - Prefer struct components with constructor injection and a `Handler() echo.MiddlewareFunc` adapter.
+- Inject the shared `Responder` from `internal/delivery/http/response` for error responses so the format stays consistent across middleware and handlers.
 - Reuse shared response metadata from `internal/delivery/http/response` instead of adding new context keys in components.
 - Avoid business decisions or repository/usecase calls inside middleware.

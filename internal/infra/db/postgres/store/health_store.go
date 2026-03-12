@@ -2,12 +2,11 @@ package store
 
 import (
 	"context"
+	"fmt"
 
 	dbsqlc "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/sqlc/gen"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/repository"
-
-	"github.com/eannchen/go-backend-architecture/internal/apperr"
 )
 
 type DBHealthStore struct {
@@ -35,7 +34,7 @@ func (r *DBHealthStore) Ping(ctx context.Context) (err error) {
 
 	_, err = r.queries.Ping(ctx)
 	if err != nil {
-		return apperr.Wrap(err, apperr.CodeUnavailable, "database ping failed")
+		return fmt.Errorf("database ping failed: %w", err)
 	}
 	return nil
 }
@@ -54,7 +53,7 @@ func (r *DBHealthStore) GetServerStatus(ctx context.Context) (status repository.
 
 	row, err := r.queries.GetServerStatus(ctx)
 	if err != nil {
-		return repository.DBServerStatus{}, apperr.Wrap(err, apperr.CodeUnavailable, "database server status query failed")
+		return repository.DBServerStatus{}, fmt.Errorf("database server status query failed: %w", err)
 	}
 
 	status = repository.DBServerStatus{
@@ -80,10 +79,10 @@ func (r *DBHealthStore) CheckVectorExtension(ctx context.Context) (err error) {
 
 	enabled, err := r.queries.IsVectorExtensionEnabled(ctx)
 	if err != nil {
-		return apperr.Wrap(err, apperr.CodeUnavailable, "vector extension check query failed")
+		return fmt.Errorf("vector extension check query failed: %w", err)
 	}
 	if !enabled {
-		return apperr.New(apperr.CodeUnavailable, "vector extension is not enabled")
+		return fmt.Errorf("vector extension is not enabled")
 	}
 	return nil
 }
