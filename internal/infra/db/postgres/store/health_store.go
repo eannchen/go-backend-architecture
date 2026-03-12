@@ -65,4 +65,27 @@ func (r *DBHealthStore) GetServerStatus(ctx context.Context) (status repository.
 	return status, nil
 }
 
+func (r *DBHealthStore) CheckVectorExtension(ctx context.Context) (err error) {
+	ctx, span := r.tracer.Start(ctx, "repository", "db_health_store.check_vector_extension",
+		observability.FromPairs(
+			"db.system", "postgresql",
+			"db.operation", "select",
+			"db.statement.type", "extension_check",
+			"db.extension.name", "vector",
+		),
+	)
+	defer func() {
+		span.Finish(err)
+	}()
+
+	enabled, err := r.queries.IsVectorExtensionEnabled(ctx)
+	if err != nil {
+		return apperr.Wrap(err, apperr.CodeUnavailable, "vector extension check query failed")
+	}
+	if !enabled {
+		return apperr.New(apperr.CodeUnavailable, "vector extension is not enabled")
+	}
+	return nil
+}
+
 var _ repository.DBHealthRepository = (*DBHealthStore)(nil)

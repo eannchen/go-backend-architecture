@@ -2,7 +2,10 @@ name: go-backend-architecture-local
 
 services:
   postgres:
-    image: postgres:18-alpine
+    build:
+      context: .
+      dockerfile: docker/postgres/Dockerfile
+    image: go-backend-architecture-postgres:18-pgvector
     container_name: go-backend-architecture-postgres
     environment:
       POSTGRES_USER: postgres

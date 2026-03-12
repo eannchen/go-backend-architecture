@@ -29,6 +29,20 @@ func (q *Queries) GetServerStatus(ctx context.Context) (GetServerStatusRow, erro
 	return i, err
 }
 
+const isVectorExtensionEnabled = `-- name: IsVectorExtensionEnabled :one
+SELECT CASE
+    WHEN to_regtype('vector') IS NULL THEN FALSE
+    ELSE TRUE
+END AS enabled
+`
+
+func (q *Queries) IsVectorExtensionEnabled(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, isVectorExtensionEnabled)
+	var enabled bool
+	err := row.Scan(&enabled)
+	return enabled, err
+}
+
 const ping = `-- name: Ping :one
 SELECT 1
 `
