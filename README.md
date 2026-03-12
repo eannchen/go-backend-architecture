@@ -33,6 +33,7 @@ See package-level `README.md` files and [`AGENTS.md`](AGENTS.md) for implementat
 ## Third-Party Tools
 
 - [`Echo v5`](https://github.com/labstack/echo) - HTTP server
+- [`go-playground/validator/v10`](https://github.com/go-playground/validator) - request/DTO validation (struct tags)
 - [`pgx/v5`](https://github.com/jackc/pgx) - PostgreSQL driver and connection pool
 - [`sqlc`](https://github.com/sqlc-dev/sqlc) - static SQL query generation
 - [`Masterminds/squirrel`](https://github.com/Masterminds/squirrel) - dynamic SQL construction
