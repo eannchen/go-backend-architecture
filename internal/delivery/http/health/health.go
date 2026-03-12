@@ -6,8 +6,8 @@ import (
 	"github.com/labstack/echo/v5"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
-	deliveryhttp "github.com/eannchen/go-backend-architecture/internal/delivery/http"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
+	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
@@ -17,21 +17,26 @@ type request struct {
 	Check string `query:"check" validate:"omitempty,health_check_mode"`
 }
 
-func NewHandler(log logger.Logger, tracer observability.Tracer, usecase usecasehealth.Usecase) *Handler {
+func NewHandler(log logger.Logger, tracer observability.Tracer, responder httpresponse.Responder, usecase usecasehealth.Usecase) *Handler {
 	if tracer == nil {
 		tracer = observability.NoopTracer{}
 	}
+	if responder == nil {
+		responder = httpresponse.NewResponder(nil)
+	}
 	return &Handler{
-		logger:  log,
-		tracer:  tracer,
-		usecase: usecase,
+		logger:    log,
+		tracer:    tracer,
+		responder: responder,
+		usecase:   usecase,
 	}
 }
 
 type Handler struct {
-	logger  logger.Logger
-	tracer  observability.Tracer
-	usecase usecasehealth.Usecase
+	logger    logger.Logger
+	tracer    observability.Tracer
+	responder httpresponse.Responder
+	usecase   usecasehealth.Usecase
 }
 
 func (h *Handler) RegisterRoutes(e *echo.Echo) {
@@ -48,11 +53,11 @@ func (h *Handler) GetHealth(c *echo.Context) (err error) {
 	var req request
 	if err := c.Bind(&req); err != nil {
 		spanErr = err
-		return deliveryhttp.RespondInvalidQueryError(c, "invalid query parameters", err.Error())
+		return h.responder.InvalidQuery(c, err, "invalid query parameters")
 	}
 	if err := c.Validate(&req); err != nil {
 		spanErr = err
-		return deliveryhttp.RespondInvalidQueryError(c, "invalid query parameters", err.Error())
+		return h.responder.InvalidQuery(c, err, "invalid query parameters")
 	}
 
 	mode, _ := usecasehealth.ParseCheckMode(req.Check)
@@ -61,12 +66,12 @@ func (h *Handler) GetHealth(c *echo.Context) (err error) {
 	if err != nil {
 		spanErr = err
 		if appErr, ok := apperr.As(err); ok && appErr.Code == apperr.CodeUnavailable {
-			return deliveryhttp.RespondJSON(c, deliveryhttp.ToStatusCode(appErr), toResponse(result))
+			return h.responder.Success(c, http.StatusServiceUnavailable, toResponse(result))
 		}
-		return deliveryhttp.RespondAppError(c, err)
+		return h.responder.AppError(c, err)
 	}
 
-	return deliveryhttp.RespondJSON(c, http.StatusOK, toResponse(result))
+	return h.responder.Success(c, http.StatusOK, toResponse(result))
 }
 
 func toResponse(result usecasehealth.Result) openapi.HealthResponse {
@@ -82,6 +87,9 @@ func toResponse(result usecasehealth.Result) openapi.HealthResponse {
 		},
 		Kvstore: openapi.HealthDependency{
 			Status: result.KVStore.Status,
+		},
+		Vectorstore: openapi.HealthDependency{
+			Status: result.Vector.Status,
 		},
 	}
 }

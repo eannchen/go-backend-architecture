@@ -43,9 +43,10 @@ type HealthDependency struct {
 
 // HealthResponse defines model for HealthResponse.
 type HealthResponse struct {
-	Cache    HealthDependency `json:"cache"`
-	Database HealthDatabase   `json:"database"`
-	Kvstore  HealthDependency `json:"kvstore"`
+	Cache       HealthDependency `json:"cache"`
+	Database    HealthDatabase   `json:"database"`
+	Kvstore     HealthDependency `json:"kvstore"`
+	Vectorstore HealthDependency `json:"vectorstore"`
 }
 
 // GetHealthParams defines parameters for GetHealth.

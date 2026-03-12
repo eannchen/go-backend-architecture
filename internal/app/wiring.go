@@ -2,10 +2,15 @@ package app
 
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/labstack/echo/v5"
+	echoMiddleware "github.com/labstack/echo/v5/middleware"
 	goredis "github.com/redis/go-redis/v9"
 
 	httpdelivery "github.com/eannchen/go-backend-architecture/internal/delivery/http"
 	healthhttp "github.com/eannchen/go-backend-architecture/internal/delivery/http/health"
+	contextmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/context"
+	observabilitymw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/observability"
+	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	rediscachestore "github.com/eannchen/go-backend-architecture/internal/infra/cache/redis/store"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/eannchen/go-backend-architecture/internal/infra/db/postgres"
@@ -87,8 +92,9 @@ func (d wiring) buildUsecases(repos appRepositories) appUsecases {
 }
 
 func (d wiring) buildHandlers(usecases appUsecases) appHandlers {
+	responder := httpresponse.NewResponder(nil)
 	return appHandlers{
-		health: healthhttp.NewHandler(d.log, d.tracer, usecases.health),
+		health: healthhttp.NewHandler(d.log, d.tracer, responder, usecases.health),
 	}
 }
 
@@ -96,11 +102,16 @@ func (d wiring) buildServer(handlers appHandlers) (*httpdelivery.Server, error) 
 	validatorRegistrars := []httpdelivery.ValidationRegistrar{
 		healthhttp.RegisterValidation,
 	}
+	middlewares := []echo.MiddlewareFunc{
+		echoMiddleware.Recover(),
+		contextmw.NewRequestContextMiddleware(d.cfg.HTTP.ReadTimeout).Handler(),
+		observabilitymw.New(d.tracer, d.log).Handler(),
+	}
 	serverCfg := httpdelivery.ServerConfig{
 		Address:      d.cfg.HTTP.Address,
 		ReadTimeout:  d.cfg.HTTP.ReadTimeout,
 		WriteTimeout: d.cfg.HTTP.WriteTimeout,
 		IdleTimeout:  d.cfg.HTTP.IdleTimeout,
 	}
-	return httpdelivery.NewServer(serverCfg, d.log, d.tracer, validatorRegistrars, handlers.health)
+	return httpdelivery.NewServer(serverCfg, d.log, validatorRegistrars, middlewares, handlers.health)
 }

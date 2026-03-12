@@ -1,4 +1,4 @@
-package middleware
+package contextmw
 
 import (
 	"context"
@@ -13,7 +13,20 @@ import (
 
 const requestIDHeader = "X-Request-ID"
 
-func ContextPropagation(timeout time.Duration) echo.MiddlewareFunc {
+// RequestContextMiddleware enriches request context with request ID and timeout.
+type RequestContextMiddleware struct {
+	timeout time.Duration
+}
+
+// NewRequestContextMiddleware creates request context middleware with optional timeout.
+func NewRequestContextMiddleware(timeout time.Duration) *RequestContextMiddleware {
+	return &RequestContextMiddleware{
+		timeout: timeout,
+	}
+}
+
+// Handler builds the Echo middleware function for request context propagation.
+func (m *RequestContextMiddleware) Handler() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			req := c.Request()
@@ -27,9 +40,9 @@ func ContextPropagation(timeout time.Duration) echo.MiddlewareFunc {
 			reqCtx = observability.WithRequestID(reqCtx, requestID)
 			c.Response().Header().Set(requestIDHeader, requestID)
 
-			if timeout > 0 {
+			if m.timeout > 0 {
 				var cancel context.CancelFunc
-				reqCtx, cancel = context.WithTimeout(reqCtx, timeout)
+				reqCtx, cancel = context.WithTimeout(reqCtx, m.timeout)
 				defer cancel()
 			}
 

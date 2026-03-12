@@ -7,11 +7,8 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v5"
-	echoMiddleware "github.com/labstack/echo/v5/middleware"
 
-	"github.com/eannchen/go-backend-architecture/internal/delivery/middleware"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
 // ServerConfig holds HTTP server settings. Filled by app from infra config so delivery does not depend on infra.
@@ -29,7 +26,7 @@ type Server struct {
 	logger     logger.Logger
 }
 
-func NewServer(cfg ServerConfig, log logger.Logger, tracer observability.Tracer, validatorRegistrars []ValidationRegistrar, registrars ...RouteRegistrar) (*Server, error) {
+func NewServer(cfg ServerConfig, log logger.Logger, validatorRegistrars []ValidationRegistrar, middlewares []echo.MiddlewareFunc, registrars ...RouteRegistrar) (*Server, error) {
 	e := echo.New()
 	requestValidator, err := newRequestValidator(validatorRegistrars...)
 	if err != nil {
@@ -37,9 +34,12 @@ func NewServer(cfg ServerConfig, log logger.Logger, tracer observability.Tracer,
 	}
 	e.Validator = requestValidator
 
-	e.Use(echoMiddleware.Recover())
-	e.Use(middleware.ContextPropagation(cfg.ReadTimeout))
-	e.Use(middleware.Tracing(tracer))
+	for _, m := range middlewares {
+		if m == nil {
+			continue
+		}
+		e.Use(m)
+	}
 
 	for _, registrar := range registrars {
 		if registrar == nil {

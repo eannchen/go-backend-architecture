@@ -8,7 +8,7 @@ Echo HTTP server and handlers.
 - `server.go` owns Echo setup, global middleware, and route registration flow.
 - Feature handlers live under `http/<feature>/` and implement `RouteRegistrar`.
 - OpenAPI-driven transport models can be generated under `http/openapi/gen/` from `docs/openapi.yaml`.
-- Response mapping and validation stay in delivery layer.
+- Response writing lives in `http/response/`; validation stays in delivery layer.
 
 ## How to extend
 

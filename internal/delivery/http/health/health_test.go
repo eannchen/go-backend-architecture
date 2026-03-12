@@ -11,7 +11,6 @@ import (
 	"github.com/labstack/echo/v5"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
-	deliveryhttp "github.com/eannchen/go-backend-architecture/internal/delivery/http"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
@@ -74,7 +73,7 @@ func TestGetHealthSuccess(t *testing.T) {
 			KVStore: usecasehealth.Dependency{Status: "up"},
 		},
 	}
-	h := NewHandler(stubLogger{}, nil, uc)
+	h := NewHandler(stubLogger{}, nil, nil, uc)
 
 	e := echo.New()
 	e.Validator = newEchoValidator(t)
@@ -103,7 +102,7 @@ func TestGetHealthSuccess(t *testing.T) {
 
 func TestGetHealthInvalidQuery(t *testing.T) {
 	uc := &stubUsecase{}
-	h := NewHandler(stubLogger{}, nil, uc)
+	h := NewHandler(stubLogger{}, nil, nil, uc)
 
 	e := echo.New()
 	e.Validator = newEchoValidator(t)
@@ -121,11 +120,13 @@ func TestGetHealthInvalidQuery(t *testing.T) {
 		t.Fatalf("expected usecase not called for invalid query, got %d", uc.calls)
 	}
 
-	var got deliveryhttp.APIError
+	var got struct {
+		Code string `json:"code"`
+	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if got.Code != deliveryhttp.ErrCodeInvalidQuery {
+	if got.Code != "INVALID_QUERY" {
 		t.Fatalf("unexpected error code: %q", got.Code)
 	}
 }
@@ -139,7 +140,7 @@ func TestGetHealthUnavailableReturnsPartialResult(t *testing.T) {
 		},
 		err: apperr.New(apperr.CodeUnavailable, "database readiness failed"),
 	}
-	h := NewHandler(stubLogger{}, nil, uc)
+	h := NewHandler(stubLogger{}, nil, nil, uc)
 
 	e := echo.New()
 	e.Validator = newEchoValidator(t)
