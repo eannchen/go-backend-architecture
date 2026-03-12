@@ -8,10 +8,10 @@ import (
 )
 
 const (
-	keyError          = "observability.error"
-	keyErrorDetails   = "observability.error_details"
-	keyTransportCode  = "observability.transport_code"
-	keyTransportMsg   = "observability.transport_message"
+	keyError         = "observability.error"
+	keyErrorDetails  = "observability.error_details"
+	keyTransportCode = "observability.transport_code"
+	keyTransportMsg  = "observability.transport_message"
 )
 
 // Meta defines transport response metadata access for HTTP components.
