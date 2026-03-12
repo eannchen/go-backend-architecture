@@ -150,14 +150,15 @@ Short, accurate, architecture-focused. Each package `README.md` includes **Patte
 
 # OpenAPI Explanation Rules
 
+Treat `docs/openapi.yaml` as the single place that describes the **purpose of each API** and the **meaning of their fields** for frontends and API consumers.
+
 When updating `docs/openapi.yaml`, keep explanations short and consistent:
 
-1. Add `summary` and `description` for every endpoint.
-2. Add `description` for user inputs (header, path, query, and request fields).
-3. Add `description` for response schemas and key fields used by frontend or review workflows.
-4. Explain domain meaning and behavior, not implementation details.
-5. Keep each description to 1-2 lines and avoid repeating obvious type information.
-6. After OpenAPI changes, run `make openapi-generate`.
+1. Add `summary` and `description` for every endpoint; the description must state the **purpose** of the API (why it exists and how it is used).
+2. Add `description` for every user input (header, path, query, and request body fields) and for every response schema and important field.
+3. Describe domain meaning and behavior, not implementation details.
+4. Keep each description to 1–2 lines; avoid repeating obvious type information.
+5. After OpenAPI changes, run `make openapi-generate`.
 
 ---
 

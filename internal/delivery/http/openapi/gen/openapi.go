@@ -21,37 +21,57 @@ func (e GetHealthParamsCheck) Valid() bool {
 	}
 }
 
-// APIError defines model for APIError.
+// APIError Standard error payload returned when a request is invalid or the server cannot fulfill it.
 type APIError struct {
-	Code    string      `json:"code"`
-	Details interface{} `json:"details,omitempty"`
-	Message string      `json:"message"`
+	// Code Machine-readable error code for client handling (e.g. validation, not_found).
+	Code string `json:"code"`
+
+	// Details Optional extra context (e.g. validation field errors).
+	Details *map[string]interface{} `json:"details,omitempty"`
+
+	// Message Human-readable error message.
+	Message string `json:"message"`
 }
 
-// HealthDatabase defines model for HealthDatabase.
+// HealthDatabase Primary database health; used to decide if the instance can serve read/write traffic.
 type HealthDatabase struct {
-	InRecovery    bool   `json:"in_recovery"`
-	Name          string `json:"name"`
-	Status        string `json:"status"`
-	UptimeSeconds int64  `json:"uptime_seconds"`
+	// InRecovery true if the DB is in recovery (e.g. standby); may affect readiness.
+	InRecovery bool `json:"in_recovery"`
+
+	// Name Database identifier (e.g. connection name or role).
+	Name string `json:"name"`
+
+	// Status ok when connected and usable; otherwise indicates failure.
+	Status string `json:"status"`
+
+	// UptimeSeconds How long the database has been up; useful for monitoring.
+	UptimeSeconds int64 `json:"uptime_seconds"`
 }
 
-// HealthDependency defines model for HealthDependency.
+// HealthDependency Generic dependency status for cache, KV, and vector store.
 type HealthDependency struct {
+	// Status ok when the dependency is reachable and usable; otherwise indicates failure.
 	Status string `json:"status"`
 }
 
-// HealthResponse defines model for HealthResponse.
+// HealthResponse Aggregate status of the service and its dependencies for health checks.
 type HealthResponse struct {
-	Cache       HealthDependency `json:"cache"`
-	Database    HealthDatabase   `json:"database"`
-	Kvstore     HealthDependency `json:"kvstore"`
+	// Cache Generic dependency status for cache, KV, and vector store.
+	Cache HealthDependency `json:"cache"`
+
+	// Database Primary database health; used to decide if the instance can serve read/write traffic.
+	Database HealthDatabase `json:"database"`
+
+	// Kvstore Generic dependency status for cache, KV, and vector store.
+	Kvstore HealthDependency `json:"kvstore"`
+
+	// Vectorstore Generic dependency status for cache, KV, and vector store.
 	Vectorstore HealthDependency `json:"vectorstore"`
 }
 
 // GetHealthParams defines parameters for GetHealth.
 type GetHealthParams struct {
-	// Check Health check mode.
+	// Check Which check to run. live = process only; ready = process + DB, cache, KV, vector store.
 	Check *GetHealthParamsCheck `form:"check,omitempty" json:"check,omitempty"`
 }
 

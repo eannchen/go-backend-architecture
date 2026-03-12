@@ -2,7 +2,9 @@ openapi: 3.0.3
 info:
   title: Go Backend Architecture Template API
   version: 0.1.0
-  description: HTTP contract for the backend template.
+  description: |
+    HTTP contract for the backend template. Documents the purpose of each API and
+    the meaning of request/response fields for frontends and API consumers.
 servers:
   - url: http://localhost:8080
 paths:
@@ -10,14 +12,15 @@ paths:
     get:
       operationId: getHealth
       summary: Check service liveness or readiness
-      description: >
-        The default mode is ready. Use check=live to skip dependency checks and
-        verify only that the process can serve requests.
+      description: |
+        Purpose: used by load balancers and orchestrators to decide if the
+        instance can receive traffic. Default mode is ready (all dependencies
+        checked); use check=live to only verify the process is running.
       parameters:
         - name: check
           in: query
           required: false
-          description: Health check mode.
+          description: Which check to run. live = process only; ready = process + DB, cache, KV, vector store.
           schema:
             type: string
             enum:
@@ -26,19 +29,19 @@ paths:
             default: ready
       responses:
         "200":
-          description: The requested health check passed.
+          description: The requested health check passed; dependencies match the requested mode.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
         "400":
-          description: Query parameters failed validation.
+          description: Query parameters failed validation (e.g. invalid check value).
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/APIError"
         "503":
-          description: A readiness dependency is unavailable.
+          description: Ready check failed; at least one dependency is unavailable.
           content:
             application/json:
               schema:
@@ -46,6 +49,7 @@ paths:
 components:
   schemas:
     HealthResponse:
+      description: Aggregate status of the service and its dependencies for health checks.
       type: object
       required:
         - database
@@ -62,6 +66,7 @@ components:
         vectorstore:
           $ref: "#/components/schemas/HealthDependency"
     HealthDatabase:
+      description: Primary database health; used to decide if the instance can serve read/write traffic.
       type: object
       required:
         - status
@@ -70,29 +75,40 @@ components:
         - uptime_seconds
       properties:
         status:
+          description: ok when connected and usable; otherwise indicates failure.
           type: string
         name:
+          description: Database identifier (e.g. connection name or role).
           type: string
         in_recovery:
+          description: true if the DB is in recovery (e.g. standby); may affect readiness.
           type: boolean
         uptime_seconds:
+          description: How long the database has been up; useful for monitoring.
           type: integer
           format: int64
     HealthDependency:
+      description: Generic dependency status for cache, KV, and vector store.
       type: object
       required:
         - status
       properties:
         status:
+          description: ok when the dependency is reachable and usable; otherwise indicates failure.
           type: string
     APIError:
+      description: Standard error payload returned when a request is invalid or the server cannot fulfill it.
       type: object
       required:
         - code
         - message
       properties:
         code:
+          description: Machine-readable error code for client handling (e.g. validation, not_found).
           type: string
         message:
+          description: Human-readable error message.
           type: string
-        details: {}
+        details:
+          description: Optional extra context (e.g. validation field errors).
+          additionalProperties: true
