@@ -21,7 +21,7 @@ app -> wires everything together
 - **delivery** — Transport only: handlers, validation, response mapping.
 - **usecase** — Business logic, independent of frameworks.
 - **repository** — Contracts (interfaces) for usecases. Subdirs mirror infra: `db/`, `cache/`, `kvstore/`, `external/`.
-- **infra** — Implements contracts: postgres, redis, external services, logger, observability.
+- **infra** — Implements contracts: postgres, redis, external services, logger, observability. `composed/` holds decorator stores that combine multiple implementations (e.g. cache-aside).
 - **app** — Composition root: wiring, adapters, server startup.
 
 ---
@@ -45,7 +45,7 @@ internal/infra/<area>/<backend>/store/<feature>_store.go
 internal/delivery/http/handler/<feature>/
 ```
 
-Store implementations live under a backend-specific path (e.g. `db/postgres/store`, `cache/redis/store`, `kvstore/redis/store`).
+Store implementations live under a backend-specific path (e.g. `db/postgres/store`, `cache/redis/store`, `kvstore/redis/store`). When a feature needs a composed store (e.g. cache-aside), add it under `internal/infra/composed/<feature>/`.
 
 ---
 

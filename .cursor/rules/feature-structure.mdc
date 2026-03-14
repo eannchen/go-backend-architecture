@@ -14,5 +14,5 @@ internal/infra/<area>/<backend>/store/<feature>_store.go
 internal/delivery/http/handler/<feature>/
 ```
 
-Store implementations live under a backend-specific path (e.g. `db/postgres/store`, `cache/redis/store`, `kvstore/redis/store`).
+Store implementations live under a backend-specific path (e.g. `db/postgres/store`, `cache/redis/store`, `kvstore/redis/store`). When a feature needs a composed store (e.g. cache-aside), add it under `internal/infra/composed/<feature>/`.
 
