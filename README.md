@@ -3,7 +3,7 @@
 ![Go Version](https://img.shields.io/github/go-mod/go-version/eannchen/go-backend-architecture)
 [![Go Report Card](https://goreportcard.com/badge/github.com/eannchen/go-backend-architecture)](https://goreportcard.com/report/github.com/eannchen/go-backend-architecture)
 
-Go modular-monolith backend template for building maintainable, testable APIs with built-in caching and observability.
+Clean Architecture Go backend template for building maintainable, testable APIs with built-in caching and observability, designed for engineers and AI agents.
 
 ## Purpose
 
@@ -16,18 +16,29 @@ For both engineers and AI agents. Shared rules in [`AGENTS.md`](AGENTS.md) keep 
 
 ## Architecture and Principles
 
+**Architecture & structure**
+
 - [Clean Architecture](https://8thlight.com/insights/uncle-bob/2012/08/13/the-clean-architecture.html)
 - [Dependency Injection](https://martinfowler.com/articles/injection.html) ([Composition root](https://blog.ploeh.dk/2011/07/28/CompositionRoot/))
 - [SOLID principles](https://en.wikipedia.org/wiki/SOLID)
 - [Consumer-owned interfaces](https://go.dev/doc/effective_go#interfaces_and_types)
+
+**Structural patterns**
+
 - [Adapter pattern](https://refactoring.guru/design-patterns/adapter)
 - [Decorator pattern](https://refactoring.guru/design-patterns/decorator)
 - [Facade pattern](https://refactoring.guru/design-patterns/facade)
+
+**Behavioral & creational**
+
 - [Builder pattern](https://refactoring.guru/design-patterns/builder)
 - [Strategy pattern](https://refactoring.guru/design-patterns/strategy)
 - [Null object pattern](https://en.wikipedia.org/wiki/Null_object_pattern)
-- [Repository pattern](https://martinfowler.com/eaaCatalog/repository.html)
+
+**Data & transport**
+
 - [Cache-aside pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside)
+- [Repository pattern](https://martinfowler.com/eaaCatalog/repository.html)
 - [Middleware pattern](https://www.alexedwards.net/blog/making-and-using-middleware)
 
 See package-level `README.md` files and [`AGENTS.md`](AGENTS.md) for implementation guidance and shared architecture rules for both engineers and AI agents.
