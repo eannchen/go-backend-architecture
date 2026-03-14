@@ -16,11 +16,12 @@ import (
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/eannchen/go-backend-architecture/internal/infra/db/postgres"
+	rediscachestore "github.com/eannchen/go-backend-architecture/internal/infra/cache/redis/store"
 	postgresstore "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/store"
 	"github.com/eannchen/go-backend-architecture/internal/infra/external/oauth"
 	"github.com/eannchen/go-backend-architecture/internal/infra/external/otp"
-	rediscachestore "github.com/eannchen/go-backend-architecture/internal/infra/cache/redis/store"
 	rediskvstore "github.com/eannchen/go-backend-architecture/internal/infra/kvstore/redis/store"
+	cacheduser "github.com/eannchen/go-backend-architecture/internal/infra/repository/user"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repocache "github.com/eannchen/go-backend-architecture/internal/repository/cache"
@@ -66,10 +67,11 @@ type appHandlers struct {
 
 type redisStores struct {
 	cacheHealth repocache.CacheHealthStore
+	userCache   *rediscachestore.UserCacheStore
 	kvHealth    repokvstore.KVHealthStore
 	session     *rediskvstore.SessionStore
-	otp        *rediskvstore.OTPStore
-	oauthState *rediskvstore.OAuthStateStore
+	otp         *rediskvstore.OTPStore
+	oauthState  *rediskvstore.OAuthStateStore
 }
 
 func newWiring(cfg config.Config, log logger.Logger, tracer observability.Tracer, meter observability.Meter) wiring {
@@ -84,6 +86,7 @@ func newWiring(cfg config.Config, log logger.Logger, tracer observability.Tracer
 func (d wiring) buildRedisStores(client *goredis.Client) redisStores {
 	return redisStores{
 		cacheHealth: rediscachestore.NewHealthStore(client),
+		userCache:   rediscachestore.NewUserCacheStore(client, d.cfg.Redis.CacheTTL),
 		kvHealth:    rediskvstore.NewHealthStore(client),
 		session:     rediskvstore.NewSessionStore(client),
 		otp:         rediskvstore.NewOTPStore(client),
@@ -92,12 +95,15 @@ func (d wiring) buildRedisStores(client *goredis.Client) redisStores {
 }
 
 func (d wiring) buildRepositories(pool *pgxpool.Pool, redis redisStores) appRepositories {
+	dbUserRepo := postgresstore.NewUserStore(pool, d.tracer)
+	userRepo := cacheduser.NewCachedUserStore(d.log, d.tracer, dbUserRepo, redis.userCache)
+
 	return appRepositories{
 		txManager:        postgres.NewTxManager(pool, d.tracer),
 		dbHealthRepo:     postgresstore.NewDBHealthStore(pool, d.tracer),
 		cacheHealthStore: redis.cacheHealth,
 		kvHealthStore:    redis.kvHealth,
-		userRepo:         postgresstore.NewUserStore(pool, d.tracer),
+		userRepo:         userRepo,
 		sessionRepo:      redis.session,
 		otpRepo:          redis.otp,
 		oauthStateRepo:   redis.oauthState,
