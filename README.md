@@ -79,7 +79,7 @@ Optional flags:
 
 3. If you cloned this repo directly, rename your project directory and set the Git remote to your new repository. The script does not change directory names or remotes.
 4. Validate with `make openapi-generate && make test`.
-5. Review `docker-compose.yml`, `.env.example`, and `docs/openapi.yaml` for project-specific values. The account/health code is example domain—replace or remove it and add your own migrations and features.
+5. Review `docker-compose.yml`, `.env.example`, and `docs/openapi.yaml` for project-specific values. The auth/health code is example domain—replace or remove it and add your own migrations and features.
 6. Review `AGENTS.md` and package-level `README.md` files before feature development.
 
 ## Setup and Run
