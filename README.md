@@ -45,28 +45,43 @@ See package-level `README.md` files and [`AGENTS.md`](AGENTS.md) for implementat
 
 ## Third-Party Tools
 
+**Transport**
+
 - [`Echo v5`](https://github.com/labstack/echo) - HTTP server
 - [`go-playground/validator/v10`](https://github.com/go-playground/validator) - request/DTO validation (struct tags)
+- [`OpenAPI 3`](https://spec.openapis.org/oas/latest.html) - source of truth for HTTP contracts
+- [`oapi-codegen`](https://github.com/oapi-codegen/oapi-codegen) - backend transport model generation from OpenAPI
+
+**Database**
+
 - [`pgx/v5`](https://github.com/jackc/pgx) - PostgreSQL driver and connection pool
 - [`sqlc`](https://github.com/sqlc-dev/sqlc) - static SQL query generation
 - [`Masterminds/squirrel`](https://github.com/Masterminds/squirrel) - dynamic SQL construction
 - [`pressly/goose`](https://github.com/pressly/goose) - database migrations
-- [`go-redis/v9`](https://github.com/redis/go-redis) - Redis client integration
-- [`uber-go/zap`](https://github.com/uber-go/zap) - structured logging
-- [`air`](https://github.com/air-verse/air) - local hot reload
-- [`OpenAPI 3`](https://spec.openapis.org/oas/latest.html) - source of truth for HTTP contracts
-- [`oapi-codegen`](https://github.com/oapi-codegen/oapi-codegen) - backend transport model generation from OpenAPI
-- [`OpenTelemetry`](https://opentelemetry.io/) SDK + [`OTLP`](https://opentelemetry.io/docs/specs/otlp/) exporters - tracing, logs, and metrics
-- [`HyperDX`](https://www.hyperdx.io/) + [`OpenTelemetry Collector`](https://opentelemetry.io/docs/collector/) - local observability integration
-- [`Docker Compose`](https://docs.docker.com/compose/) - local infrastructure orchestration
 
-Why SQL-first data access (no ORM):
+Why SQL-first data access (no ORM)
 
 - Raw SQL with [`sqlc`](https://sqlc.dev/) + [`squirrel`](https://github.com/Masterminds/squirrel) provides explicit query control, predictable performance tuning, and compile-time type safety.
 - Common downsides are handled by:
   - `sqlc` generated typed mappings to reduce runtime schema/query mismatch risk.
   - `squirrel` composable dynamic SQL to avoid fragile string concatenation.
   - Clean Architecture + repository boundaries to isolate SQL in infra adapters and keep usecases storage-agnostic.
+
+**Cache**
+
+- [`go-redis/v9`](https://github.com/redis/go-redis) - Redis client integration
+
+**Observability & logging**
+
+- [`uber-go/zap`](https://github.com/uber-go/zap) - structured logging
+- [`OpenTelemetry`](https://opentelemetry.io/) SDK + [`OTLP`](https://opentelemetry.io/docs/specs/otlp/) exporters - tracing, logs, and metrics
+- [`HyperDX`](https://www.hyperdx.io/) + [`OpenTelemetry Collector`](https://opentelemetry.io/docs/collector/) - local observability integration
+
+**Development & infra**
+
+- [`air`](https://github.com/air-verse/air) - local hot reload
+- [`Docker Compose`](https://docs.docker.com/compose/) - local infrastructure orchestration
+
 
 ## Requirements
 
