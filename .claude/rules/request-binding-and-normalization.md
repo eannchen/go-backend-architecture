@@ -1,0 +1,8 @@
+---
+description: Request binding and normalization
+---
+
+# Request binding and normalization
+
+Pluggable `echo.Binder` injected into the server. Default: `binding.NewNormalizeBinder(nil)` — trims whitespace on bind; optional `case:"lower"` / `case:"upper"` / `trim:"false"` struct tags on DTOs. No manual trim/case in handlers. OpenAPI-generated models in `openapi/gen` are for response mapping; keep request DTOs in delivery for binding tags.
+

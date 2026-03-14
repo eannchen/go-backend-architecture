@@ -6,7 +6,7 @@ import (
 
 	dbsqlc "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/sqlc/gen"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
-	"github.com/eannchen/go-backend-architecture/internal/repository"
+	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
 )
 
 type DBHealthStore struct {
@@ -39,7 +39,7 @@ func (r *DBHealthStore) Ping(ctx context.Context) (err error) {
 	return nil
 }
 
-func (r *DBHealthStore) GetServerStatus(ctx context.Context) (status repository.DBServerStatus, err error) {
+func (r *DBHealthStore) GetServerStatus(ctx context.Context) (status repodb.DBServerStatus, err error) {
 	ctx, span := r.tracer.Start(ctx, "repository", "db_health_store.get_server_status",
 		observability.FromPairs(
 			"db.system", "postgresql",
@@ -53,10 +53,10 @@ func (r *DBHealthStore) GetServerStatus(ctx context.Context) (status repository.
 
 	row, err := r.queries.GetServerStatus(ctx)
 	if err != nil {
-		return repository.DBServerStatus{}, fmt.Errorf("database server status query failed: %w", err)
+		return repodb.DBServerStatus{}, fmt.Errorf("database server status query failed: %w", err)
 	}
 
-	status = repository.DBServerStatus{
+	status = repodb.DBServerStatus{
 		DatabaseName:  row.DatabaseName,
 		InRecovery:    row.InRecovery,
 		UptimeSeconds: row.UptimeSeconds,
@@ -87,4 +87,4 @@ func (r *DBHealthStore) CheckVectorExtension(ctx context.Context) (err error) {
 	return nil
 }
 
-var _ repository.DBHealthRepository = (*DBHealthStore)(nil)
+var _ repodb.DBHealthRepository = (*DBHealthStore)(nil)

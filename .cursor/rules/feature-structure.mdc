@@ -5,14 +5,12 @@ alwaysApply: true
 
 # Feature Structure
 
-When adding a feature, create in order:
+Create in order, then wire in `internal/app/wiring.go`:
 
 ```
-internal/usecase/<feature>/usecase.go
-internal/repository/<feature>.go
-internal/infra/db/postgres/store/<feature>.go
-internal/delivery/http/<feature>/  (handler.go, dto.go)
+internal/usecase/<feature>/
+internal/repository/<area>/<feature>_repository.go
+internal/infra/<area>/store/<feature>_store.go
+internal/delivery/http/handler/<feature>/
 ```
-
-Then wire in `internal/app/wiring.go`. Do not skip layers.
 

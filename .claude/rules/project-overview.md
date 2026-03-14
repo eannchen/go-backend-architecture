@@ -4,7 +4,5 @@ description: Project Overview
 
 # Project Overview
 
-**Go backend architecture template** implementing a **modular monolith with Clean Architecture**. Goals: strong dependency boundaries, clear separation of business logic and infrastructure, testable usecases, predictable structure, and AI agents generating correct code consistently.
-
-Design follows **SOLID principles**: layer boundaries and small functions (SRP); extend via new code and consumer-owned interfaces (OCP); interfaces imply substitutability (LSP); small, consumer-owned interfaces (ISP); depend on repository contracts and constructor-injected abstractions (DIP). See Architecture Layers, Dependency Rules, Constructor Injection, and Interfaces below.
+Go modular-monolith backend template with Clean Architecture. SOLID principles enforced through layer boundaries, consumer-owned interfaces, constructor injection, and repository contracts.
 

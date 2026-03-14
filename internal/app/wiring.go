@@ -7,19 +7,29 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	httpdelivery "github.com/eannchen/go-backend-architecture/internal/delivery/http"
-	healthhttp "github.com/eannchen/go-backend-architecture/internal/delivery/http/health"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/binding"
+	authhttp "github.com/eannchen/go-backend-architecture/internal/delivery/http/handler/auth"
+	healthhttp "github.com/eannchen/go-backend-architecture/internal/delivery/http/handler/health"
 	contextmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/context"
 	observabilitymw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/observability"
+	sessionmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/session"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	rediscachestore "github.com/eannchen/go-backend-architecture/internal/infra/cache/redis/store"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/eannchen/go-backend-architecture/internal/infra/db/postgres"
 	postgresstore "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/store"
+	"github.com/eannchen/go-backend-architecture/internal/infra/external/oauth"
+	"github.com/eannchen/go-backend-architecture/internal/infra/external/otp"
+	rediscachestore "github.com/eannchen/go-backend-architecture/internal/infra/cache/redis/store"
 	rediskvstore "github.com/eannchen/go-backend-architecture/internal/infra/kvstore/redis/store"
-	repocomposite "github.com/eannchen/go-backend-architecture/internal/infra/repository/accountsummary"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
-	"github.com/eannchen/go-backend-architecture/internal/repository"
+	repocache "github.com/eannchen/go-backend-architecture/internal/repository/cache"
+	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
+	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external"
+	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
+	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
+	authotp "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp"
+	authsession "github.com/eannchen/go-backend-architecture/internal/usecase/auth/session"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
@@ -32,26 +42,34 @@ type wiring struct {
 }
 
 type appRepositories struct {
-	dbHealthRepo             repository.DBHealthRepository
-	accountSummaryRepo       repository.AccountSummaryRepository
-	accountSummaryCachedRepo repository.AccountSummaryRepository
-	txManager                repository.TxManager
-	cacheHealthStore         repository.CacheHealthStore
-	kvHealthStore            repository.KVHealthStore
+	dbHealthRepo     repodb.DBHealthRepository
+	txManager        repodb.TxManager
+	cacheHealthStore repocache.CacheHealthStore
+	kvHealthStore    repokvstore.KVHealthStore
+	userRepo         repodb.UserRepository
+	sessionRepo      repokvstore.SessionRepository
+	otpRepo          repokvstore.OTPRepository
+	oauthStateRepo   repokvstore.OAuthStateRepository
 }
 
 type appUsecases struct {
-	health usecasehealth.Usecase
+	health         usecasehealth.Usecase
+	otpAuth        authotp.OTPAuthenticator
+	oauthAuth      authoauth.OAuthAuthenticator
+	sessionManager authsession.SessionManager
 }
 
 type appHandlers struct {
 	health httpdelivery.RouteRegistrar
+	auth   httpdelivery.RouteRegistrar
 }
 
 type redisStores struct {
-	accountSummaryCache *rediscachestore.AccountSummaryStore
-	cacheHealth         repository.CacheHealthStore
-	kvHealth            repository.KVHealthStore
+	cacheHealth repocache.CacheHealthStore
+	kvHealth    repokvstore.KVHealthStore
+	session     *rediskvstore.SessionStore
+	otp        *rediskvstore.OTPStore
+	oauthState *rediskvstore.OAuthStateStore
 }
 
 func newWiring(cfg config.Config, log logger.Logger, tracer observability.Tracer, meter observability.Meter) wiring {
@@ -65,42 +83,87 @@ func newWiring(cfg config.Config, log logger.Logger, tracer observability.Tracer
 
 func (d wiring) buildRedisStores(client *goredis.Client) redisStores {
 	return redisStores{
-		cacheHealth:         rediscachestore.NewHealthStore(client),
-		kvHealth:            rediskvstore.NewHealthStore(client),
-		accountSummaryCache: rediscachestore.NewAccountSummaryStore(client, d.cfg.Redis.CacheTTL),
+		cacheHealth: rediscachestore.NewHealthStore(client),
+		kvHealth:    rediskvstore.NewHealthStore(client),
+		session:     rediskvstore.NewSessionStore(client),
+		otp:         rediskvstore.NewOTPStore(client),
+		oauthState:  rediskvstore.NewOAuthStateStore(client),
 	}
 }
 
 func (d wiring) buildRepositories(pool *pgxpool.Pool, redis redisStores) appRepositories {
-	dbHealthStore := postgresstore.NewDBHealthStore(pool, d.tracer)
-	accountSummaryStore := postgresstore.NewAccountSummaryStore(pool, d.tracer)
-	accountSummaryCachedStore := repocomposite.NewAccountSummaryCachedStore(d.log, d.tracer, accountSummaryStore, redis.accountSummaryCache)
 	return appRepositories{
-		txManager:                postgres.NewTxManager(pool, d.tracer),
-		dbHealthRepo:             dbHealthStore,
-		cacheHealthStore:         redis.cacheHealth,
-		kvHealthStore:            redis.kvHealth,
-		accountSummaryRepo:       accountSummaryStore,
-		accountSummaryCachedRepo: accountSummaryCachedStore,
+		txManager:        postgres.NewTxManager(pool, d.tracer),
+		dbHealthRepo:     postgresstore.NewDBHealthStore(pool, d.tracer),
+		cacheHealthStore: redis.cacheHealth,
+		kvHealthStore:    redis.kvHealth,
+		userRepo:         postgresstore.NewUserStore(pool, d.tracer),
+		sessionRepo:      redis.session,
+		otpRepo:          redis.otp,
+		oauthStateRepo:   redis.oauthState,
 	}
 }
 
+func (d wiring) buildOAuthProviders() []repoexternal.OAuthProvider {
+	var providers []repoexternal.OAuthProvider
+	gcfg := d.cfg.Auth.OAuth.Google
+	if gcfg.ClientID != "" {
+		providers = append(providers, oauth.NewGoogleProvider(oauth.GoogleConfig{
+			ClientID:     gcfg.ClientID,
+			ClientSecret: gcfg.ClientSecret,
+			RedirectURL:  gcfg.RedirectURL,
+		}))
+	}
+	return providers
+}
+
 func (d wiring) buildUsecases(repos appRepositories) appUsecases {
+	emailSender := otp.NewStubSender(d.log)
+
 	return appUsecases{
 		health: usecasehealth.New(d.tracer, d.meter, repos.dbHealthRepo, repos.cacheHealthStore, repos.kvHealthStore),
+		sessionManager: authsession.NewServerSessionManager(
+			d.tracer, d.meter, repos.sessionRepo, d.cfg.Auth.Session.TTL,
+		),
+		otpAuth: authotp.NewOTPAuthenticator(
+			d.log, d.tracer, d.meter,
+			repos.otpRepo, emailSender, repos.userRepo,
+			authotp.OTPConfig{
+				CodeLength: d.cfg.Auth.OTP.CodeLength,
+				TTL:        d.cfg.Auth.OTP.TTL,
+			},
+		),
+		oauthAuth: authoauth.NewOAuthAuthenticator(
+			d.tracer, d.meter,
+			repos.oauthStateRepo, repos.userRepo,
+			d.buildOAuthProviders()...,
+		),
 	}
 }
 
 func (d wiring) buildHandlers(responder httpresponse.Responder, usecases appUsecases) appHandlers {
 	return appHandlers{
 		health: healthhttp.NewHandler(d.log, d.tracer, responder, usecases.health),
+		auth: authhttp.NewHandler(
+			d.log, d.tracer, responder,
+			usecases.otpAuth, usecases.oauthAuth, usecases.sessionManager,
+			authhttp.SessionCookieConfig{
+				Name:   d.cfg.Auth.Session.CookieName,
+				Secure: d.cfg.Auth.Session.CookieSecure,
+				TTL:    d.cfg.Auth.Session.TTL,
+			},
+		),
 	}
 }
 
-func (d wiring) buildServer(responder httpresponse.Responder, handlers appHandlers) (*httpdelivery.Server, error) {
+func (d wiring) buildServer(responder httpresponse.Responder, handlers appHandlers, usecases appUsecases) (*httpdelivery.Server, error) {
 	validatorRegistrars := []httpdelivery.ValidationRegistrar{
 		healthhttp.RegisterValidation,
 	}
+
+	sessMW := sessionmw.New(usecases.sessionManager, d.cfg.Auth.Session.CookieName, responder)
+	_ = sessMW // available for route groups that need auth; see RegisterRoutes
+
 	middlewares := []echo.MiddlewareFunc{
 		echoMiddleware.Recover(),
 		contextmw.NewRequestContextMiddleware(d.cfg.HTTP.ReadTimeout, responder).Handler(),
@@ -112,5 +175,6 @@ func (d wiring) buildServer(responder httpresponse.Responder, handlers appHandle
 		WriteTimeout: d.cfg.HTTP.WriteTimeout,
 		IdleTimeout:  d.cfg.HTTP.IdleTimeout,
 	}
-	return httpdelivery.NewServer(serverCfg, d.log, validatorRegistrars, middlewares, handlers.health)
+	binder := binding.NewNormalizeBinder(nil)
+	return httpdelivery.NewServer(serverCfg, d.log, binder, validatorRegistrars, middlewares, handlers.health, handlers.auth)
 }

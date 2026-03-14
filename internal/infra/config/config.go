@@ -15,9 +15,37 @@ type Config struct {
 	HTTP        HTTPConfig
 	DB          DBConfig
 	Redis       RedisConfig
+	Auth        AuthConfig
 	OTel        OTelConfig
 	Log         LogConfig
 	Shutdown    ShutdownConfig
+}
+
+type AuthConfig struct {
+	Session SessionConfig
+	OTP     OTPConfig
+	OAuth   OAuthConfig
+}
+
+type SessionConfig struct {
+	TTL          time.Duration
+	CookieName   string
+	CookieSecure bool
+}
+
+type OTPConfig struct {
+	TTL        time.Duration
+	CodeLength int
+}
+
+type OAuthConfig struct {
+	Google OAuthProviderConfig
+}
+
+type OAuthProviderConfig struct {
+	ClientID     string
+	ClientSecret string
+	RedirectURL  string
 }
 
 type HTTPConfig struct {
@@ -105,6 +133,24 @@ func Load() (Config, error) {
 			Level:       getEnv("LOG_LEVEL", "info"),
 			OTELevel:    getEnv("OTEL_LOG_LEVEL", "info"),
 			Development: getBool("LOG_DEVELOPMENT", true),
+		},
+		Auth: AuthConfig{
+			Session: SessionConfig{
+				TTL:          getDuration("SESSION_TTL", 24*time.Hour),
+				CookieName:   getEnv("SESSION_COOKIE_NAME", "session"),
+				CookieSecure: getBool("SESSION_COOKIE_SECURE", false),
+			},
+			OTP: OTPConfig{
+				TTL:        getDuration("OTP_TTL", 5*time.Minute),
+				CodeLength: getInt("OTP_CODE_LENGTH", 6),
+			},
+			OAuth: OAuthConfig{
+				Google: OAuthProviderConfig{
+					ClientID:     getEnv("OAUTH_GOOGLE_CLIENT_ID", ""),
+					ClientSecret: getEnv("OAUTH_GOOGLE_CLIENT_SECRET", ""),
+					RedirectURL:  getEnv("OAUTH_GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/oauth/google/callback"),
+				},
+			},
 		},
 		Shutdown: ShutdownConfig{
 			GracePeriod: getDuration("SHUTDOWN_GRACE_PERIOD", 10*time.Second),

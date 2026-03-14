@@ -8,11 +8,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type AccountSummary struct {
-	ID          int64
-	Email       string
-	DisplayName string
-	Plan        string
-	Status      string
-	UpdatedAt   pgtype.Timestamptz
+type OauthConnection struct {
+	ID             int32
+	UserID         int32
+	Provider       string
+	ProviderUserID string
+	CreatedAt      pgtype.Timestamptz
+}
+
+type User struct {
+	ID            int32
+	Email         string
+	EmailVerified bool
+	Name          pgtype.Text
+	Status        string
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
 }

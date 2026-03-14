@@ -1,19 +1,14 @@
 # internal/delivery/http/middleware
 
-Transport-level middleware.
-
 ## Pattern used
 
-- Subdirectory-per-middleware design for clear boundaries.
-- `context/` provides request-id and timeout propagation middleware.
-- `observability/` provides tracing and request logging middleware.
-- Shared `response.Meta` centralizes response metadata access.
+- Subdirectory-per-middleware for clear boundaries.
+- Files named `<feature>_middleware.go` / `<feature>_<specific>_middleware.go`; support files without `_middleware` (e.g. `observability_keys.go`); tests `<feature>_middleware_test.go`.
 
 ## How to extend
 
-- Add middleware only for cross-cutting behavior (auth, tracing, rate limit, request-id).
-- Create a new middleware subdirectory and keep one middleware concern per package.
-- Prefer struct components with constructor injection and a `Handler() echo.MiddlewareFunc` adapter.
-- Inject the shared `Responder` from `internal/delivery/http/response` for error responses so the format stays consistent across middleware and handlers.
-- Reuse shared response metadata from `internal/delivery/http/response` instead of adding new context keys in components.
-- Avoid business decisions or repository/usecase calls inside middleware.
+- Add a new subdirectory per middleware concern.
+- Use `xxx_middleware` file naming pattern.
+- Prefer struct with constructor injection and `Handler() echo.MiddlewareFunc` adapter.
+- Inject `Responder` from `response/` for consistent error format.
+- Keep business logic out of middleware.

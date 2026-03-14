@@ -4,5 +4,5 @@ description: SQL Rules
 
 # SQL Rules
 
-Use **sqlc** for static queries (SELECT, INSERT, UPDATE). Use **Squirrel** for dynamic queries (optional filters, complex conditions). Do not build SQL via string concatenation. All SQL lives in infra.
+**sqlc** for static queries. **Squirrel** for dynamic queries. No string concatenation. All SQL lives in infra.
 

@@ -6,7 +6,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	"github.com/eannchen/go-backend-architecture/internal/repository"
+	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 )
 
 type HealthStore struct {
@@ -24,4 +24,4 @@ func (s *HealthStore) Ping(ctx context.Context) error {
 	return nil
 }
 
-var _ repository.KVHealthStore = (*HealthStore)(nil)
+var _ repokvstore.KVHealthStore = (*HealthStore)(nil)

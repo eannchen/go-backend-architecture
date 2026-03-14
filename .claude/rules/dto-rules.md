@@ -4,7 +4,5 @@ description: DTO Rules
 
 # DTO Rules
 
-Transport DTOs (with `json`, `query`, `form`, `validate`) belong in **delivery only**. Usecase models must NOT contain transport tags. In delivery, map between DTOs and usecase models.
-
-When OpenAPI is used, treat `docs/openapi.yaml` as the external contract for frontend repos and AI agents. Generated models in `internal/delivery/http/openapi/gen` are mainly for shared contract types and response mapping. Keep request DTOs in delivery when Echo binding or `validator/v10` depends on delivery or usecase parsing rules.
+Transport DTOs (with `json`, `query`, `form`, `validate` tags) belong in delivery only. Usecase models must NOT contain transport tags. Map between DTOs and usecase models in delivery.
 

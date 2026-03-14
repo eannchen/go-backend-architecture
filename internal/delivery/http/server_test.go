@@ -34,7 +34,7 @@ func (stubRegistrar) RegisterRoutes(e *echo.Echo) {
 }
 
 func TestNewServerRegistersRoutes(t *testing.T) {
-	server, err := NewServer(ServerConfig{Address: ":0"}, stubLogger{}, nil, nil, stubRegistrar{})
+	server, err := NewServer(ServerConfig{Address: ":0"}, stubLogger{}, nil, nil, nil, stubRegistrar{})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -57,7 +57,7 @@ func TestNewServerSkipsNilMiddleware(t *testing.T) {
 		}
 	}
 
-	server, err := NewServer(ServerConfig{Address: ":0"}, stubLogger{}, nil, []echo.MiddlewareFunc{nil, mw, nil}, stubRegistrar{})
+	server, err := NewServer(ServerConfig{Address: ":0"}, stubLogger{}, nil, nil, []echo.MiddlewareFunc{nil, mw, nil}, stubRegistrar{})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -75,7 +75,7 @@ func TestNewServerSkipsNilMiddleware(t *testing.T) {
 }
 
 func TestNewServerSkipsNilRegistrar(t *testing.T) {
-	server, err := NewServer(ServerConfig{Address: ":0"}, stubLogger{}, nil, nil, nil, stubRegistrar{}, nil)
+	server, err := NewServer(ServerConfig{Address: ":0"}, stubLogger{}, nil, nil, nil, nil, stubRegistrar{}, nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -94,7 +94,7 @@ func TestNewServerValidationRegistrarFailure(t *testing.T) {
 		return errors.New("registration failed")
 	}
 
-	_, err := NewServer(ServerConfig{Address: ":0"}, stubLogger{}, []ValidationRegistrar{failingRegistrar}, nil)
+	_, err := NewServer(ServerConfig{Address: ":0"}, stubLogger{}, nil, []ValidationRegistrar{failingRegistrar}, nil)
 	if err == nil {
 		t.Fatal("expected error from failing validator registrar, got nil")
 	}

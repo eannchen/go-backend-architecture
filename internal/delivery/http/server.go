@@ -8,6 +8,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/binding"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 )
 
@@ -26,8 +27,13 @@ type Server struct {
 	logger     logger.Logger
 }
 
-func NewServer(cfg ServerConfig, log logger.Logger, validatorRegistrars []ValidationRegistrar, middlewares []echo.MiddlewareFunc, registrars ...RouteRegistrar) (*Server, error) {
+func NewServer(cfg ServerConfig, log logger.Logger, binder echo.Binder, validatorRegistrars []ValidationRegistrar, middlewares []echo.MiddlewareFunc, registrars ...RouteRegistrar) (*Server, error) {
 	e := echo.New()
+	if binder != nil {
+		e.Binder = binder
+	} else {
+		e.Binder = binding.NewNormalizeBinder(e.Binder)
+	}
 	requestValidator, err := newRequestValidator(validatorRegistrars...)
 	if err != nil {
 		return nil, fmt.Errorf("initialize request validator: %w", err)

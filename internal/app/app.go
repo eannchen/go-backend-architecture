@@ -68,7 +68,7 @@ func New(ctx context.Context) (*App, error) {
 	usecases := wiring.buildUsecases(repositories)
 	responder := httpresponse.NewResponder(httpresponse.NewContextMeta())
 	handlers := wiring.buildHandlers(responder, usecases)
-	server, err := wiring.buildServer(responder, handlers)
+	server, err := wiring.buildServer(responder, handlers, usecases)
 	if err != nil {
 		return nil, errutil.Join(
 			err,

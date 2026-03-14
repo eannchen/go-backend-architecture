@@ -7,9 +7,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	postgresstore "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/store"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
-	"github.com/eannchen/go-backend-architecture/internal/repository"
+	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
 )
 
 type TxManager struct {
@@ -21,7 +20,7 @@ func NewTxManager(pool *pgxpool.Pool, tracer observability.Tracer) *TxManager {
 	return &TxManager{pool: pool, tracer: tracer}
 }
 
-func (m *TxManager) WithTx(ctx context.Context, fn repository.TxFunc) error {
+func (m *TxManager) WithTx(ctx context.Context, fn repodb.TxFunc) error {
 	tx, err := m.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
@@ -48,18 +47,10 @@ func (m *TxManager) WithTx(ctx context.Context, fn repository.TxFunc) error {
 }
 
 type txRepositories struct {
-	tx             pgx.Tx
-	tracer         observability.Tracer
-	accountSummary repository.AccountSummaryRepository
+	tx     pgx.Tx
+	tracer observability.Tracer
 }
 
 func newTxRepositories(tx pgx.Tx, tracer observability.Tracer) *txRepositories {
 	return &txRepositories{tx: tx, tracer: tracer}
-}
-
-func (r *txRepositories) AccountSummary() repository.AccountSummaryRepository {
-	if r.accountSummary == nil {
-		r.accountSummary = postgresstore.NewAccountSummaryStore(r.tx, r.tracer)
-	}
-	return r.accountSummary
 }

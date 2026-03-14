@@ -46,6 +46,176 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
+
+  /auth/otp/send:
+    post:
+      operationId: sendOTP
+      summary: Send a one-time password to an email address
+      description: |
+        Generates a numeric OTP code and sends it to the provided email.
+        Does not reveal whether the email is already registered.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OTPSendRequest"
+      responses:
+        "200":
+          description: OTP code sent (or silently ignored if rate-limited).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Invalid request body (e.g. missing or malformed email).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIError"
+
+  /auth/otp/verify:
+    post:
+      operationId: verifyOTP
+      summary: Verify an OTP code and create a session
+      description: |
+        Validates the OTP code for the given email. On success, creates an
+        authenticated session and sets a session cookie. If no account exists
+        for this email, one is created automatically.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OTPVerifyRequest"
+      responses:
+        "200":
+          description: OTP verified; session cookie set in response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Invalid request body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIError"
+        "401":
+          description: OTP code invalid or expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIError"
+
+  /auth/oauth/{provider}/authorize:
+    get:
+      operationId: oauthAuthorize
+      summary: Redirect to OAuth provider for authorization
+      description: |
+        Generates a CSRF state token and redirects the user to the OAuth
+        provider's authorization page. The provider parameter selects which
+        OAuth integration to use (e.g. google).
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          description: OAuth provider name (e.g. google).
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to the OAuth provider's authorization page.
+        "400":
+          description: Unsupported provider.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIError"
+
+  /auth/oauth/{provider}/callback:
+    get:
+      operationId: oauthCallback
+      summary: Handle OAuth provider callback
+      description: |
+        Receives the authorization code and state from the OAuth provider.
+        Exchanges the code for user info, finds or creates the account,
+        creates a session, and sets a session cookie.
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          description: OAuth provider name matching the authorize request.
+          schema:
+            type: string
+        - name: code
+          in: query
+          required: true
+          description: Authorization code returned by the OAuth provider.
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          description: CSRF state token for validation.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OAuth login successful; session cookie set in response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Missing or invalid parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIError"
+        "401":
+          description: OAuth state invalid or code exchange failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIError"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: End the current session
+      description: |
+        Revokes the server-side session and clears the session cookie.
+        If no session exists, succeeds silently.
+      responses:
+        "200":
+          description: Session ended.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      summary: Get current session info
+      description: |
+        Returns the authenticated user's account ID and email.
+        Requires a valid session cookie.
+      responses:
+        "200":
+          description: Current session info.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Not authenticated or session expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIError"
+
 components:
   schemas:
     HealthResponse:
@@ -112,3 +282,54 @@ components:
         details:
           description: Optional extra context (e.g. validation field errors).
           additionalProperties: true
+
+    OTPSendRequest:
+      description: Request body for sending an OTP code.
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          description: Email address to send the OTP code to.
+          type: string
+          format: email
+
+    OTPVerifyRequest:
+      description: Request body for verifying an OTP code.
+      type: object
+      required:
+        - email
+        - code
+      properties:
+        email:
+          description: Email address the OTP was sent to.
+          type: string
+          format: email
+        code:
+          description: The OTP code received via email.
+          type: string
+
+    AuthResponse:
+      description: Authenticated user information returned after successful login.
+      type: object
+      required:
+        - user_id
+        - email
+      properties:
+        user_id:
+          description: Unique identifier for the authenticated user.
+          type: integer
+          format: int64
+        email:
+          description: Email address associated with the account.
+          type: string
+
+    MessageResponse:
+      description: Generic success message.
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          description: Human-readable success message.
+          type: string
