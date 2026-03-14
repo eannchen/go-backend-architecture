@@ -11,7 +11,7 @@ For both engineers and AI agents. Shared rules in [`AGENTS.md`](AGENTS.md) keep 
 
 - Provides a reusable backend starter that follows clean architecture.
 - Keeps business logic isolated from frameworks and vendors.
-- Offers production-ready foundations: HTTP, DB (PostgreSQL with [pgvector](https://github.com/pgvector/pgvector)), cache/KV integration, migrations, tracing, metrics, and structured logging.
+- Offers production-ready foundations: HTTP, DB (PostgreSQL with [pgvector](https://github.com/pgvector/pgvector)), cache-aside user store, KV-backed auth (session/OTP/OAuth), migrations, tracing, metrics, and structured logging.
 - Serves as a base repo to clone for new app projects.
 
 ## Architecture and Principles
@@ -24,8 +24,10 @@ For both engineers and AI agents. Shared rules in [`AGENTS.md`](AGENTS.md) keep 
 - [Decorator pattern](https://refactoring.guru/design-patterns/decorator)
 - [Facade pattern](https://refactoring.guru/design-patterns/facade)
 - [Builder pattern](https://refactoring.guru/design-patterns/builder)
+- [Strategy pattern](https://refactoring.guru/design-patterns/strategy)
 - [Null object pattern](https://en.wikipedia.org/wiki/Null_object_pattern)
 - [Repository pattern](https://martinfowler.com/eaaCatalog/repository.html)
+- [Cache-aside pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside)
 - [Middleware pattern](https://www.alexedwards.net/blog/making-and-using-middleware)
 
 See package-level `README.md` files and [`AGENTS.md`](AGENTS.md) for implementation guidance and shared architecture rules for both engineers and AI agents.
@@ -79,7 +81,7 @@ Optional flags:
 
 3. If you cloned this repo directly, rename your project directory and set the Git remote to your new repository. The script does not change directory names or remotes.
 4. Validate with `make openapi-generate && make test`.
-5. Review `docker-compose.yml`, `.env.example`, and `docs/openapi.yaml` for project-specific values. The auth/health code is example domain—replace or remove it and add your own migrations and features.
+5. Review `docker-compose.yml`, `.env.example`, and `docs/openapi.yaml` for project-specific values. The auth (pluggable OTP/OAuth + session), cached user store, and health modules are production-ready foundations—extend them and add your own migrations and features.
 6. Review `AGENTS.md` and package-level `README.md` files before feature development.
 
 ## Setup and Run
