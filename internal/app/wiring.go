@@ -19,7 +19,8 @@ import (
 	rediscachestore "github.com/eannchen/go-backend-architecture/internal/infra/cache/redis/store"
 	postgresstore "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/store"
 	oauthgoogle "github.com/eannchen/go-backend-architecture/internal/infra/external/oauth/login/google"
-	"github.com/eannchen/go-backend-architecture/internal/infra/external/otp"
+	otpresend "github.com/eannchen/go-backend-architecture/internal/infra/external/otp/resend"
+	otpstub "github.com/eannchen/go-backend-architecture/internal/infra/external/otp/stub"
 	rediskvstore "github.com/eannchen/go-backend-architecture/internal/infra/kvstore/redis/store"
 	composeduser "github.com/eannchen/go-backend-architecture/internal/infra/composed/user"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
@@ -124,7 +125,12 @@ func (d wiring) buildOAuthProviders() []repoexternal.OAuthProvider {
 }
 
 func (d wiring) buildUsecases(repos appRepositories) appUsecases {
-	emailSender := otp.NewStubSender(d.log)
+	var emailSender repoexternal.EmailSender
+	if d.cfg.Auth.Resend.APIKey != "" && d.cfg.Auth.Resend.From != "" {
+		emailSender = otpresend.NewResendSender(d.cfg.Auth.Resend.APIKey, d.cfg.Auth.Resend.From)
+	} else {
+		emailSender = otpstub.NewStubSender(d.log)
+	}
 
 	return appUsecases{
 		health: usecasehealth.New(d.tracer, d.meter, repos.dbHealthRepo, repos.cacheHealthStore, repos.kvHealthStore),
