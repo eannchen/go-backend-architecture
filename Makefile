@@ -5,7 +5,7 @@ endif
 
 GOOSE_DRIVER ?= postgres
 GOOSE_DBSTRING ?= $(DB_URL)
-GOOSE_MIGRATION_DIR ?= internal/infra/db/postgres/migrations
+GOOSE_MIGRATION_DIR ?= $(CURDIR)/internal/infra/db/postgres/migrations
 
 .PHONY: install run run-stop test openapi-generate sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring
 
