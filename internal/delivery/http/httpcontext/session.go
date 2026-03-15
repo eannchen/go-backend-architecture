@@ -1,4 +1,4 @@
-package auth
+package httpcontext
 
 import (
 	"github.com/labstack/echo/v5"

@@ -154,6 +154,7 @@ func (d wiring) buildUsecases(repos appRepositories) appUsecases {
 }
 
 func (d wiring) buildHandlers(responder httpresponse.Responder, usecases appUsecases) appHandlers {
+	sessMW := sessionmw.New(usecases.sessionManager, d.cfg.Auth.Session.CookieName, responder)
 	return appHandlers{
 		health: healthhttp.NewHandler(d.log, d.tracer, responder, usecases.health),
 		auth: authhttp.NewHandler(
@@ -164,6 +165,7 @@ func (d wiring) buildHandlers(responder httpresponse.Responder, usecases appUsec
 				Secure: d.cfg.Auth.Session.CookieSecure,
 				TTL:    d.cfg.Auth.Session.TTL,
 			},
+			sessMW,
 		),
 	}
 }
@@ -172,9 +174,6 @@ func (d wiring) buildServer(responder httpresponse.Responder, handlers appHandle
 	validatorRegistrars := []httpdelivery.ValidationRegistrar{
 		healthhttp.RegisterValidation,
 	}
-
-	sessMW := sessionmw.New(usecases.sessionManager, d.cfg.Auth.Session.CookieName, responder)
-	_ = sessMW // available for route groups that need auth; see RegisterRoutes
 
 	middlewares := []echo.MiddlewareFunc{
 		echoMiddleware.Recover(),

@@ -3,7 +3,7 @@ package observabilitymw
 import (
 	"github.com/labstack/echo/v5"
 
-	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
@@ -16,7 +16,7 @@ type Middleware struct {
 
 // New creates fixed-order tracing and access-log middleware composition.
 func New(tracer observability.Tracer, log logger.Logger) *Middleware {
-	meta := httpresponse.NewContextMeta()
+	meta := httpcontext.NewContextMeta()
 	return &Middleware{
 		trace: NewTraceMiddleware(tracer, meta),
 		log:   NewAccessLogMiddleware(log, meta),

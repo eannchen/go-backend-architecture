@@ -6,8 +6,10 @@ import (
 
 	"github.com/labstack/echo/v5"
 
+	sessionmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/session"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
@@ -31,6 +33,7 @@ type Handler struct {
 	oauth     authoauth.OAuthAuthenticator
 	session   authsession.SessionManager
 	cookie    SessionCookieConfig
+	sessionMW *sessionmw.SessionMiddleware
 }
 
 func NewHandler(
@@ -41,6 +44,7 @@ func NewHandler(
 	oauth authoauth.OAuthAuthenticator,
 	session authsession.SessionManager,
 	cookie SessionCookieConfig,
+	sessionMW *sessionmw.SessionMiddleware,
 ) *Handler {
 	if tracer == nil {
 		tracer = observability.NoopTracer{}
@@ -56,6 +60,7 @@ func NewHandler(
 		oauth:     oauth,
 		session:   session,
 		cookie:    cookie,
+		sessionMW: sessionMW,
 	}
 }
 
@@ -65,7 +70,7 @@ func (h *Handler) RegisterRoutes(e *echo.Echo) {
 	e.GET("/auth/oauth/:provider/authorize", h.OAuthAuthorize)
 	e.GET("/auth/oauth/:provider/callback", h.OAuthCallback)
 	e.POST("/auth/logout", h.Logout)
-	e.GET("/auth/me", h.Me)
+	e.GET("/auth/me", h.Me, h.sessionMW.Handler())
 }
 
 func (h *Handler) SendOTP(c *echo.Context) error {
@@ -200,16 +205,12 @@ func (h *Handler) Logout(c *echo.Context) error {
 	})
 }
 
+// Me returns the current user; requires session middleware (enforced by the route group).
 func (h *Handler) Me(c *echo.Context) error {
 	_, span := h.tracer.Start(c.Request().Context(), "handler", "auth_handler.me")
-	var spanErr error
-	defer func() { span.Finish(spanErr) }()
+	defer span.Finish(nil)
 
-	session, ok := SessionFromContext(c)
-	if !ok {
-		return h.responder.Error(c, nil, httpresponse.Code("UNAUTHORIZED"), "not authenticated")
-	}
-
+	session, _ := httpcontext.SessionFromContext(c)
 	return h.responder.Success(c, http.StatusOK, openapi.AuthResponse{
 		UserId: session.UserID,
 		Email:  session.Email,

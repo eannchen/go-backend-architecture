@@ -3,8 +3,8 @@ package sessionmw
 import (
 	"github.com/labstack/echo/v5"
 
-	authhttp "github.com/eannchen/go-backend-architecture/internal/delivery/http/handler/auth"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	authsession "github.com/eannchen/go-backend-architecture/internal/usecase/auth/session"
 )
 
@@ -41,7 +41,7 @@ func (m *SessionMiddleware) Handler() echo.MiddlewareFunc {
 				return m.responder.AppError(c, err)
 			}
 
-			authhttp.SetSessionContext(c, authhttp.SessionInfo{
+			httpcontext.SetSessionContext(c, httpcontext.SessionInfo{
 				UserID: sess.UserID,
 				Email:  sess.Email,
 				Method: sess.Method,

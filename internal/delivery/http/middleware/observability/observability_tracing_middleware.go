@@ -5,23 +5,23 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
 // TraceMiddleware manages request span lifecycle and response/error trace attributes.
 type TraceMiddleware struct {
 	tracer observability.Tracer
-	meta   httpresponse.Meta
+	meta   httpcontext.Meta
 }
 
 // NewTraceMiddleware creates trace middleware with response metadata.
-func NewTraceMiddleware(tracer observability.Tracer, meta httpresponse.Meta) *TraceMiddleware {
+func NewTraceMiddleware(tracer observability.Tracer, meta httpcontext.Meta) *TraceMiddleware {
 	if tracer == nil {
 		tracer = observability.NoopTracer{}
 	}
 	if meta == nil {
-		meta = httpresponse.NewContextMeta()
+		meta = httpcontext.NewContextMeta()
 	}
 	return &TraceMiddleware{
 		tracer: tracer,

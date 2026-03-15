@@ -5,20 +5,20 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 )
 
 // AccessLogMiddleware writes a single access log line per completed request.
 type AccessLogMiddleware struct {
 	log  logger.Logger
-	meta httpresponse.Meta
+	meta httpcontext.Meta
 }
 
 // NewAccessLogMiddleware creates access-log middleware with shared metadata.
-func NewAccessLogMiddleware(log logger.Logger, meta httpresponse.Meta) *AccessLogMiddleware {
+func NewAccessLogMiddleware(log logger.Logger, meta httpcontext.Meta) *AccessLogMiddleware {
 	if meta == nil {
-		meta = httpresponse.NewContextMeta()
+		meta = httpcontext.NewContextMeta()
 	}
 	return &AccessLogMiddleware{
 		log:  log,

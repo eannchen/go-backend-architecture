@@ -6,6 +6,7 @@ import (
 	"github.com/labstack/echo/v5"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 )
 
 // Code represents a transport-level error code. All handler and middleware error
@@ -41,6 +42,15 @@ var codeStatusMap = map[Code]int{
 	Code(apperr.CodeInternal):        http.StatusInternalServerError,
 }
 
+// Type aliases forwarded from httpcontext so Responder's public API stays self-contained.
+type (
+	Meta    = httpcontext.Meta
+	Details = httpcontext.Details
+)
+
+// NewContextMeta creates a Meta backed by Echo request context.
+var NewContextMeta = httpcontext.NewContextMeta
+
 // Responder writes transport responses and records metadata for observability middleware.
 type Responder interface {
 	Success(c *echo.Context, status int, payload any) error
@@ -59,7 +69,7 @@ type responder struct {
 // NewResponder creates an injectable HTTP responder.
 func NewResponder(meta Meta) Responder {
 	if meta == nil {
-		meta = NewContextMeta()
+		meta = httpcontext.NewContextMeta()
 	}
 	return &responder{meta: meta}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo/v5"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 )
 
 func TestResponderAppErrorUsesInternalForNonAppError(t *testing.T) {
@@ -68,7 +69,7 @@ func TestResponderAppErrorCopiesAppErrorFields(t *testing.T) {
 		t.Fatalf("details should not be exposed in response payload")
 	}
 
-	code, msg := ContextMeta{}.GetTransportError(c)
+	code, msg := httpcontext.ContextMeta{}.GetTransportError(c)
 	if code != string(apperr.CodeInvalidArgument) {
 		t.Fatalf("expected transport code %q, got %q", apperr.CodeInvalidArgument, code)
 	}
@@ -96,7 +97,7 @@ func TestResponderErrorWritesBody(t *testing.T) {
 		t.Fatalf("expected error body to match written payload, got %#v", body)
 	}
 
-	code, msg := ContextMeta{}.GetTransportError(c)
+	code, msg := httpcontext.ContextMeta{}.GetTransportError(c)
 	if code != "BAD_INPUT" {
 		t.Fatalf("expected transport code %q, got %q", "BAD_INPUT", code)
 	}
@@ -128,7 +129,7 @@ func TestResponderInvalidQueryStoresInternalDetailsOnly(t *testing.T) {
 		t.Fatalf("details should not be exposed in response payload")
 	}
 
-	details := ContextMeta{}.GetErrorDetails(c)
+	details := httpcontext.ContextMeta{}.GetErrorDetails(c)
 	if details == nil || details["field"] != "check" {
 		t.Fatalf("expected internal error details, got %#v", details)
 	}

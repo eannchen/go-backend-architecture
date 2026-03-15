@@ -5,17 +5,13 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/bootstrap-template.sh --module <go-module> [--service-name <name>] [--project-slug <slug>] [--api-title <title>]
+  ./scripts/bootstrap-template.sh --module <go-module>
 
 Examples:
   ./scripts/bootstrap-template.sh --module github.com/acme/orders-api
-  ./scripts/bootstrap-template.sh --module github.com/acme/orders-api --service-name orders-api --project-slug orders_api --api-title "Orders API"
 
 Options:
   --module        Required. New Go module path.
-  --service-name  Optional. Replaces SERVICE_NAME and the root README title. Default: basename of module path.
-  --project-slug  Optional. Replaces local stack/database/container naming. Default: service name lowercased; non-alphanumerics (except hyphens) become underscores.
-  --api-title     Optional. Replaces the OpenAPI title. Default: "<service-name> API".
   --help          Show this help.
 EOF
 }
@@ -80,26 +76,11 @@ main() {
   require_cmd perl
 
   local module=""
-  local service_name=""
-  local project_slug=""
-  local api_title=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --module)
         module="${2:-}"
-        shift 2
-        ;;
-      --service-name)
-        service_name="${2:-}"
-        shift 2
-        ;;
-      --project-slug)
-        project_slug="${2:-}"
-        shift 2
-        ;;
-      --api-title)
-        api_title="${2:-}"
         shift 2
         ;;
       --help|-h)
@@ -120,22 +101,17 @@ main() {
     exit 1
   fi
 
-  if [[ -z "$service_name" ]]; then
-    service_name="${module##*/}"
-  fi
+  local service_name="${module##*/}"
+
+  local project_slug
+  project_slug="$(to_project_slug "$service_name")"
 
   if [[ -z "$project_slug" ]]; then
-    project_slug="$(to_project_slug "$service_name")"
-  fi
-
-  if [[ -z "$project_slug" ]]; then
-    echo "derived project slug is empty; pass --project-slug explicitly" >&2
+    echo "derived project slug is empty; check --module value" >&2
     exit 1
   fi
 
-  if [[ -z "$api_title" ]]; then
-    api_title="${service_name} API"
-  fi
+  local api_title="${service_name} API"
 
   # Derive template module from go.mod so bootstrap works for any module path
   # (e.g. "go-backend-architecture" or "github.com/eannchen/go-backend-architecture").

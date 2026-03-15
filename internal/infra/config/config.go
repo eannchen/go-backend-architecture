@@ -45,6 +45,7 @@ type OTPConfig struct {
 	CodeLength int
 }
 
+// OAuthConfig holds per-provider settings. Google is used by oauth/login/google (Sign in with Google).
 type OAuthConfig struct {
 	Google OAuthProviderConfig
 }

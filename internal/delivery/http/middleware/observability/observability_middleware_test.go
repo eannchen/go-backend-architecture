@@ -9,7 +9,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 )
 
 func TestContextMetaReadWrite(t *testing.T) {
@@ -19,9 +19,9 @@ func TestContextMetaReadWrite(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	originalErr := errors.New("boom")
-	meta := httpresponse.NewContextMeta()
+	meta := httpcontext.NewContextMeta()
 	meta.SetError(c, originalErr)
-	meta.SetErrorDetails(c, httpresponse.Details{"stage": "bind"})
+	meta.SetErrorDetails(c, httpcontext.Details{"stage": "bind"})
 
 	if got := meta.GetError(c); got != originalErr {
 		t.Fatalf("unexpected original error: %v", got)
