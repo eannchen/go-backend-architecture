@@ -7,7 +7,7 @@ GOOSE_DRIVER ?= postgres
 GOOSE_DBSTRING ?= $(DB_URL)
 GOOSE_MIGRATION_DIR ?= $(CURDIR)/internal/infra/db/postgres/migrations
 
-.PHONY: install run run-stop test openapi-generate sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring
+.PHONY: install run run-stop test test-cover test-integration test-integration-real openapi-generate sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring
 
 run:
 	air -c .air.toml
@@ -29,6 +29,15 @@ install:
 
 test:
 	go test ./...
+
+test-cover:
+	go test -coverprofile=coverage.out ./...
+
+test-integration:
+	go test ./internal/delivery/http/integration
+
+test-integration-real:
+	go test -tags=integration ./internal/delivery/http/integration
 
 openapi-generate:
 	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest -config oapi-codegen.yaml docs/openapi.yaml
