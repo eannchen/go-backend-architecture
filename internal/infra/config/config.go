@@ -25,6 +25,13 @@ type AuthConfig struct {
 	Session SessionConfig
 	OTP     OTPConfig
 	OAuth   OAuthConfig
+	Resend  ResendConfig
+}
+
+// ResendConfig holds settings for Resend email API (OTP).
+type ResendConfig struct {
+	APIKey string
+	From   string
 }
 
 type SessionConfig struct {
@@ -150,6 +157,10 @@ func Load() (Config, error) {
 					ClientSecret: getEnv("OAUTH_GOOGLE_CLIENT_SECRET", ""),
 					RedirectURL:  getEnv("OAUTH_GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/oauth/google/callback"),
 				},
+			},
+			Resend: ResendConfig{
+				APIKey: getEnv("RESEND_API_KEY", ""),
+				From:   getEnv("RESEND_FROM", ""),
 			},
 		},
 		Shutdown: ShutdownConfig{
