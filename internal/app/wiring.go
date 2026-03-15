@@ -18,7 +18,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/infra/db/postgres"
 	rediscachestore "github.com/eannchen/go-backend-architecture/internal/infra/cache/redis/store"
 	postgresstore "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/store"
-	"github.com/eannchen/go-backend-architecture/internal/infra/external/oauth"
+	oauthgoogle "github.com/eannchen/go-backend-architecture/internal/infra/external/oauth/login/google"
 	"github.com/eannchen/go-backend-architecture/internal/infra/external/otp"
 	rediskvstore "github.com/eannchen/go-backend-architecture/internal/infra/kvstore/redis/store"
 	composeduser "github.com/eannchen/go-backend-architecture/internal/infra/composed/user"
@@ -114,7 +114,7 @@ func (d wiring) buildOAuthProviders() []repoexternal.OAuthProvider {
 	var providers []repoexternal.OAuthProvider
 	gcfg := d.cfg.Auth.OAuth.Google
 	if gcfg.ClientID != "" {
-		providers = append(providers, oauth.NewGoogleProvider(oauth.GoogleConfig{
+		providers = append(providers, oauthgoogle.NewProvider(oauthgoogle.Config{
 			ClientID:     gcfg.ClientID,
 			ClientSecret: gcfg.ClientSecret,
 			RedirectURL:  gcfg.RedirectURL,
