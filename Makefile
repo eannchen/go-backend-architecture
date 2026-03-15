@@ -6,11 +6,17 @@ endif
 GOOSE_DRIVER ?= postgres
 GOOSE_DBSTRING ?= $(DB_URL)
 GOOSE_MIGRATION_DIR ?= $(CURDIR)/internal/infra/db/postgres/migrations
+GO_TEST ?= go test
+AIR_CMD ?= air -c .air.toml
+OAPI_CODEGEN_CMD ?= github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+SQLC_CMD ?= github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+GOOSE_CMD ?= github.com/pressly/goose/v3/cmd/goose@latest
+GOOSE_RUN = GOOSE_DRIVER=$(GOOSE_DRIVER) GOOSE_DBSTRING='$(GOOSE_DBSTRING)' GOOSE_MIGRATION_DIR=$(GOOSE_MIGRATION_DIR) go run $(GOOSE_CMD)
 
-.PHONY: install run run-stop test test-cover test-integration test-integration-real openapi-generate sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring
+.PHONY: install run run-stop test test-cover test-integration test-integration-real openapi-generate sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring test-all cover itest itest-real openapi sqlc mup mdown mstatus
 
 run:
-	air -c .air.toml
+	$(AIR_CMD)
 
 run-stop:
 	@pids=$$(lsof -tiTCP:8080 -sTCP:LISTEN); \
@@ -28,22 +34,22 @@ install:
 	go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 
 test:
-	go test ./...
+	$(GO_TEST) ./...
 
 test-cover:
-	go test -coverprofile=coverage.out ./...
+	$(GO_TEST) -coverprofile=coverage.out ./...
 
 test-integration:
-	go test ./internal/delivery/http/integration
+	$(GO_TEST) ./internal/delivery/http/integration
 
 test-integration-real:
-	go test -tags=integration ./internal/delivery/http/integration
+	$(GO_TEST) -tags=integration ./internal/delivery/http/integration
 
 openapi-generate:
-	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest -config oapi-codegen.yaml docs/openapi.yaml
+	go run $(OAPI_CODEGEN_CMD) -config oapi-codegen.yaml docs/openapi.yaml
 
 sqlc-generate:
-	go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate
+	go run $(SQLC_CMD) generate
 
 check-goose-dbstring:
 	@if [ -z "$(GOOSE_DBSTRING)" ]; then \
@@ -53,13 +59,13 @@ check-goose-dbstring:
 	fi
 
 migrate-up: check-goose-dbstring
-	GOOSE_DRIVER=$(GOOSE_DRIVER) GOOSE_DBSTRING='$(GOOSE_DBSTRING)' GOOSE_MIGRATION_DIR=$(GOOSE_MIGRATION_DIR) go run github.com/pressly/goose/v3/cmd/goose@latest up
+	$(GOOSE_RUN) up
 
 migrate-down: check-goose-dbstring
-	GOOSE_DRIVER=$(GOOSE_DRIVER) GOOSE_DBSTRING='$(GOOSE_DBSTRING)' GOOSE_MIGRATION_DIR=$(GOOSE_MIGRATION_DIR) go run github.com/pressly/goose/v3/cmd/goose@latest down
+	$(GOOSE_RUN) down
 
 migrate-status: check-goose-dbstring
-	GOOSE_DRIVER=$(GOOSE_DRIVER) GOOSE_DBSTRING='$(GOOSE_DBSTRING)' GOOSE_MIGRATION_DIR=$(GOOSE_MIGRATION_DIR) go run github.com/pressly/goose/v3/cmd/goose@latest status
+	$(GOOSE_RUN) status
 
 dev-up:
 	docker compose up -d postgres redis hyperdx otel-collector
@@ -69,3 +75,13 @@ dev-down:
 
 dev-logs:
 	docker compose logs -f postgres redis hyperdx otel-collector
+
+test-all: test
+cover: test-cover
+itest: test-integration
+itest-real: test-integration-real
+openapi: openapi-generate
+sqlc: sqlc-generate
+mup: migrate-up
+mdown: migrate-down
+mstatus: migrate-status
