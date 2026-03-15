@@ -6,3 +6,5 @@ description: Error Handling
 
 Usecases return `apperr.New`/`apperr.Wrap`; handlers convert to transport responses. Infra returns `fmt.Errorf` with `%w`; usecases wrap at the boundary. All errors must be handled — log non-fatal ones at warn level minimum.
 
+**Sentinel errors:** Define in repository per area (e.g. `repository/db/errors.go`: `ErrDuplicateKey`). Infra maps vendor errors with `errors.Join(sentinel, err)`; usecase uses `errors.Is(err, repo.ErrX)` and returns the right `apperr` code.
+

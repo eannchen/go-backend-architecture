@@ -2,9 +2,11 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	dbsqlc "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/sqlc/gen"
+	"github.com/eannchen/go-backend-architecture/internal/infra/db/postgres"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
 )
@@ -56,6 +58,9 @@ func (s *UserStore) CreateByEmail(ctx context.Context, email string) (user repod
 
 	row, err := s.queries.CreateUser(ctx, email)
 	if err != nil {
+		if postgres.IsUniqueViolation(err) {
+			return repodb.User{}, fmt.Errorf("create user: %w", errors.Join(repodb.ErrDuplicateKey, err))
+		}
 		return repodb.User{}, fmt.Errorf("create user: %w", err)
 	}
 	return repodb.User{ID: int64(row.ID), Email: row.Email}, nil

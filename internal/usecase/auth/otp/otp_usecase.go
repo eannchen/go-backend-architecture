@@ -152,6 +152,10 @@ func (a *otpAuthenticator) VerifyCode(ctx context.Context, email, code string) (
 	if err != nil {
 		user, err = a.userRepo.CreateByEmail(ctx, email)
 		if err != nil {
+			if errors.Is(err, repodb.ErrDuplicateKey) {
+				// Race: another request created the user; treat as conflict so client can retry or re-login.
+				return auth.Identity{}, apperr.New(apperr.CodeConflict, "email already registered")
+			}
 			if errors.Is(err, context.DeadlineExceeded) {
 				return auth.Identity{}, apperr.Wrap(err, apperr.CodeTimeout, "create user timed out")
 			}
