@@ -80,7 +80,12 @@ main() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --module)
-        module="${2:-}"
+        if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+          echo "--module requires a value" >&2
+          usage >&2
+          exit 1
+        fi
+        module="$2"
         shift 2
         ;;
       --help|-h)
@@ -136,7 +141,7 @@ main() {
     ".env.example"
 
   replace_in_files \
-    "# go-backend-architecture" \
+    "# Go Backend Architecture" \
     "# ${service_name}" \
     "README.md"
 
@@ -144,6 +149,14 @@ main() {
     "Go Backend Architecture Template API" \
     "${api_title}" \
     "docs/openapi.yaml"
+
+  # Badge URLs use the GitHub owner/repo path (e.g. eannchen/go-backend-architecture).
+  # Replace before slug tokens so the partial slug match doesn't leave a stale owner.
+  local template_github_path="${template_module#github.com/}"
+  local new_github_path="${module#github.com/}"
+  if [[ "$template_github_path" != "$template_module" && "$new_github_path" != "$module" ]]; then
+    replace_in_file "README.md" "$template_github_path" "$new_github_path"
+  fi
 
   replace_slug_tokens "${project_slug}" \
     ".env.example" \
