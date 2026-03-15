@@ -3,6 +3,7 @@ package resend
 import (
 	"context"
 	"fmt"
+	"html"
 
 	"github.com/resend/resend-go/v3"
 	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external"
@@ -22,12 +23,13 @@ func NewResendSender(apiKey, from string) *ResendSender {
 	}
 }
 
+// SendOTP sends the OTP email via Resend. code is assumed server-generated numeric only; escaped for HTML safety.
 func (s *ResendSender) SendOTP(ctx context.Context, email, code string) error {
 	_, err := s.client.Emails.Send(&resend.SendEmailRequest{
 		From:    s.from,
 		To:      []string{email},
 		Subject: "Your verification code",
-		Html:    "<p>Your verification code is: <strong>" + code + "</strong></p>",
+		Html:    "<p>Your verification code is: <strong>" + html.EscapeString(code) + "</strong></p>",
 	})
 	if err != nil {
 		return fmt.Errorf("send otp: %w", err)
