@@ -88,6 +88,8 @@ Pluggable `echo.Binder` injected into the server. Default: `binding.NewNormalize
 
 **sqlc** for static queries. **Squirrel** for dynamic queries. No string concatenation. All SQL lives in infra.
 
+**Type alignment across layers:** Keep repository/usecase primitive field types aligned with DB schema intent (e.g. `BIGINT` -> `int64`) to avoid repeated casts and silent narrowing. Do NOT expose vendor/driver-specific types (e.g. pgx/pgtype) outside infra; map them at the repository boundary.
+
 ---
 
 # Error Handling
