@@ -9,15 +9,15 @@ import (
 )
 
 type OauthConnection struct {
-	ID             int32
-	UserID         int32
+	ID             int64
+	UserID         int64
 	Provider       string
 	ProviderUserID string
 	CreatedAt      pgtype.Timestamptz
 }
 
 type User struct {
-	ID            int32
+	ID            int64
 	Email         string
 	EmailVerified bool
 	Name          pgtype.Text

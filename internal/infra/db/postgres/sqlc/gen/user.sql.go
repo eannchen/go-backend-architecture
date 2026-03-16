@@ -16,7 +16,7 @@ RETURNING id, email
 `
 
 type CreateUserRow struct {
-	ID    int32
+	ID    int64
 	Email string
 }
 
@@ -34,7 +34,7 @@ WHERE email = $1
 `
 
 type GetUserByEmailRow struct {
-	ID    int32
+	ID    int64
 	Email string
 }
 
@@ -52,11 +52,11 @@ WHERE id = $1
 `
 
 type GetUserByIDRow struct {
-	ID    int32
+	ID    int64
 	Email string
 }
 
-func (q *Queries) GetUserByID(ctx context.Context, id int32) (GetUserByIDRow, error) {
+func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, error) {
 	row := q.db.QueryRow(ctx, getUserByID, id)
 	var i GetUserByIDRow
 	err := row.Scan(&i.ID, &i.Email)
@@ -98,7 +98,7 @@ type UpsertOAuthConnectionParams struct {
 }
 
 type UpsertOAuthConnectionRow struct {
-	ID    int32
+	ID    int64
 	Email string
 }
 

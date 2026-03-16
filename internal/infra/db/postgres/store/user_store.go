@@ -34,7 +34,7 @@ func (s *UserStore) GetByEmail(ctx context.Context, email string) (user repodb.U
 	if err != nil {
 		return repodb.User{}, fmt.Errorf("get user by email: %w", err)
 	}
-	return repodb.User{ID: int64(row.ID), Email: row.Email}, nil
+	return repodb.User{ID: row.ID, Email: row.Email}, nil
 }
 
 func (s *UserStore) GetByID(ctx context.Context, id int64) (user repodb.User, err error) {
@@ -43,11 +43,11 @@ func (s *UserStore) GetByID(ctx context.Context, id int64) (user repodb.User, er
 	)
 	defer func() { span.Finish(err) }()
 
-	row, err := s.queries.GetUserByID(ctx, int32(id))
+	row, err := s.queries.GetUserByID(ctx, id)
 	if err != nil {
 		return repodb.User{}, fmt.Errorf("get user by id: %w", err)
 	}
-	return repodb.User{ID: int64(row.ID), Email: row.Email}, nil
+	return repodb.User{ID: row.ID, Email: row.Email}, nil
 }
 
 func (s *UserStore) CreateByEmail(ctx context.Context, email string) (user repodb.User, err error) {
@@ -63,7 +63,7 @@ func (s *UserStore) CreateByEmail(ctx context.Context, email string) (user repod
 		}
 		return repodb.User{}, fmt.Errorf("create user: %w", err)
 	}
-	return repodb.User{ID: int64(row.ID), Email: row.Email}, nil
+	return repodb.User{ID: row.ID, Email: row.Email}, nil
 }
 
 func (s *UserStore) UpsertOAuthUser(ctx context.Context, info repodb.OAuthUserUpsert) (user repodb.User, err error) {
@@ -80,7 +80,7 @@ func (s *UserStore) UpsertOAuthUser(ctx context.Context, info repodb.OAuthUserUp
 	if err != nil {
 		return repodb.User{}, fmt.Errorf("upsert oauth connection: %w", err)
 	}
-	return repodb.User{ID: int64(row.ID), Email: row.Email}, nil
+	return repodb.User{ID: row.ID, Email: row.Email}, nil
 }
 
 var _ repodb.UserRepository = (*UserStore)(nil)
