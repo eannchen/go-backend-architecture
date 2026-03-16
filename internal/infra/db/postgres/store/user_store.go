@@ -2,11 +2,9 @@ package store
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	dbsqlc "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/sqlc/gen"
-	"github.com/eannchen/go-backend-architecture/internal/infra/db/postgres"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
 )
@@ -58,10 +56,7 @@ func (s *UserStore) CreateByEmail(ctx context.Context, email string) (user repod
 
 	row, err := s.queries.CreateUser(ctx, email)
 	if err != nil {
-		if postgres.IsUniqueViolation(err) {
-			return repodb.User{}, fmt.Errorf("create user: %w", errors.Join(repodb.ErrDuplicateKey, err))
-		}
-		return repodb.User{}, fmt.Errorf("create user: %w", err)
+		return repodb.User{}, wrapWriteErr(err, "create user")
 	}
 	return repodb.User{ID: row.ID, Email: row.Email}, nil
 }
@@ -78,7 +73,7 @@ func (s *UserStore) UpsertOAuthUser(ctx context.Context, info repodb.OAuthUserUp
 		Email:          info.Email,
 	})
 	if err != nil {
-		return repodb.User{}, fmt.Errorf("upsert oauth connection: %w", err)
+		return repodb.User{}, wrapWriteErr(err, "upsert oauth connection")
 	}
 	return repodb.User{ID: row.ID, Email: row.Email}, nil
 }
