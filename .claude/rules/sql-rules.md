@@ -6,7 +6,11 @@ description: SQL Rules
 
 **sqlc** for static queries. **Squirrel** for dynamic queries. No string concatenation. All SQL lives in infra.
 
-**No N+1 / no DB in loops:** Do not execute DB queries inside loops. Prefer window functions, joins, batch queries (`IN`/`ANY`), and bulk operations. If a write flow truly cannot be made set-based (e.g. IDs are generated and required for subsequent rows), use the smallest number of round-trips possible and document why it’s unavoidable.
+**No N+1:** never run DB queries in loops. Prefer JOINs, window functions, and batch ops (`IN`/`ANY`). If multiple writes are unavoidable, minimize round-trips and document why.
+
+**Usecase-oriented queries:** don’t chain repo calls for related data (Get A → then Get B). Instead, prefer a single query (JOIN/batch) via a dedicated repo method.
+
+**Single round-trip (reads):** prefer one DB call. Multiple calls only if data is optional/rare or complexity reduction is significant; add a comment to justify.
 
 **Type alignment across layers:** Keep repository/usecase primitive field types aligned with DB schema intent (e.g. `BIGINT` -> `int64`) to avoid repeated casts and silent narrowing. Do NOT expose vendor/driver-specific types (e.g. pgx/pgtype) outside infra; map them at the repository boundary.
 
