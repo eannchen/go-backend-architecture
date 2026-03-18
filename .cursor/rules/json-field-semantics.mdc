@@ -1,0 +1,22 @@
+---
+description: JSON Field Semantics
+alwaysApply: true
+---
+
+# JSON Field Semantics
+
+All fields defined in the schema must always be present in the response. Never omit a field silently.
+
+**Null** means the value is genuinely unknown or unavailable server-side. Use it sparingly and document which fields can be null.
+
+**Type-specific defaults:**
+- `string` → `null` if unknown; never use `""` unless it's a meaningful empty string
+- `number` → `null` if unknown; never use `0` as a placeholder
+- `boolean` → never `null`; always resolve to `true` or `false`
+- `array` → `[]` if empty; never `null`
+- `object` → `null` if the whole sub-resource is absent; `{}` only if the object exists but has no properties
+
+**Never use null to mean "not loaded yet"** — that is client state, not API state.
+
+**Omitted key vs. null value** are not interchangeable. A missing key means "this field doesn't apply to this response shape." A `null` value means "this field applies, but has no value." Pick one per field and stay consistent.
+
