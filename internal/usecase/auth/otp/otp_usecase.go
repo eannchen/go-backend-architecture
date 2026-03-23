@@ -15,7 +15,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
-	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external"
+	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external/otp"
 	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )

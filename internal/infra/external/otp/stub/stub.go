@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/eannchen/go-backend-architecture/internal/logger"
-	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external"
+	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external/otp"
 )
 
 // StubSender logs OTP codes instead of sending real emails.

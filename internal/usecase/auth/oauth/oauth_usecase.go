@@ -8,7 +8,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
-	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external"
+	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external/oauth"
 	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )

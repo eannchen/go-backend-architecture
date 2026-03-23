@@ -27,7 +27,8 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repocache "github.com/eannchen/go-backend-architecture/internal/repository/cache"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
-	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external"
+	repooauth "github.com/eannchen/go-backend-architecture/internal/repository/external/oauth"
+	repootp "github.com/eannchen/go-backend-architecture/internal/repository/external/otp"
 	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
 	authotp "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp"
@@ -111,8 +112,8 @@ func (d wiring) buildRepositories(pool *pgxpool.Pool, redis redisStores) appRepo
 	}
 }
 
-func (d wiring) buildOAuthProviders() []repoexternal.OAuthProvider {
-	var providers []repoexternal.OAuthProvider
+func (d wiring) buildOAuthProviders() []repooauth.OAuthProvider {
+	var providers []repooauth.OAuthProvider
 	gcfg := d.cfg.Auth.OAuth.Google
 	if gcfg.ClientID != "" {
 		providers = append(providers, oauthgoogle.NewProvider(oauthgoogle.Config{
@@ -125,7 +126,7 @@ func (d wiring) buildOAuthProviders() []repoexternal.OAuthProvider {
 }
 
 func (d wiring) buildUsecases(repos appRepositories) appUsecases {
-	var emailSender repoexternal.EmailSender
+	var emailSender repootp.EmailSender
 	if d.cfg.Auth.Resend.APIKey != "" && d.cfg.Auth.Resend.From != "" {
 		emailSender = otpresend.NewResendSender(d.cfg.Auth.Resend.APIKey, d.cfg.Auth.Resend.From)
 	} else {

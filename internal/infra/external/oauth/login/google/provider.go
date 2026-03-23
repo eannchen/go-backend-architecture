@@ -10,7 +10,7 @@ import (
 	"golang.org/x/oauth2"
 	googleoauth2 "golang.org/x/oauth2/google"
 
-	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external"
+	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external/oauth"
 )
 
 const userInfoURL = "https://www.googleapis.com/oauth2/v2/userinfo"
