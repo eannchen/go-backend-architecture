@@ -20,5 +20,8 @@ func wrapWriteErr(err error, msg string) error {
 	if postgres.IsUniqueViolation(err) {
 		return fmt.Errorf("%s: %w", msg, errors.Join(repodb.ErrDuplicateKey, err))
 	}
+	if postgres.IsForeignKeyViolation(err) {
+		return fmt.Errorf("%s: %w", msg, errors.Join(repodb.ErrForeignKey, err))
+	}
 	return fmt.Errorf("%s: %w", msg, err)
 }

@@ -9,11 +9,18 @@ import (
 // PostgreSQL error codes used to map driver errors to repository sentinels.
 // See: https://www.postgresql.org/docs/current/errcodes-appendix.html
 const (
+	CodeForeignKeyViolation    = "23503"
 	CodeUniqueViolation        = "23505"
 	CodeCheckViolation         = "23514"
 	CodeStringDataTruncation   = "22001"
 	CodeNumericValueOutOfRange = "22003"
 )
+
+// IsForeignKeyViolation reports whether err is a foreign_key_violation.
+func IsForeignKeyViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == CodeForeignKeyViolation
+}
 
 // IsUniqueViolation reports whether err is a Postgres unique_violation (e.g. unique index).
 func IsUniqueViolation(err error) bool {
