@@ -3,6 +3,7 @@ package postgres
 import (
 	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -15,6 +16,11 @@ const (
 	CodeStringDataTruncation   = "22001"
 	CodeNumericValueOutOfRange = "22003"
 )
+
+// IsNoRows reports whether err is a pgx.ErrNoRows.
+func IsNoRows(err error) bool {
+	return errors.Is(err, pgx.ErrNoRows)
+}
 
 // IsForeignKeyViolation reports whether err is a foreign_key_violation.
 func IsForeignKeyViolation(err error) bool {

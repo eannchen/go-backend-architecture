@@ -25,3 +25,12 @@ func wrapWriteErr(err error, msg string) error {
 	}
 	return fmt.Errorf("%s: %w", msg, err)
 }
+
+// wrapSelectErr wraps errors from select operations (SELECT) and maps known PG
+// Do not use for INSERT/UPDATE/UPSERT paths.
+func wrapSelectErr(err error, msg string) error {
+	if postgres.IsNoRows(err) {
+		return fmt.Errorf("%s: %w", msg, errors.Join(repodb.ErrNotFound, err))
+	}
+	return fmt.Errorf("%s: %w", msg, err)
+}

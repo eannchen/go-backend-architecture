@@ -5,6 +5,7 @@ import "errors"
 // Sentinel errors for DB repository outcomes. Infra implementations (e.g. postgres store)
 // map vendor errors to these so usecases can errors.Is(err, db.ErrX) and return the right apperr code.
 var (
+	ErrNotFound      = errors.New("db: not found")
 	ErrDuplicateKey  = errors.New("db: duplicate key")
 	ErrForeignKey    = errors.New("db: foreign key violation")
 	ErrValueTooLong  = errors.New("db: value too long for column")
