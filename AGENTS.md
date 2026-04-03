@@ -122,6 +122,8 @@ Structured logging (`logger.Fields(...)`). Log meaningful events only. Handlers 
 
 Idiomatic Go. Exported `PascalCase`, unexported `camelCase`, constructors `NewX(...)`. Interfaces describe behavior; avoid `I*` prefixes. Small functions; named returns only when they improve clarity.
 
+**Iteration:** Prefer **one pass** over the same collection when it stays clear (merge derivations, batch SQL, pre-size from known `len`).
+
 ---
 
 # Commenting Rules
@@ -143,6 +145,8 @@ Each package README has **Pattern used** and **How to extend** only. Short, arch
 ---
 
 # JSON Field Semantics
+
+These rules apply only to HTTP **response** DTOs (types serialized to JSON for clients, including OpenAPI-generated response models), not to repository, usecase, or other internal structs, which may use idiomatic Go (e.g. nil slices) until mapped at the delivery boundary.
 
 All fields defined in the schema must always be present in the response. Never omit a field silently.
 
@@ -171,3 +175,4 @@ All fields defined in the schema must always be present in the response. Never o
 6. For HTTP changes: update `docs/openapi.yaml` first, run `make openapi-generate`, then adapt handlers.
 7. Use binding tags on DTOs (`trim:"false"`, `case:"lower"`, `case:"upper"`); no manual trim/case.
 8. Follow **File and directory naming** conventions above.
+9. Avoid redundant passes over the same data unless clarity or separation is worth it.

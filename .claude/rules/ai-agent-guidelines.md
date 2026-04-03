@@ -12,3 +12,4 @@ description: AI Agent Guidelines
 6. For HTTP changes: update `docs/openapi.yaml` first, run `make openapi-generate`, then adapt handlers.
 7. Use binding tags on DTOs (`trim:"false"`, `case:"lower"`, `case:"upper"`); no manual trim/case.
 8. Follow **File and directory naming** conventions above.
+9. Avoid redundant passes over the same data unless clarity or separation is worth it.

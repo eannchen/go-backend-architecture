@@ -4,6 +4,8 @@ description: JSON Field Semantics
 
 # JSON Field Semantics
 
+These rules apply only to HTTP **response** DTOs (types serialized to JSON for clients, including OpenAPI-generated response models), not to repository, usecase, or other internal structs, which may use idiomatic Go (e.g. nil slices) until mapped at the delivery boundary.
+
 All fields defined in the schema must always be present in the response. Never omit a field silently.
 
 **Null** means the value is genuinely unknown or unavailable server-side. Use it sparingly and document which fields can be null.
