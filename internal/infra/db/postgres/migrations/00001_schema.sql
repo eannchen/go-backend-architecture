@@ -14,13 +14,14 @@ CREATE TABLE users (
 
 CREATE TABLE oauth_connections (
     id               BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id          BIGINT       NOT NULL REFERENCES users(id),
+    user_id          BIGINT       NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     provider         VARCHAR(32)  NOT NULL,
     provider_user_id VARCHAR(255) NOT NULL,
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     UNIQUE(provider, provider_user_id)
 );
 
+-- Index list also in sqlc/schema.sql for a single tuning reference.
 CREATE INDEX idx_oauth_connections_user_id ON oauth_connections(user_id);
 -- +goose StatementEnd
 
