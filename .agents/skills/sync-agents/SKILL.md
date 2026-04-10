@@ -1,0 +1,18 @@
+---
+name: sync-agents
+description: Run after editing AGENTS.md (rules) or any .agents/skills/*/SKILL.md (skills) to propagate changes to Claude Code, Cursor, and Codex.
+---
+
+# Sync AI agent configuration
+
+After changing `AGENTS.md` or any `.agents/skills/*/SKILL.md`, run the sync script to propagate changes to all tools.
+
+## Steps
+
+1. Run from the repository root:
+   ```bash
+   ./scripts/sync-agents.sh
+   ```
+2. Confirm the script printed "Done. Claude Code, Cursor, and Codex are in sync."
+
+No other steps. The script regenerates `.cursor/rules/`, `.claude/rules/`, and the `# Skills` block in `AGENTS.md`.
