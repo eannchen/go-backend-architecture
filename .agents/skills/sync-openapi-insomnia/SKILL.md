@@ -1,0 +1,21 @@
+---
+name: sync-openapi-insomnia
+description: Run after docs/openapi.yaml is modified to regenerate docs/insomnia.json from the updated OpenAPI spec. Use when you or the user have changed API paths, schemas, request fields, or response fields in docs/openapi.yaml.
+---
+
+# Sync OpenAPI and Insomnia
+
+After changing `docs/openapi.yaml`, regenerate API artifacts so `docs/insomnia.json` stays aligned with the OpenAPI source of truth.
+
+## Steps
+
+1. Run from the repository root:
+   ```bash
+   make openapi-generate
+   ```
+2. Regenerate `docs/insomnia.json` from the updated OpenAPI spec using the project's Insomnia export flow.
+3. Verify both files reflect the intended update:
+   - `docs/openapi.yaml`
+   - `docs/insomnia.json`
+
+Do not manually edit `docs/insomnia.json`; always regenerate it from the OpenAPI spec.
