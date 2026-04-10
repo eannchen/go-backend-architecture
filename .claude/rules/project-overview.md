@@ -1,8 +1,0 @@
----
-description: Project Overview
----
-
-# Project Overview
-
-Go modular-monolith backend template with Clean Architecture. SOLID principles enforced through layer boundaries, consumer-owned interfaces, constructor injection, and repository contracts.
-
