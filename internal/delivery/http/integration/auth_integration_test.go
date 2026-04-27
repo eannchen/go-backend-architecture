@@ -17,9 +17,9 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/binding"
 	authhttp "github.com/eannchen/go-backend-architecture/internal/delivery/http/handler/auth"
+	sessionmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/session"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	sessionmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/session"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )
@@ -30,6 +30,8 @@ func (stubLogger) Debug(context.Context, string, ...logger.Fields) {}
 func (stubLogger) Info(context.Context, string, ...logger.Fields)  {}
 func (stubLogger) Warn(context.Context, string, ...logger.Fields)  {}
 func (stubLogger) Error(context.Context, string, error, ...logger.Fields) {
+}
+func (stubLogger) ErrorNoStack(context.Context, string, error, ...logger.Fields) {
 }
 func (stubLogger) SetLogSink(logger.LogSinkFunc) {}
 func (stubLogger) SetContextFieldsProvider(logger.ContextFieldsProviderFunc) {

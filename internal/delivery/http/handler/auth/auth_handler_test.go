@@ -27,6 +27,8 @@ func (stubLogger) Info(context.Context, string, ...logger.Fields)  {}
 func (stubLogger) Warn(context.Context, string, ...logger.Fields)  {}
 func (stubLogger) Error(context.Context, string, error, ...logger.Fields) {
 }
+func (stubLogger) ErrorNoStack(context.Context, string, error, ...logger.Fields) {
+}
 func (stubLogger) SetLogSink(logger.LogSinkFunc) {}
 func (stubLogger) SetContextFieldsProvider(logger.ContextFieldsProviderFunc) {
 }

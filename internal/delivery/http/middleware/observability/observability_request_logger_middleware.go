@@ -70,7 +70,7 @@ func (m *AccessLogMiddleware) Handler() echo.MiddlewareFunc {
 			}
 
 			if status >= 500 {
-				m.log.Error(ctx, "request completed", originalErr, fields)
+				m.log.ErrorNoStack(ctx, "request completed", originalErr, fields)
 				return handlerErr
 			}
 

@@ -71,13 +71,25 @@ func (l *impl) Warn(ctx context.Context, message string, optionalFields ...logge
 }
 
 func (l *impl) Error(ctx context.Context, message string, err error, optionalFields ...logger.Fields) {
+	l.logError(ctx, message, err, true, optionalFields...)
+}
+
+func (l *impl) ErrorNoStack(ctx context.Context, message string, err error, optionalFields ...logger.Fields) {
+	l.logError(ctx, message, err, false, optionalFields...)
+}
+
+func (l *impl) logError(ctx context.Context, message string, err error, stacktrace bool, optionalFields ...logger.Fields) {
 	fields := logger.CloneFields(logger.OptionalFields(optionalFields...))
 	if fields == nil {
 		fields = logger.Fields{}
 	}
 	fields["error"] = err
 	contextFields := l.contextFieldsProvider(ctx)
-	l.base.With(buildZapFields(contextFields)...).Error(message, buildZapFields(fields)...)
+	base := l.base
+	if !stacktrace {
+		base = base.WithOptions(uzap.AddStacktrace(zapcore.PanicLevel))
+	}
+	base.With(buildZapFields(contextFields)...).Error(message, buildZapFields(fields)...)
 	l.emitSinkLog(ctx, zapcore.ErrorLevel, logger.SeverityError, message, contextFields, fields)
 }
 
