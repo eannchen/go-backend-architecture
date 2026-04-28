@@ -5,7 +5,6 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE users (
     id             BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     email          VARCHAR(320) NOT NULL UNIQUE,
-    email_verified BOOLEAN      NOT NULL DEFAULT FALSE,
     name           VARCHAR(255),
     status         VARCHAR(32)  NOT NULL DEFAULT 'active',
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
