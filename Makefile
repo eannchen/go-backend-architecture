@@ -43,7 +43,7 @@ test-integration:
 	$(GO_TEST) ./internal/delivery/http/integration
 
 test-integration-real:
-	$(GO_TEST) -tags=integration ./internal/delivery/http/integration
+	$(GO_TEST) -tags=integration ./...
 
 openapi-generate:
 	go run $(OAPI_CODEGEN_CMD) -config oapi-codegen.yaml docs/openapi.yaml

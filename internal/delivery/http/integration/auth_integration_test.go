@@ -24,20 +24,6 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )
 
-type stubLogger struct{}
-
-func (stubLogger) Debug(context.Context, string, ...logger.Fields) {}
-func (stubLogger) Info(context.Context, string, ...logger.Fields)  {}
-func (stubLogger) Warn(context.Context, string, ...logger.Fields)  {}
-func (stubLogger) Error(context.Context, string, error, ...logger.Fields) {
-}
-func (stubLogger) ErrorNoStack(context.Context, string, error, ...logger.Fields) {
-}
-func (stubLogger) SetLogSink(logger.LogSinkFunc) {}
-func (stubLogger) SetContextFieldsProvider(logger.ContextFieldsProviderFunc) {
-}
-func (stubLogger) Sync() error { return nil }
-
 type inMemoryOTP struct{}
 
 func (inMemoryOTP) SendCode(context.Context, string) error { return nil }
@@ -126,7 +112,7 @@ func newAuthTestServer() *echo.Echo {
 	responder := httpresponse.NewResponder(nil)
 	session := newInMemorySessionManager()
 	authHandler := authhttp.NewHandler(
-		stubLogger{},
+		logger.NoopLogger{},
 		nil,
 		responder,
 		inMemoryOTP{},

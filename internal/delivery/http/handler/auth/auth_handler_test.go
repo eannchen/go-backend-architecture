@@ -18,66 +18,10 @@ import (
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
+	authoauthtest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth/oauthtest"
+	authotptest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp/otptest"
+	"github.com/eannchen/go-backend-architecture/internal/usecase/auth/session/sessiontest"
 )
-
-type stubLogger struct{}
-
-func (stubLogger) Debug(context.Context, string, ...logger.Fields) {}
-func (stubLogger) Info(context.Context, string, ...logger.Fields)  {}
-func (stubLogger) Warn(context.Context, string, ...logger.Fields)  {}
-func (stubLogger) Error(context.Context, string, error, ...logger.Fields) {
-}
-func (stubLogger) ErrorNoStack(context.Context, string, error, ...logger.Fields) {
-}
-func (stubLogger) SetLogSink(logger.LogSinkFunc) {}
-func (stubLogger) SetContextFieldsProvider(logger.ContextFieldsProviderFunc) {
-}
-func (stubLogger) Sync() error { return nil }
-
-type stubOTP struct {
-	verifyIdentity auth.Identity
-	verifyErr      error
-	lastEmail      string
-	lastCode       string
-}
-
-func (s *stubOTP) SendCode(context.Context, string) error { return nil }
-
-func (s *stubOTP) VerifyCode(_ context.Context, email, code string) (auth.Identity, error) {
-	s.lastEmail = email
-	s.lastCode = code
-	return s.verifyIdentity, s.verifyErr
-}
-
-type stubOAuth struct{}
-
-func (stubOAuth) AuthorizeURL(context.Context, string) (string, error) { return "", nil }
-func (stubOAuth) HandleCallback(context.Context, string, string, string) (auth.Identity, error) {
-	return auth.Identity{}, nil
-}
-
-type stubSessionManager struct {
-	createResult auth.Session
-	createErr    error
-	revokeCalls  int
-	validateFn   func(context.Context, string) (auth.Session, error)
-}
-
-func (s *stubSessionManager) Create(context.Context, auth.Identity) (auth.Session, error) {
-	return s.createResult, s.createErr
-}
-
-func (s *stubSessionManager) Validate(ctx context.Context, token string) (auth.Session, error) {
-	if s.validateFn != nil {
-		return s.validateFn(ctx, token)
-	}
-	return auth.Session{}, nil
-}
-
-func (s *stubSessionManager) Revoke(context.Context, string) error {
-	s.revokeCalls++
-	return nil
-}
 
 type echoValidator struct {
 	v *validator.Validate
@@ -87,13 +31,13 @@ func (v *echoValidator) Validate(i any) error {
 	return v.v.Struct(i)
 }
 
-func newHandlerForTest(otp *stubOTP, session *stubSessionManager) *Handler {
+func newHandlerForTest(otp *authotptest.OTPAuthenticator, session *sessiontest.SessionManager) *Handler {
 	return NewHandler(
-		stubLogger{},
+		logger.NoopLogger{},
 		nil,
 		httpresponse.NewResponder(nil),
 		otp,
-		stubOAuth{},
+		&authoauthtest.OAuthAuthenticator{},
 		session,
 		SessionCookieConfig{
 			Name:   "session_id",
@@ -112,16 +56,18 @@ func newEchoForTest() *echo.Echo {
 }
 
 func TestHandlerVerifyOTPSetsCookieAndReturnsAuthResponse(t *testing.T) {
-	otp := &stubOTP{
-		verifyIdentity: auth.Identity{
-			UserID: 99,
-			Email:  "user@example.com",
-			Method: auth.MethodOTP,
+	otp := &authotptest.OTPAuthenticator{
+		VerifyCodeFunc: func(_ context.Context, _, _ string) (auth.Identity, error) {
+			return auth.Identity{
+				UserID: 99,
+				Email:  "user@example.com",
+				Method: auth.MethodOTP,
+			}, nil
 		},
 	}
-	session := &stubSessionManager{
-		createResult: auth.Session{
-			Token: "session-token",
+	session := &sessiontest.SessionManager{
+		CreateFunc: func(context.Context, auth.Identity) (auth.Session, error) {
+			return auth.Session{Token: "session-token"}, nil
 		},
 	}
 	h := newHandlerForTest(otp, session)
@@ -139,11 +85,11 @@ func TestHandlerVerifyOTPSetsCookieAndReturnsAuthResponse(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
-	if otp.lastEmail != "user@example.com" {
-		t.Fatalf("expected normalized email, got %q", otp.lastEmail)
+	if otp.VerifyCodeEmail != "user@example.com" {
+		t.Fatalf("expected normalized email, got %q", otp.VerifyCodeEmail)
 	}
-	if otp.lastCode != "AB12" {
-		t.Fatalf("expected normalized code, got %q", otp.lastCode)
+	if otp.VerifyCodeCode != "AB12" {
+		t.Fatalf("expected normalized code, got %q", otp.VerifyCodeCode)
 	}
 
 	cookies := rec.Result().Cookies()
@@ -164,8 +110,8 @@ func TestHandlerVerifyOTPSetsCookieAndReturnsAuthResponse(t *testing.T) {
 }
 
 func TestHandlerLogoutClearsCookieWithoutIncomingSession(t *testing.T) {
-	otp := &stubOTP{}
-	session := &stubSessionManager{}
+	otp := &authotptest.OTPAuthenticator{}
+	session := &sessiontest.SessionManager{}
 	h := newHandlerForTest(otp, session)
 
 	e := newEchoForTest()
@@ -179,8 +125,8 @@ func TestHandlerLogoutClearsCookieWithoutIncomingSession(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
-	if session.revokeCalls != 0 {
-		t.Fatalf("expected no revoke calls when no cookie present, got %d", session.revokeCalls)
+	if session.RevokeCalls != 0 {
+		t.Fatalf("expected no revoke calls when no cookie present, got %d", session.RevokeCalls)
 	}
 
 	cookies := rec.Result().Cookies()
@@ -193,8 +139,8 @@ func TestHandlerLogoutClearsCookieWithoutIncomingSession(t *testing.T) {
 }
 
 func TestHandlerMeReturnsSessionFromContext(t *testing.T) {
-	otp := &stubOTP{}
-	session := &stubSessionManager{}
+	otp := &authotptest.OTPAuthenticator{}
+	session := &sessiontest.SessionManager{}
 	h := newHandlerForTest(otp, session)
 
 	e := newEchoForTest()
@@ -224,8 +170,8 @@ func TestHandlerMeReturnsSessionFromContext(t *testing.T) {
 }
 
 func TestHandlerOAuthCallbackInvalidQueryReturnsBadRequest(t *testing.T) {
-	otp := &stubOTP{}
-	session := &stubSessionManager{}
+	otp := &authotptest.OTPAuthenticator{}
+	session := &sessiontest.SessionManager{}
 	h := newHandlerForTest(otp, session)
 
 	e := newEchoForTest()
