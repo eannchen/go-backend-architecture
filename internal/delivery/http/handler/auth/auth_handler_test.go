@@ -16,7 +16,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 	authoauthtest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth/oauthtest"
 	authotptest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp/otptest"
@@ -33,7 +33,7 @@ func (v *echoValidator) Validate(i any) error {
 
 func newHandlerForTest(otp *authotptest.OTPAuthenticator, session *sessiontest.SessionManager) *Handler {
 	return NewHandler(
-		logger.NoopLogger{},
+		&loggertest.Logger{},
 		nil,
 		httpresponse.NewResponder(nil),
 		otp,

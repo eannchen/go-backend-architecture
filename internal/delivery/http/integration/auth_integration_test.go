@@ -20,7 +20,7 @@ import (
 	sessionmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/session"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )
 
@@ -112,7 +112,7 @@ func newAuthTestServer() *echo.Echo {
 	responder := httpresponse.NewResponder(nil)
 	session := newInMemorySessionManager()
 	authHandler := authhttp.NewHandler(
-		logger.NoopLogger{},
+		&loggertest.Logger{},
 		nil,
 		responder,
 		inMemoryOTP{},

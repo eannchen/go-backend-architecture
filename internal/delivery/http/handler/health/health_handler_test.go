@@ -12,23 +12,9 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
-
-type stubLogger struct{}
-
-func (stubLogger) Debug(context.Context, string, ...logger.Fields) {}
-func (stubLogger) Info(context.Context, string, ...logger.Fields)  {}
-func (stubLogger) Warn(context.Context, string, ...logger.Fields)  {}
-func (stubLogger) Error(context.Context, string, error, ...logger.Fields) {
-}
-func (stubLogger) ErrorNoStack(context.Context, string, error, ...logger.Fields) {
-}
-func (stubLogger) SetLogSink(logger.LogSinkFunc) {}
-func (stubLogger) SetContextFieldsProvider(logger.ContextFieldsProviderFunc) {
-}
-func (stubLogger) Sync() error { return nil }
 
 type stubUsecase struct {
 	result   usecasehealth.Result
@@ -75,7 +61,7 @@ func TestGetHealthSuccess(t *testing.T) {
 			KVStore: usecasehealth.Dependency{Status: "up"},
 		},
 	}
-	h := NewHandler(stubLogger{}, nil, nil, uc)
+	h := NewHandler(&loggertest.Logger{}, nil, nil, uc)
 
 	e := echo.New()
 	e.Validator = newEchoValidator(t)
@@ -104,7 +90,7 @@ func TestGetHealthSuccess(t *testing.T) {
 
 func TestGetHealthInvalidQuery(t *testing.T) {
 	uc := &stubUsecase{}
-	h := NewHandler(stubLogger{}, nil, nil, uc)
+	h := NewHandler(&loggertest.Logger{}, nil, nil, uc)
 
 	e := echo.New()
 	e.Validator = newEchoValidator(t)
@@ -142,7 +128,7 @@ func TestGetHealthUnavailableReturnsPartialResult(t *testing.T) {
 		},
 		err: apperr.New(apperr.CodeUnavailable, "database readiness failed"),
 	}
-	h := NewHandler(stubLogger{}, nil, nil, uc)
+	h := NewHandler(&loggertest.Logger{}, nil, nil, uc)
 
 	e := echo.New()
 	e.Validator = newEchoValidator(t)

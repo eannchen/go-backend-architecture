@@ -1,7 +1,6 @@
 package http
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -10,22 +9,8 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v5"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 )
-
-type stubLogger struct{}
-
-func (stubLogger) Debug(context.Context, string, ...logger.Fields) {}
-func (stubLogger) Info(context.Context, string, ...logger.Fields)  {}
-func (stubLogger) Warn(context.Context, string, ...logger.Fields)  {}
-func (stubLogger) Error(context.Context, string, error, ...logger.Fields) {
-}
-func (stubLogger) ErrorNoStack(context.Context, string, error, ...logger.Fields) {
-}
-func (stubLogger) SetLogSink(logger.LogSinkFunc) {}
-func (stubLogger) SetContextFieldsProvider(logger.ContextFieldsProviderFunc) {
-}
-func (stubLogger) Sync() error { return nil }
 
 type stubRegistrar struct{}
 
@@ -36,7 +21,7 @@ func (stubRegistrar) RegisterRoutes(e *echo.Echo) {
 }
 
 func TestNewServerRegistersRoutes(t *testing.T) {
-	server, err := NewServer(ServerConfig{Address: ":0"}, stubLogger{}, nil, nil, nil, stubRegistrar{})
+	server, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, nil, nil, stubRegistrar{})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -59,7 +44,7 @@ func TestNewServerSkipsNilMiddleware(t *testing.T) {
 		}
 	}
 
-	server, err := NewServer(ServerConfig{Address: ":0"}, stubLogger{}, nil, nil, []echo.MiddlewareFunc{nil, mw, nil}, stubRegistrar{})
+	server, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, nil, []echo.MiddlewareFunc{nil, mw, nil}, stubRegistrar{})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -77,7 +62,7 @@ func TestNewServerSkipsNilMiddleware(t *testing.T) {
 }
 
 func TestNewServerSkipsNilRegistrar(t *testing.T) {
-	server, err := NewServer(ServerConfig{Address: ":0"}, stubLogger{}, nil, nil, nil, nil, stubRegistrar{}, nil)
+	server, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, nil, nil, nil, stubRegistrar{}, nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -96,7 +81,7 @@ func TestNewServerValidationRegistrarFailure(t *testing.T) {
 		return errors.New("registration failed")
 	}
 
-	_, err := NewServer(ServerConfig{Address: ":0"}, stubLogger{}, nil, []ValidationRegistrar{failingRegistrar}, nil)
+	_, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, []ValidationRegistrar{failingRegistrar}, nil)
 	if err == nil {
 		t.Fatal("expected error from failing validator registrar, got nil")
 	}
