@@ -5,5 +5,12 @@ alwaysApply: true
 
 # Interfaces
 
-Consumer-owned: define where used. Keep small. Add only for multiple implementations, test seams, or cross-layer contracts.
+Use the project's contract packages for cross-layer boundaries; do not redefine them in the consumer.
+
+- `internal/repository/db`, `cache`, `kvstore`, and `external` own dependency contracts used by usecases.
+- `internal/usecase/...` owns business contracts used by delivery and app.
+- `internal/logger` and `internal/observability` own their shared contracts.
+- Consumer-owned interfaces are for local composition seams inside a layer (for example `RouteRegistrar` in delivery), not for rewriting repository or usecase contracts.
+
+Keep interfaces small and behavior-focused. If a new boundary is needed, add it to the appropriate contract package instead of creating an ad hoc duplicate in the consumer.
 
