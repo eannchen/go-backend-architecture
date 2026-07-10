@@ -18,6 +18,7 @@ type ServerConfig struct {
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
+	IPExtractor  echo.IPExtractor
 }
 
 type Server struct {
@@ -39,6 +40,9 @@ func NewServer(cfg ServerConfig, log logger.Logger, binder echo.Binder, validato
 		return nil, fmt.Errorf("initialize request validator: %w", err)
 	}
 	e.Validator = requestValidator
+	if cfg.IPExtractor != nil {
+		e.IPExtractor = cfg.IPExtractor
+	}
 
 	for _, m := range middlewares {
 		if m == nil {
@@ -75,6 +79,11 @@ func (s *Server) Start() error {
 	s.logger.Info(context.Background(), "http server starting", logger.FromPairs("address", s.cfg.Address))
 
 	return s.httpServer.ListenAndServe()
+}
+
+// ServeHTTP dispatches requests through the configured Echo handler.
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.echo.ServeHTTP(w, r)
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {

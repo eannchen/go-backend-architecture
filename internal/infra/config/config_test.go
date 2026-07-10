@@ -13,6 +13,9 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("HTTP_READ_TIMEOUT", "10s")
 	t.Setenv("HTTP_WRITE_TIMEOUT", "15s")
 	t.Setenv("HTTP_IDLE_TIMEOUT", "60s")
+	t.Setenv("HTTP_REQUEST_TIMEOUT", "10s")
+	t.Setenv("HTTP_CORS_ALLOW_ORIGINS", "http://localhost:3000")
+	t.Setenv("HTTP_TRUSTED_PROXY_CIDRS", "")
 	t.Setenv("DB_URL", "postgres://postgres:postgres@localhost:5432/app?sslmode=disable")
 	t.Setenv("DB_MAX_CONNS", "10")
 	t.Setenv("DB_MIN_CONNS", "2")
@@ -102,10 +105,56 @@ func TestLoad_TrimsRequiredStringFields(t *testing.T) {
 	if cfg.HTTP.Address != ":9090" {
 		t.Fatalf("expected trimmed HTTP_ADDRESS, got %q", cfg.HTTP.Address)
 	}
+	if len(cfg.HTTP.CORSAllowOrigins) != 1 || cfg.HTTP.CORSAllowOrigins[0] != "http://localhost:3000" {
+		t.Fatalf("CORS origins = %#v, want localhost origin", cfg.HTTP.CORSAllowOrigins)
+	}
 	if cfg.DB.URL != "postgres://postgres:postgres@localhost:5432/app?sslmode=disable" {
 		t.Fatalf("expected trimmed DB_URL, got %q", cfg.DB.URL)
 	}
 	if cfg.Redis.Addr != "localhost:6379" {
 		t.Fatalf("expected trimmed REDIS_ADDR, got %q", cfg.Redis.Addr)
+	}
+}
+
+func TestLoad_HTTPAndProductionSafety(t *testing.T) {
+	tests := []struct {
+		name    string
+		setEnv  func(*testing.T)
+		wantErr string
+	}{
+		{
+			name: "request timeout must be positive",
+			setEnv: func(t *testing.T) {
+				t.Setenv("HTTP_REQUEST_TIMEOUT", "0s")
+			},
+			wantErr: "HTTP_REQUEST_TIMEOUT must be > 0",
+		},
+		{
+			name: "cors origins are required",
+			setEnv: func(t *testing.T) {
+				t.Setenv("HTTP_CORS_ALLOW_ORIGINS", "   ")
+			},
+			wantErr: "HTTP_CORS_ALLOW_ORIGINS must contain at least one origin",
+		},
+		{
+			name: "production requires secure session cookies",
+			setEnv: func(t *testing.T) {
+				t.Setenv("APP_ENV", "production")
+				t.Setenv("SESSION_COOKIE_SECURE", "false")
+			},
+			wantErr: "SESSION_COOKIE_SECURE must be true when APP_ENV is not local",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setValidEnv(t)
+			tt.setEnv(t)
+
+			_, err := Load()
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Load() error = %v, want %q", err, tt.wantErr)
+			}
+		})
 	}
 }

@@ -8,5 +8,5 @@
 
 ## How to extend
 
-- Add constructor wiring in `wiring.go`.
+- Keep shared dependencies in `wiring.go`; add constructor wiring in the matching `*_wiring.go` file (`stores`, `repositories`, `usecases`, `handlers`, or `server`).
 - Keep business logic out of this package.

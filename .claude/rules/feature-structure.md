@@ -4,7 +4,7 @@ description: Feature Structure
 
 # Feature Structure
 
-Create in order, then wire in `internal/app/wiring.go`:
+Create in order, then wire in the matching `internal/app/*_wiring.go` file:
 
 ```
 internal/usecase/<feature>/

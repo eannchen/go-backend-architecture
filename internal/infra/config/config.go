@@ -57,10 +57,13 @@ type OAuthProviderConfig struct {
 }
 
 type HTTPConfig struct {
-	Address      string
-	ReadTimeout  time.Duration
-	WriteTimeout time.Duration
-	IdleTimeout  time.Duration
+	Address           string
+	ReadTimeout       time.Duration
+	WriteTimeout      time.Duration
+	IdleTimeout       time.Duration
+	RequestTimeout    time.Duration
+	CORSAllowOrigins  []string
+	TrustedProxyCIDRs []string
 }
 
 type DBConfig struct {
@@ -108,10 +111,13 @@ func Load() (Config, error) {
 		AppEnv:      getEnv("APP_ENV", "local"),
 		ServiceName: getEnv("SERVICE_NAME", "app"),
 		HTTP: HTTPConfig{
-			Address:      getEnv("HTTP_ADDRESS", ":8080"),
-			ReadTimeout:  getDuration("HTTP_READ_TIMEOUT", 10*time.Second),
-			WriteTimeout: getDuration("HTTP_WRITE_TIMEOUT", 15*time.Second),
-			IdleTimeout:  getDuration("HTTP_IDLE_TIMEOUT", 60*time.Second),
+			Address:           getEnv("HTTP_ADDRESS", ":8080"),
+			ReadTimeout:       getDuration("HTTP_READ_TIMEOUT", 10*time.Second),
+			WriteTimeout:      getDuration("HTTP_WRITE_TIMEOUT", 15*time.Second),
+			IdleTimeout:       getDuration("HTTP_IDLE_TIMEOUT", 60*time.Second),
+			RequestTimeout:    getDuration("HTTP_REQUEST_TIMEOUT", 10*time.Second),
+			CORSAllowOrigins:  getCSV("HTTP_CORS_ALLOW_ORIGINS", []string{"http://localhost:3000"}),
+			TrustedProxyCIDRs: getCSV("HTTP_TRUSTED_PROXY_CIDRS", nil),
 		},
 		DB: DBConfig{
 			URL:               getEnv("DB_URL", "postgres://postgres:postgres@localhost:5432/app?sslmode=disable"),
@@ -169,12 +175,16 @@ func Load() (Config, error) {
 		},
 	}
 
+	cfg.AppEnv = strings.TrimSpace(cfg.AppEnv)
 	cfg.ServiceName = strings.TrimSpace(cfg.ServiceName)
 	cfg.HTTP.Address = strings.TrimSpace(cfg.HTTP.Address)
 	cfg.DB.URL = strings.TrimSpace(cfg.DB.URL)
 	cfg.Redis.Addr = strings.TrimSpace(cfg.Redis.Addr)
 	cfg.OTel.ExporterEndpoint = strings.TrimSpace(cfg.OTel.ExporterEndpoint)
 
+	if cfg.AppEnv == "" {
+		return Config{}, fmt.Errorf("APP_ENV must not be empty")
+	}
 	if cfg.DB.URL == "" {
 		return Config{}, fmt.Errorf("DB_URL must not be empty")
 	}
@@ -193,8 +203,17 @@ func Load() (Config, error) {
 	if cfg.HTTP.Address == "" {
 		return Config{}, fmt.Errorf("HTTP_ADDRESS must not be empty")
 	}
+	if cfg.HTTP.RequestTimeout <= 0 {
+		return Config{}, fmt.Errorf("HTTP_REQUEST_TIMEOUT must be > 0")
+	}
+	if len(cfg.HTTP.CORSAllowOrigins) == 0 {
+		return Config{}, fmt.Errorf("HTTP_CORS_ALLOW_ORIGINS must contain at least one origin")
+	}
 	if cfg.ServiceName == "" {
 		return Config{}, fmt.Errorf("SERVICE_NAME must not be empty")
+	}
+	if !isLocalAppEnv(cfg.AppEnv) && !cfg.Auth.Session.CookieSecure {
+		return Config{}, fmt.Errorf("SESSION_COOKIE_SECURE must be true when APP_ENV is not local")
 	}
 	if cfg.OTel.TraceSamplingRatio < 0 || cfg.OTel.TraceSamplingRatio > 1 {
 		return Config{}, fmt.Errorf("OTEL_TRACES_SAMPLER_RATIO must be between 0 and 1")
@@ -257,6 +276,35 @@ func getDuration(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return v
+}
+
+func getCSV(key string, fallback []string) []string {
+	raw, ok := os.LookupEnv(key)
+	if !ok {
+		return fallback
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+
+	values := strings.Split(raw, ",")
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			result = append(result, value)
+		}
+	}
+	return result
+}
+
+func isLocalAppEnv(appEnv string) bool {
+	switch strings.ToLower(strings.TrimSpace(appEnv)) {
+	case "local", "dev", "development", "test":
+		return true
+	default:
+		return false
+	}
 }
 
 func getFloat(key string, fallback float64) float64 {

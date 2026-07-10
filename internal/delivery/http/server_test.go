@@ -28,7 +28,7 @@ func TestNewServerRegistersRoutes(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
 	rec := httptest.NewRecorder()
-	server.echo.ServeHTTP(rec, req)
+	server.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d", rec.Code)
@@ -51,7 +51,7 @@ func TestNewServerSkipsNilMiddleware(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
 	rec := httptest.NewRecorder()
-	server.echo.ServeHTTP(rec, req)
+	server.ServeHTTP(rec, req)
 
 	if !called {
 		t.Fatal("expected non-nil middleware to be called")
@@ -69,7 +69,7 @@ func TestNewServerSkipsNilRegistrar(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
 	rec := httptest.NewRecorder()
-	server.echo.ServeHTTP(rec, req)
+	server.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("expected 204, got %d", rec.Code)
