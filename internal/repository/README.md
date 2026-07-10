@@ -8,6 +8,7 @@
 - Repository boundaries are usecase/consumer-driven, not schema/table-driven.
 - One schema/table does not imply one repository interface. Group methods by business capability.
 - Transactions controlled by usecase via `db/TxManager`.
+- Struct ownership: repository packages define their own structs — never import from `internal/domain`. Domain types belong to usecases. Structs may carry raw storage values and DB-computed aggregations.
 
 ## How to extend
 

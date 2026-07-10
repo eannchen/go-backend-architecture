@@ -13,4 +13,4 @@
 2. Contracts in `internal/repository/<area>/`.
 3. Infra implementation in `internal/infra/...`.
 4. Transport handler in `internal/delivery/...`.
-5. Wire in `internal/app/wiring.go`.
+5. Wire in the matching `internal/app/*_wiring.go` file.

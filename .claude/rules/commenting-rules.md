@@ -4,5 +4,7 @@ description: Commenting Rules
 
 # Commenting Rules
 
-Explain **why**, not **what**. Add comments for business rules, non-obvious decisions, concurrency/caching. Skip obvious code. Exported functions: one short line.
+Explain **why**, not **what**. Plain language.
+
+Comment business rules, non-obvious decisions, concurrency/caching. Skip restating the code. Keep comments short and scannable; a brief paragraph or structured list is fine when it aids clarity. Exported functions: one-line doc comment max. No commented-out code.
 

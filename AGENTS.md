@@ -133,6 +133,17 @@ Idiomatic Go. Exported `PascalCase`, unexported `camelCase`, constructors `NewX(
 
 ---
 
+# Change Scope
+
+Keep the project's template structure — layers, feature layout, wiring. Extend existing patterns when they fit; add a new one only when the template has no seam for it.
+
+Match implementation scope to intent:
+
+- **Default:** idiomatic Go within that structure. Refactor what you touch when implementation fights the change — extract, rename, simplify; don't work around awkward code.
+- **Hotfix** (user asks for minimal/urgent fix): smallest correct diff; defer cleanup unless it blocks the fix.
+
+---
+
 # Testing Rules
 
 Test behavior at the layer that owns it.
@@ -148,7 +159,9 @@ Test behavior at the layer that owns it.
 
 # Commenting Rules
 
-Explain **why**, not **what**. Add comments for business rules, non-obvious decisions, concurrency/caching. Skip obvious code. Exported functions: one short line.
+Explain **why**, not **what**. Plain language.
+
+Comment business rules, non-obvious decisions, concurrency/caching. Skip restating the code. Keep comments short and scannable; a brief paragraph or structured list is fine when it aids clarity. Exported functions: one-line doc comment max. No commented-out code.
 
 ---
 
@@ -160,7 +173,7 @@ Each package README has **Pattern used** and **How to extend** only. Short, arch
 
 # OpenAPI Rules
 
-`docs/openapi.yaml` is the single source for API purpose and field meaning. Every endpoint needs `summary` + `description`; every input/response field needs `description`. After changes: `make openapi-generate`, then regenerate `docs/insomnia.json`.
+`docs/openapi.yaml` is the single source for API purpose and field meaning. Every endpoint needs `summary` + `description`; every input/response field needs `description`. After changes: `make openapi-generate`, then adapt handlers.
 
 ---
 
@@ -190,9 +203,9 @@ All fields defined in the schema must always be present in the response. Never o
 1. Read the `README.md` in any package directory before modifying it — it contains the pattern used and how to extend.
 2. Search repo for existing patterns first.
 3. Follow architecture and dependency boundaries.
-4. Prefer modifying existing structures over new abstractions.
+4. Keep the template structure (layers, layout, wiring). Extend existing patterns; add new ones only when the template has no seam. Within it, write idiomatic Go — refactor awkward implementation; don't work around it. Hotfix (user asks minimal/urgent): smallest correct diff only.
 5. Use same constructor and wiring patterns.
-6. Match commenting style; skip unnecessary comments.
+6. Comment why, not what. Keep comments short and scannable; skip restating code.
 7. For HTTP changes: update `docs/openapi.yaml` first, run `make openapi-generate`, then adapt handlers.
 8. Use binding tags on DTOs (`trim:"false"`, `case:"lower"`, `case:"upper"`); no manual trim/case.
 9. Follow **File and directory naming** conventions above.
@@ -220,24 +233,4 @@ After changing `AGENTS.md` or any `.agents/skills/*/SKILL.md`, run the sync scri
 2. Confirm the script printed "Done. Claude Code, Cursor, and Codex are in sync."
 
 No other steps. The script regenerates `.cursor/rules/`, `.claude/rules/`, and the `# Skills` block in `AGENTS.md`.
-
-## sync-openapi-insomnia
-
-
-### Sync OpenAPI and Insomnia
-
-After changing `docs/openapi.yaml`, regenerate API artifacts so `docs/insomnia.json` stays aligned with the OpenAPI source of truth.
-
-#### Steps
-
-1. Run from the repository root:
-   ```bash
-   make openapi-generate
-   ```
-2. Regenerate `docs/insomnia.json` from the updated OpenAPI spec using the project's Insomnia export flow.
-3. Verify both files reflect the intended update:
-   - `docs/openapi.yaml`
-   - `docs/insomnia.json`
-
-Do not manually edit `docs/insomnia.json`; always regenerate it from the OpenAPI spec.
 

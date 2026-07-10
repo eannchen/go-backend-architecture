@@ -1,0 +1,14 @@
+---
+description: Change Scope
+alwaysApply: true
+---
+
+# Change Scope
+
+Keep the project's template structure — layers, feature layout, wiring. Extend existing patterns when they fit; add a new one only when the template has no seam for it.
+
+Match implementation scope to intent:
+
+- **Default:** idiomatic Go within that structure. Refactor what you touch when implementation fights the change — extract, rename, simplify; don't work around awkward code.
+- **Hotfix** (user asks for minimal/urgent fix): smallest correct diff; defer cleanup unless it blocks the fix.
+
