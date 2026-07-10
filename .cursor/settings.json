@@ -2,9 +2,6 @@
   "plugins": {
     "redis-development": {
       "enabled": true
-    },
-    "superpowers": {
-      "enabled": true
     }
   }
 }

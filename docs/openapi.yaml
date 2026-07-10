@@ -47,6 +47,53 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
 
+  /health/stream:
+    get:
+      operationId: streamHealth
+      summary: Stream bounded health updates (SSE demo)
+      description: |
+        Demonstrates Server-Sent Events using the existing health check. Sends an
+        initial `health` event immediately, then repeats it at the configured
+        interval, with keep-alive comments between updates. The stream ends after
+        its configured maximum duration or when the client disconnects. It is for
+        observing health changes, not for load-balancer or orchestrator probes.
+      parameters:
+        - name: check
+          in: query
+          required: false
+          description: Which check to run for each event. live = process only; ready = process + DB, cache, KV, vector store.
+          schema:
+            type: string
+            enum:
+              - live
+              - ready
+            default: ready
+      responses:
+        "200":
+          description: A text/event-stream response containing `health` events whose JSON data matches HealthResponse.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Server-Sent Event frames. Each `health` event's JSON data is a HealthResponse; comments are keep-alives.
+              example: |
+                event: health
+                data: {"database":{"status":"up","name":"app","in_recovery":false,"uptime_seconds":99},"cache":{"status":"up"},"kvstore":{"status":"up"},"vectorstore":{"status":"up"}}
+
+                : keep-alive
+        "400":
+          description: Query parameters failed validation before the stream opened.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIError"
+        "500":
+          description: Streaming is unavailable before the response starts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIError"
+
   /auth/otp/send:
     post:
       operationId: sendOTP

@@ -60,6 +60,8 @@ type Responder interface {
 	// AppErrorWithPayload records the app error for observability and responds with payload
 	// instead of the standard error body; status is derived from the error like AppError.
 	AppErrorWithPayload(c *echo.Context, err error, payload any) error
+	// StartSSE opens a Server-Sent Events response after validation succeeds.
+	StartSSE(c *echo.Context) (*SSEStream, error)
 }
 
 type responder struct {

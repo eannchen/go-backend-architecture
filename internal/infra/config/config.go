@@ -64,6 +64,14 @@ type HTTPConfig struct {
 	RequestTimeout    time.Duration
 	CORSAllowOrigins  []string
 	TrustedProxyCIDRs []string
+	HealthStream      HealthStreamConfig
+}
+
+// HealthStreamConfig bounds the health SSE demonstration endpoint.
+type HealthStreamConfig struct {
+	CheckInterval     time.Duration
+	HeartbeatInterval time.Duration
+	MaxDuration       time.Duration
 }
 
 type DBConfig struct {
@@ -118,6 +126,11 @@ func Load() (Config, error) {
 			RequestTimeout:    getDuration("HTTP_REQUEST_TIMEOUT", 10*time.Second),
 			CORSAllowOrigins:  getCSV("HTTP_CORS_ALLOW_ORIGINS", []string{"http://localhost:3000"}),
 			TrustedProxyCIDRs: getCSV("HTTP_TRUSTED_PROXY_CIDRS", nil),
+			HealthStream: HealthStreamConfig{
+				CheckInterval:     getDuration("HEALTH_STREAM_CHECK_INTERVAL", 15*time.Second),
+				HeartbeatInterval: getDuration("HEALTH_STREAM_HEARTBEAT_INTERVAL", 5*time.Second),
+				MaxDuration:       getDuration("HEALTH_STREAM_MAX_DURATION", time.Minute),
+			},
 		},
 		DB: DBConfig{
 			URL:               getEnv("DB_URL", "postgres://postgres:postgres@localhost:5432/app?sslmode=disable"),
@@ -208,6 +221,12 @@ func Load() (Config, error) {
 	}
 	if len(cfg.HTTP.CORSAllowOrigins) == 0 {
 		return Config{}, fmt.Errorf("HTTP_CORS_ALLOW_ORIGINS must contain at least one origin")
+	}
+	if cfg.HTTP.HealthStream.CheckInterval <= 0 || cfg.HTTP.HealthStream.HeartbeatInterval <= 0 {
+		return Config{}, fmt.Errorf("HEALTH_STREAM_CHECK_INTERVAL and HEALTH_STREAM_HEARTBEAT_INTERVAL must be > 0")
+	}
+	if cfg.HTTP.HealthStream.MaxDuration <= cfg.HTTP.HealthStream.CheckInterval || cfg.HTTP.HealthStream.MaxDuration <= cfg.HTTP.HealthStream.HeartbeatInterval {
+		return Config{}, fmt.Errorf("HEALTH_STREAM_MAX_DURATION must be greater than both HEALTH_STREAM_CHECK_INTERVAL and HEALTH_STREAM_HEARTBEAT_INTERVAL")
 	}
 	if cfg.ServiceName == "" {
 		return Config{}, fmt.Errorf("SERVICE_NAME must not be empty")

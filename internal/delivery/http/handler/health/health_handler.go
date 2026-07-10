@@ -17,7 +17,16 @@ type request struct {
 	Check string `query:"check" validate:"omitempty,health_check_mode"`
 }
 
-func NewHandler(log logger.Logger, tracer observability.Tracer, responder httpresponse.Responder, usecase usecasehealth.Usecase) *Handler {
+func NewHandler(
+	log logger.Logger,
+	tracer observability.Tracer,
+	responder httpresponse.Responder,
+	usecase usecasehealth.Usecase,
+	streamConfig StreamConfig,
+) *Handler {
+	if log == nil {
+		log = logger.NoopLogger{}
+	}
 	if tracer == nil {
 		tracer = observability.NoopTracer{}
 	}
@@ -29,6 +38,7 @@ func NewHandler(log logger.Logger, tracer observability.Tracer, responder httpre
 		tracer:    tracer,
 		responder: responder,
 		usecase:   usecase,
+		stream:    streamConfig,
 	}
 }
 
@@ -37,10 +47,12 @@ type Handler struct {
 	tracer    observability.Tracer
 	responder httpresponse.Responder
 	usecase   usecasehealth.Usecase
+	stream    StreamConfig
 }
 
 func (h *Handler) RegisterRoutes(e *echo.Echo) {
 	e.GET("/health", h.GetHealth)
+	e.GET(StreamPath, h.StreamHealth)
 }
 
 func (h *Handler) GetHealth(c *echo.Context) (err error) {

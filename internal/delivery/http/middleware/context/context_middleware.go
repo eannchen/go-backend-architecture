@@ -20,19 +20,35 @@ const (
 
 // RequestContextMiddleware enriches request context with request ID and timeout.
 type RequestContextMiddleware struct {
-	timeout   time.Duration
-	responder httpresponse.Responder
+	timeout     time.Duration
+	responder   httpresponse.Responder
+	skipTimeout func(c *echo.Context) bool
+}
+
+// Option configures a RequestContextMiddleware.
+type Option func(*RequestContextMiddleware)
+
+// WithTimeoutSkipper exempts matching requests from the per-request deadline.
+// SSE streams are bounded by their own timeout, not the short
+// per-request deadline, which would otherwise cut them and trigger client
+// reconnects.
+func WithTimeoutSkipper(skip func(c *echo.Context) bool) Option {
+	return func(m *RequestContextMiddleware) { m.skipTimeout = skip }
 }
 
 // NewRequestContextMiddleware creates request context middleware with optional timeout.
-func NewRequestContextMiddleware(timeout time.Duration, responder httpresponse.Responder) *RequestContextMiddleware {
+func NewRequestContextMiddleware(timeout time.Duration, responder httpresponse.Responder, opts ...Option) *RequestContextMiddleware {
 	if responder == nil {
 		responder = httpresponse.NewResponder(nil)
 	}
-	return &RequestContextMiddleware{
+	m := &RequestContextMiddleware{
 		timeout:   timeout,
 		responder: responder,
 	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
 }
 
 // Handler builds the Echo middleware function for request context propagation.
@@ -57,7 +73,7 @@ func (m *RequestContextMiddleware) Handler() echo.MiddlewareFunc {
 			reqCtx = observability.WithRequestID(reqCtx, requestID)
 			c.Response().Header().Set(requestIDHeader, requestID)
 
-			if m.timeout > 0 {
+			if m.timeout > 0 && (m.skipTimeout == nil || !m.skipTimeout(c)) {
 				var cancel context.CancelFunc
 				reqCtx, cancel = context.WithTimeout(reqCtx, m.timeout)
 				defer cancel()

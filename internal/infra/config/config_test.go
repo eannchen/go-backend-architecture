@@ -16,6 +16,9 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("HTTP_REQUEST_TIMEOUT", "10s")
 	t.Setenv("HTTP_CORS_ALLOW_ORIGINS", "http://localhost:3000")
 	t.Setenv("HTTP_TRUSTED_PROXY_CIDRS", "")
+	t.Setenv("HEALTH_STREAM_CHECK_INTERVAL", "15s")
+	t.Setenv("HEALTH_STREAM_HEARTBEAT_INTERVAL", "5s")
+	t.Setenv("HEALTH_STREAM_MAX_DURATION", "1m")
 	t.Setenv("DB_URL", "postgres://postgres:postgres@localhost:5432/app?sslmode=disable")
 	t.Setenv("DB_MAX_CONNS", "10")
 	t.Setenv("DB_MIN_CONNS", "2")
@@ -143,6 +146,13 @@ func TestLoad_HTTPAndProductionSafety(t *testing.T) {
 				t.Setenv("SESSION_COOKIE_SECURE", "false")
 			},
 			wantErr: "SESSION_COOKIE_SECURE must be true when APP_ENV is not local",
+		},
+		{
+			name: "health stream duration must include an update",
+			setEnv: func(t *testing.T) {
+				t.Setenv("HEALTH_STREAM_MAX_DURATION", "15s")
+			},
+			wantErr: "HEALTH_STREAM_MAX_DURATION must be greater than both",
 		},
 	}
 

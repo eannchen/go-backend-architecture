@@ -54,7 +54,13 @@ func (d wiring) buildServer(responder httpresponse.Responder, handlers appHandle
 			},
 			AllowCredentials: true,
 		}),
-		contextmw.NewRequestContextMiddleware(d.cfg.HTTP.RequestTimeout, responder).Handler(),
+		contextmw.NewRequestContextMiddleware(
+			d.cfg.HTTP.RequestTimeout,
+			responder,
+			contextmw.WithTimeoutSkipper(func(c *echo.Context) bool {
+				return c.Request().URL.Path == healthhttp.StreamPath
+			}),
+		).Handler(),
 		observabilitymw.New(d.tracer, d.log).Handler(),
 	}
 	ipExtractor, err := buildIPExtractor(d.cfg.HTTP.TrustedProxyCIDRs)

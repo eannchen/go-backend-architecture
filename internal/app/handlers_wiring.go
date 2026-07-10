@@ -16,7 +16,11 @@ type appHandlers struct {
 func (d wiring) buildHandlers(responder httpresponse.Responder, usecases appUsecases) appHandlers {
 	sessMW := sessionmw.New(usecases.sessionManager, d.cfg.Auth.Session.CookieName, responder)
 	return appHandlers{
-		health: healthhttp.NewHandler(d.log, d.tracer, responder, usecases.health),
+		health: healthhttp.NewHandler(d.log, d.tracer, responder, usecases.health, healthhttp.StreamConfig{
+			CheckInterval:     d.cfg.HTTP.HealthStream.CheckInterval,
+			HeartbeatInterval: d.cfg.HTTP.HealthStream.HeartbeatInterval,
+			MaxDuration:       d.cfg.HTTP.HealthStream.MaxDuration,
+		}),
 		auth: authhttp.NewHandler(
 			d.log, d.tracer, responder,
 			usecases.otpAuth, usecases.oauthAuth, usecases.sessionManager,

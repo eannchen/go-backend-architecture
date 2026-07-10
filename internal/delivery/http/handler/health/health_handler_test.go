@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v5"
@@ -17,18 +19,30 @@ import (
 )
 
 type stubUsecase struct {
-	result   usecasehealth.Result
-	err      error
-	calls    int
-	lastMode usecasehealth.CheckMode
-	lastCtx  context.Context
+	result    usecasehealth.Result
+	err       error
+	checkFunc func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error)
+	calls     int
+	lastMode  usecasehealth.CheckMode
+	lastCtx   context.Context
 }
 
 func (s *stubUsecase) Check(ctx context.Context, mode usecasehealth.CheckMode) (usecasehealth.Result, error) {
 	s.calls++
 	s.lastCtx = ctx
 	s.lastMode = mode
+	if s.checkFunc != nil {
+		return s.checkFunc(ctx, mode)
+	}
 	return s.result, s.err
+}
+
+func streamConfig() StreamConfig {
+	return StreamConfig{
+		CheckInterval:     time.Minute,
+		HeartbeatInterval: time.Minute,
+		MaxDuration:       2 * time.Minute,
+	}
 }
 
 type echoValidator struct {
@@ -61,7 +75,7 @@ func TestGetHealthSuccess(t *testing.T) {
 			KVStore: usecasehealth.Dependency{Status: "up"},
 		},
 	}
-	h := NewHandler(&loggertest.Logger{}, nil, nil, uc)
+	h := NewHandler(&loggertest.Logger{}, nil, nil, uc, streamConfig())
 
 	e := echo.New()
 	e.Validator = newEchoValidator(t)
@@ -90,7 +104,7 @@ func TestGetHealthSuccess(t *testing.T) {
 
 func TestGetHealthInvalidQuery(t *testing.T) {
 	uc := &stubUsecase{}
-	h := NewHandler(&loggertest.Logger{}, nil, nil, uc)
+	h := NewHandler(&loggertest.Logger{}, nil, nil, uc, streamConfig())
 
 	e := echo.New()
 	e.Validator = newEchoValidator(t)
@@ -128,7 +142,7 @@ func TestGetHealthUnavailableReturnsPartialResult(t *testing.T) {
 		},
 		err: apperr.New(apperr.CodeUnavailable, "database readiness failed"),
 	}
-	h := NewHandler(&loggertest.Logger{}, nil, nil, uc)
+	h := NewHandler(&loggertest.Logger{}, nil, nil, uc, streamConfig())
 
 	e := echo.New()
 	e.Validator = newEchoValidator(t)
@@ -149,5 +163,44 @@ func TestGetHealthUnavailableReturnsPartialResult(t *testing.T) {
 	}
 	if got.Database.Status != "down" || got.Cache.Status != "skipped" || got.Kvstore.Status != "skipped" {
 		t.Fatalf("unexpected partial result payload: %+v", got)
+	}
+}
+
+func TestStreamHealthWritesInitialHealthEvent(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	uc := &stubUsecase{
+		result: usecasehealth.Result{
+			Database: usecasehealth.Database{Status: "up", Name: "app"},
+			Cache:    usecasehealth.Dependency{Status: "up"},
+			KVStore:  usecasehealth.Dependency{Status: "up"},
+		},
+	}
+	uc.checkFunc = func(_ context.Context, _ usecasehealth.CheckMode) (usecasehealth.Result, error) {
+		cancel()
+		return uc.result, nil
+	}
+	h := NewHandler(&loggertest.Logger{}, nil, nil, uc, streamConfig())
+
+	e := echo.New()
+	e.Validator = newEchoValidator(t)
+	req := httptest.NewRequest(http.MethodGet, StreamPath+"?check=live", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	if err := h.StreamHealth(c); err != nil {
+		t.Fatalf("StreamHealth() error = %v", err)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	if got := rec.Header().Get(echo.HeaderContentType); got != "text/event-stream" {
+		t.Fatalf("content type = %q, want text/event-stream", got)
+	}
+	if got := rec.Body.String(); !strings.Contains(got, "event: health\ndata: ") {
+		t.Fatalf("stream body = %q, want health event", got)
+	}
+	if uc.lastMode != usecasehealth.CheckModeLive {
+		t.Fatalf("check mode = %q, want live", uc.lastMode)
 	}
 }
