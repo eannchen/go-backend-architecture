@@ -14,6 +14,7 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
+	"github.com/eannchen/go-backend-architecture/internal/util/testutil"
 )
 
 func TestUserStoreIntegration(t *testing.T) {
@@ -85,10 +86,8 @@ func TestUserStoreIntegration(t *testing.T) {
 func openPostgresPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
+	testutil.SkipUnlessEnv(t, "DB_URL")
 	dbURL := os.Getenv("DB_URL")
-	if dbURL == "" {
-		t.Skip("set DB_URL to run postgres integration tests")
-	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

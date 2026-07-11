@@ -10,16 +10,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/redis/go-redis/v9"
+
+	"github.com/eannchen/go-backend-architecture/internal/util/testutil"
 )
 
 func TestAuthRealDepsConnectivity(t *testing.T) {
+	testutil.SkipUnlessEnv(t, "DB_URL", "REDIS_ADDR")
 	dbURL := os.Getenv("DB_URL")
 	redisAddr := os.Getenv("REDIS_ADDR")
-	if dbURL == "" || redisAddr == "" {
-		t.Skip("set DB_URL and REDIS_ADDR to run real dependency integration checks")
-	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

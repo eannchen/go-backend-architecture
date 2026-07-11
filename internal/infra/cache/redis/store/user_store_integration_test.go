@@ -12,6 +12,7 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
+	"github.com/eannchen/go-backend-architecture/internal/util/testutil"
 )
 
 func TestUserCacheStoreIntegration(t *testing.T) {
@@ -58,10 +59,8 @@ func TestUserCacheStoreIntegration(t *testing.T) {
 func openRedisClient(t *testing.T) *goredis.Client {
 	t.Helper()
 
+	testutil.SkipUnlessEnv(t, "REDIS_ADDR")
 	addr := os.Getenv("REDIS_ADDR")
-	if addr == "" {
-		t.Skip("set REDIS_ADDR to run redis integration tests")
-	}
 	db := 0
 	if v := os.Getenv("REDIS_DB"); v != "" {
 		parsed, err := strconv.Atoi(v)
