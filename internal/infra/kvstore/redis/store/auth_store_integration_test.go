@@ -4,6 +4,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strconv"
 	"testing"
@@ -63,18 +64,23 @@ func TestOTPStoreIntegration(t *testing.T) {
 	if err := store.Store(ctx, email, "hashed-code", time.Minute); err != nil {
 		t.Fatalf("store otp: %v", err)
 	}
-	got, err := store.Get(ctx, email)
+	matched, err := store.Consume(ctx, email, "wrong-hash")
 	if err != nil {
-		t.Fatalf("get otp: %v", err)
+		t.Fatalf("consume otp: %v", err)
 	}
-	if got != "hashed-code" {
-		t.Fatalf("expected hashed-code, got %q", got)
+	if matched {
+		t.Fatal("expected mismatched OTP hash to leave the code available")
 	}
-	if err := store.Delete(ctx, email); err != nil {
-		t.Fatalf("delete otp: %v", err)
+
+	matched, err = store.Consume(ctx, email, "hashed-code")
+	if err != nil {
+		t.Fatalf("consume matching otp: %v", err)
 	}
-	if _, err := store.Get(ctx, email); err == nil {
-		t.Fatal("expected error after delete, got nil")
+	if !matched {
+		t.Fatal("expected matching OTP hash to consume the code")
+	}
+	if _, err := store.Consume(ctx, email, "hashed-code"); !errors.Is(err, repokvstore.ErrOTPNotFound) {
+		t.Fatalf("second consume error = %v, want ErrOTPNotFound", err)
 	}
 }
 
