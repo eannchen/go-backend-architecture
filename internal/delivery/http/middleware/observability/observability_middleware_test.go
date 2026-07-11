@@ -42,3 +42,17 @@ func TestErrorCauseChain(t *testing.T) {
 		t.Fatalf("unexpected cause chain: %q", got)
 	}
 }
+
+func TestAccessLogMiddlewareAcceptsNilLogger(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	handler := NewAccessLogMiddleware(nil, nil).Handler()(func(c *echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	})
+	if err := handler(c); err != nil {
+		t.Fatalf("handler() error = %v", err)
+	}
+}

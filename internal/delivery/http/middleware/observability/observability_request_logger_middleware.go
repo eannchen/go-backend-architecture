@@ -17,6 +17,9 @@ type AccessLogMiddleware struct {
 
 // NewAccessLogMiddleware creates access-log middleware with shared metadata.
 func NewAccessLogMiddleware(log logger.Logger, meta httpcontext.Meta) *AccessLogMiddleware {
+	if log == nil {
+		log = logger.NoopLogger{}
+	}
 	if meta == nil {
 		meta = httpcontext.NewContextMeta()
 	}
@@ -32,7 +35,6 @@ func NewAccessLogMiddleware(log logger.Logger, meta httpcontext.Meta) *AccessLog
 func (m *AccessLogMiddleware) Handler() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
-
 			start := time.Now()
 			handlerErr := next(c)
 			duration := time.Since(start)
