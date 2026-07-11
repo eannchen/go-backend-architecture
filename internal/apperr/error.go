@@ -39,6 +39,16 @@ func (e *Error) Unwrap() error {
 	return e.Cause
 }
 
+// IsClientError reports whether the error represents an expected client outcome.
+func (e *Error) IsClientError() bool {
+	switch e.Code {
+	case CodeUnavailable, CodeTimeout, CodeInternal:
+		return false
+	default:
+		return true
+	}
+}
+
 func New(code Code, message string, details ...Details) *Error {
 	return &Error{
 		Code:    code,

@@ -2,6 +2,7 @@ package otel
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -16,6 +17,10 @@ import (
 
 type tracer struct {
 	serviceName string
+}
+
+type clientErrorReporter interface {
+	IsClientError() bool
 }
 
 func NewTracer(serviceName string) observability.Tracer {
@@ -68,24 +73,27 @@ func (s *span) Finish(err error, description ...string) {
 	if s == nil || s.span == nil {
 		return
 	}
-	desc := ""
-	if len(description) > 0 {
-		desc = description[0]
-	}
+
 	if err != nil {
-		if desc == "" {
-			desc = err.Error()
-		}
 		s.span.RecordError(err)
-		s.span.SetStatus(codes.Error, desc)
-	} else {
-		if desc == "" {
-			s.span.SetStatus(codes.Ok, "ok")
+		if isClientError(err) {
+			s.span.SetStatus(codes.Ok, "")
 		} else {
-			s.span.SetStatus(codes.Ok, desc)
+			desc := err.Error()
+			if len(description) > 0 && description[0] != "" {
+				desc = description[0]
+			}
+			s.span.SetStatus(codes.Error, desc)
 		}
+	} else {
+		s.span.SetStatus(codes.Ok, "")
 	}
 	s.span.End()
+}
+
+func isClientError(err error) bool {
+	var reporter clientErrorReporter
+	return errors.As(err, &reporter) && reporter.IsClientError()
 }
 
 func (s *span) IDs() (traceID, spanID string, ok bool) {
