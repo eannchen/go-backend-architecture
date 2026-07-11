@@ -17,7 +17,8 @@ const userInfoURL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
 // Provider implements OAuthProvider for Google OAuth2 login (identity only).
 type Provider struct {
-	cfg *oauth2.Config
+	cfg         *oauth2.Config
+	userInfoURL string
 }
 
 // Config holds settings needed to construct the Google OAuth2 login provider.
@@ -37,6 +38,7 @@ func NewProvider(cfg Config) *Provider {
 			Scopes:       []string{"openid", "email"},
 			Endpoint:     googleoauth2.Endpoint,
 		},
+		userInfoURL: userInfoURL,
 	}
 }
 
@@ -55,7 +57,7 @@ func (p *Provider) Exchange(ctx context.Context, code string) (repoexternal.OAut
 	}
 
 	client := p.cfg.Client(ctx, token)
-	resp, err := client.Get(userInfoURL)
+	resp, err := client.Get(p.userInfoURL)
 	if err != nil {
 		return repoexternal.OAuthUserInfo{}, fmt.Errorf("fetch google user info: %w", err)
 	}
@@ -66,21 +68,26 @@ func (p *Provider) Exchange(ctx context.Context, code string) (repoexternal.OAut
 		return repoexternal.OAuthUserInfo{}, fmt.Errorf("google user info returned %d: %s", resp.StatusCode, body)
 	}
 
+	return parseUserInfo(resp.Body)
+}
+
+func parseUserInfo(r io.Reader) (repoexternal.OAuthUserInfo, error) {
 	var info struct {
-		ID    string `json:"id"`
-		Email string `json:"email"`
+		ID            string `json:"id"`
+		Email         string `json:"email"`
+		VerifiedEmail bool   `json:"verified_email"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+	if err := json.NewDecoder(r).Decode(&info); err != nil {
 		return repoexternal.OAuthUserInfo{}, fmt.Errorf("decode google user info: %w", err)
 	}
-	if info.Email == "" {
-		return repoexternal.OAuthUserInfo{}, fmt.Errorf("google user info missing email")
+	if info.ID == "" {
+		return repoexternal.OAuthUserInfo{}, fmt.Errorf("google user info missing id")
+	}
+	if info.Email == "" || !info.VerifiedEmail {
+		return repoexternal.OAuthUserInfo{}, fmt.Errorf("google user info missing verified email")
 	}
 
-	return repoexternal.OAuthUserInfo{
-		ProviderUserID: info.ID,
-		Email:          info.Email,
-	}, nil
+	return repoexternal.OAuthUserInfo{ProviderUserID: info.ID, Email: info.Email}, nil
 }
 
 var _ repoexternal.OAuthProvider = (*Provider)(nil)
