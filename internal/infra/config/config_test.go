@@ -142,6 +142,13 @@ func TestLoad_HTTPAndProductionSafety(t *testing.T) {
 			wantErr: "HTTP_CORS_ALLOW_ORIGINS must contain at least one origin",
 		},
 		{
+			name: "wildcard CORS origin is unsafe with cookies",
+			setEnv: func(t *testing.T) {
+				t.Setenv("HTTP_CORS_ALLOW_ORIGINS", "*")
+			},
+			wantErr: "HTTP_CORS_ALLOW_ORIGINS must not contain * when cookies are enabled",
+		},
+		{
 			name: "production requires secure session cookies",
 			setEnv: func(t *testing.T) {
 				t.Setenv("APP_ENV", "production")

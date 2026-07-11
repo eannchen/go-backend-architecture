@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -231,6 +232,9 @@ func Load() (Config, error) {
 	}
 	if len(cfg.HTTP.CORSAllowOrigins) == 0 {
 		return Config{}, fmt.Errorf("HTTP_CORS_ALLOW_ORIGINS must contain at least one origin")
+	}
+	if slices.Contains(cfg.HTTP.CORSAllowOrigins, "*") {
+		return Config{}, fmt.Errorf("HTTP_CORS_ALLOW_ORIGINS must not contain * when cookies are enabled")
 	}
 	if cfg.HTTP.HealthStream.CheckInterval <= 0 || cfg.HTTP.HealthStream.HeartbeatInterval <= 0 {
 		return Config{}, fmt.Errorf("HEALTH_STREAM_CHECK_INTERVAL and HEALTH_STREAM_HEARTBEAT_INTERVAL must be > 0")
