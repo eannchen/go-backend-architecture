@@ -5,7 +5,7 @@ Process entrypoint package.
 ## Pattern used
 
 - Owns process boot lifecycle only (construct app, start server, handle shutdown signals).
-- Keeps orchestration thin and delegates wiring to `internal/app`.
+- Keeps orchestration thin and delegates HTTP wiring to `internal/app/api`.
 
 ## How to extend
 

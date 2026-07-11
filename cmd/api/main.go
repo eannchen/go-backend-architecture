@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/eannchen/go-backend-architecture/internal/app"
+	"github.com/eannchen/go-backend-architecture/internal/app/api"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 )
 
@@ -22,7 +22,7 @@ func run() int {
 	rootCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	application, err := app.New(rootCtx)
+	application, err := api.New(rootCtx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "bootstrap failed: %v\n", err)
 		return 1

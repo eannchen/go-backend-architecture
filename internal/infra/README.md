@@ -9,4 +9,4 @@
 ## How to extend
 
 - Add a subpackage per infrastructure concern; implement the contract from `internal/repository` or the relevant contract package.
-- Keep constructors explicit and injectable; wire in `internal/app` only.
+- Keep constructors explicit and injectable; wire in a process composition package under `internal/app` only.

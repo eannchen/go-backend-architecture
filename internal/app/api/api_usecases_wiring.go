@@ -1,4 +1,4 @@
-package app
+package api
 
 import (
 	oauthgoogle "github.com/eannchen/go-backend-architecture/internal/infra/external/oauth/login/google"

@@ -10,4 +10,4 @@
 
 - Add a subpackage per feature that needs composition (e.g. `composed/product/`).
 - Implement the same repository contract as the base store. Accept the base + cache (or other layer) via constructor injection.
-- Wire in the matching `internal/app/*_wiring.go` file by wrapping the base store with the composed store.
+- Wire in the matching process composition file (for HTTP, `internal/app/api/api_*_wiring.go`) by wrapping the base store with the composed store.

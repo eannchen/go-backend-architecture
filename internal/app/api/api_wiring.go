@@ -1,4 +1,4 @@
-package app
+package api
 
 import (
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"

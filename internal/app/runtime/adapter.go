@@ -1,4 +1,4 @@
-package app
+package runtime
 
 import (
 	"context"
@@ -35,8 +35,8 @@ func toObservabilitySeverity(s logger.Severity) observability.Severity {
 func contextFieldsProvider() logger.ContextFieldsProviderFunc {
 	return func(ctx context.Context) logger.Fields {
 		fields := make(logger.Fields)
-		if requestID := observability.RequestIDFromContext(ctx); requestID != "" {
-			fields["request.id"] = requestID
+		if id := observability.RequestIDFromContext(ctx); id != "" {
+			fields["request.id"] = id
 		}
 		traceID, spanID := observability.TraceFromContext(ctx)
 		if traceID != "" {
