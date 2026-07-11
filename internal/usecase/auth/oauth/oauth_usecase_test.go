@@ -114,12 +114,12 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 			wantConsumeCalls: 1,
 		},
 		{
-			name:             "rejects unsupported provider after state validation",
+			name:             "rejects unsupported provider without consuming state",
 			provider:         "missing",
 			code:             "code-1",
 			stateValid:       true,
 			wantCode:         apperr.CodeInvalidArgument,
-			wantConsumeCalls: 1,
+			wantConsumeCalls: 0,
 		},
 		{
 			name:              "maps exchange timeout",

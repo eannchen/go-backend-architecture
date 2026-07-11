@@ -55,10 +55,10 @@ func NewOAuthAuthenticator(
 	}
 
 	return &oauthAuthenticator{
-		tracer:     tracer,
-		providers:  pm,
-		stateRepo:  stateRepo,
-		userRepo:   userRepo,
+		tracer:    tracer,
+		providers: pm,
+		stateRepo: stateRepo,
+		userRepo:  userRepo,
 		oauthTotal: meter.Counter("auth_oauth_total",
 			observability.MetricOption{Description: "OAuth flow completions by provider and outcome.", Unit: "{attempt}"},
 		),
@@ -101,17 +101,17 @@ func (a *oauthAuthenticator) HandleCallback(ctx context.Context, provider, code,
 		span.Finish(err)
 	}()
 
+	p, ok := a.providers[provider]
+	if !ok {
+		return auth.Identity{}, apperr.New(apperr.CodeInvalidArgument, "unsupported oauth provider: "+provider)
+	}
+
 	valid, err := a.stateRepo.Consume(ctx, state)
 	if err != nil {
 		return auth.Identity{}, apperr.Wrap(err, apperr.CodeInternal, "validate oauth state")
 	}
 	if !valid {
 		return auth.Identity{}, apperr.New(apperr.CodeUnauthorized, "invalid or expired oauth state")
-	}
-
-	p, ok := a.providers[provider]
-	if !ok {
-		return auth.Identity{}, apperr.New(apperr.CodeInvalidArgument, "unsupported oauth provider: "+provider)
 	}
 
 	userInfo, err := p.Exchange(ctx, code)
