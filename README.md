@@ -1,20 +1,24 @@
 # Go Backend Architecture
 
 ![Go Version](https://img.shields.io/github/go-mod/go-version/eannchen/go-backend-architecture)
-[![Go Report Card](https://goreportcard.com/badge/github.com/eannchen/go-backend-architecture)](https://goreportcard.com/report/github.com/eannchen/go-backend-architecture)
 
-Clean Architecture Go backend template for building maintainable, testable APIs with built-in caching and observability, designed for engineers and AI agents.
+Go modular-monolith backend template with Clean Architecture — clear layer boundaries, production-ready API foundations, and agent rules that keep AI-assisted changes consistent.
 
-## Purpose
+## Included Foundations
 
-For both engineers and AI agents. Shared rules in [`AGENTS.md`](AGENTS.md) keep structure consistent. The template:
-
-- Provides a reusable backend starter that follows clean architecture.
-- Keeps business logic isolated from frameworks and vendors.
-- Offers production-ready foundations: HTTP, DB (PostgreSQL with [pgvector](https://github.com/pgvector/pgvector)), cache-aside user store, KV-backed auth (session/OTP/OAuth), migrations, tracing, metrics, and structured logging.
-- Serves as a base repo to clone for new app projects.
+- **Multi-binary-ready composition** — support for adding future workers as sibling process packages without duplicating runtime setup.
+- **HTTP safety and streaming** — timeouts, graceful shutdown, CORS allowlists, trusted-proxy IP extraction, security headers, and reusable Server-Sent Events with a bounded health-stream demo.
+- **Authentication** — Redis-backed sessions and OTPs, optional Resend email delivery, optional Google OAuth, and secure cookie defaults.
+- **Rate limiting** — app-level Redis token-bucket per-IP limiting at the origin, useful without a CDN and as defense in depth behind one.
+- **Data stores** — SQL-first PostgreSQL, Redis cache-aside store composition, and a ready-to-wire object-storage adapter — with vendor types kept inside infra.
+- **Observability** — OpenTelemetry tracing and metrics, plus structured logging — kept behind app-owned interfaces.
+- **Testing** — reusable repository fakes for unit tests, plus HTTP integration suites with optional real Postgres/Redis.
+- **Local development** — local hot reload and Docker Compose for Postgres, Redis, and observability services.
+- **Agent rules** — AI coding guidance that encodes the template's layer boundaries and patterns.
 
 ## Architecture and Principles
+
+These keep framework and infrastructure details at the edges so business logic stays independent and changes stay localized.
 
 **Architecture & structure**
 
@@ -71,6 +75,14 @@ Why SQL-first data access (no ORM)
 
 - [`go-redis/v9`](https://github.com/redis/go-redis) - Redis client integration
 
+**Object storage**
+- [`AWS SDK for Go v2`](https://aws.github.io/aws-sdk-go-v2/docs/) - S3-compatible Cloudflare R2 object-storage adapter
+
+**Authentication**
+
+- [`golang.org/x/oauth2`](https://pkg.go.dev/golang.org/x/oauth2) - OAuth 2.0 client support for Google login
+- [`Resend`](https://resend.com/) - optional OTP email delivery
+
 **Observability & logging**
 
 - [`uber-go/zap`](https://github.com/uber-go/zap) - structured logging
@@ -116,3 +128,24 @@ This updates module/import paths, service and stack naming, OpenAPI title, and R
 Common commands: `make dev-logs`, `make dev-down`, `make migrate-status`, `make openapi-generate`, `make run-stop`.
 
 Default local ports: Postgres `5432`, Redis `6379`, OTel `4317/4318`, HyperDX `8081`.
+
+## Verify
+
+Run the unit and standard HTTP integration suites:
+
+```bash
+make test
+make test-integration
+```
+
+With Postgres and Redis running, run the real-adapter integration suite. It loads a repository-root `.env` when present; explicitly exported environment variables take precedence.
+
+```bash
+make test-integration-real
+```
+
+To observe the bounded SSE demo while the API is running:
+
+```bash
+curl -N 'http://localhost:8080/health/stream?check=ready'
+```
