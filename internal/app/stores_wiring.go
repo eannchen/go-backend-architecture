@@ -16,6 +16,7 @@ type redisStores struct {
 	session     *rediskvstore.SessionStore
 	otp         *rediskvstore.OTPStore
 	oauthState  *rediskvstore.OAuthStateStore
+	tokenBucket *rediskvstore.TokenBucketStore
 }
 
 func (d wiring) buildRedisStores(client *goredis.Client) redisStores {
@@ -26,5 +27,6 @@ func (d wiring) buildRedisStores(client *goredis.Client) redisStores {
 		session:     rediskvstore.NewSessionStore(client),
 		otp:         rediskvstore.NewOTPStore(client),
 		oauthState:  rediskvstore.NewOAuthStateStore(client),
+		tokenBucket: rediskvstore.NewTokenBucketStore(client),
 	}
 }

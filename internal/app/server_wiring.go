@@ -14,10 +14,12 @@ import (
 	healthhttp "github.com/eannchen/go-backend-architecture/internal/delivery/http/handler/health"
 	contextmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/context"
 	observabilitymw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/observability"
+	ratelimitmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/ratelimit"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
+	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
 )
 
-func (d wiring) buildServer(responder httpresponse.Responder, handlers appHandlers, usecases appUsecases) (*httpdelivery.Server, error) {
+func (d wiring) buildServer(responder httpresponse.Responder, repos appRepositories, handlers appHandlers, usecases appUsecases) (*httpdelivery.Server, error) {
 	validatorRegistrars := []httpdelivery.ValidationRegistrar{
 		healthhttp.RegisterValidation,
 	}
@@ -32,10 +34,15 @@ func (d wiring) buildServer(responder httpresponse.Responder, handlers appHandle
 		secureCfg.HSTSMaxAge = 31536000
 		secureCfg.HSTSPreloadEnabled = true
 	}
+	globalLimiter := ratelimitmw.NewGlobalRateLimit(globalratelimit.NewIPLimiter(repos.tokenBucketRepo, d.log, globalratelimit.Config{
+		Capacity:       d.cfg.RateLimit.GlobalIPCapacity,
+		RefillInterval: d.cfg.RateLimit.GlobalIPRefillInterval,
+	}), responder)
 
 	middlewares := []echo.MiddlewareFunc{
 		echoMiddleware.Recover(),
 		echoMiddleware.SecureWithConfig(secureCfg),
+		globalLimiter.Handler(),
 		echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
 			AllowOrigins: d.cfg.HTTP.CORSAllowOrigins,
 			AllowMethods: []string{

@@ -19,6 +19,12 @@ type Config struct {
 	OTel        OTelConfig
 	Log         LogConfig
 	Shutdown    ShutdownConfig
+	RateLimit   RateLimitConfig
+}
+
+type RateLimitConfig struct {
+	GlobalIPCapacity       int
+	GlobalIPRefillInterval time.Duration
 }
 
 type AuthConfig struct {
@@ -186,6 +192,10 @@ func Load() (Config, error) {
 		Shutdown: ShutdownConfig{
 			GracePeriod: getDuration("SHUTDOWN_GRACE_PERIOD", 10*time.Second),
 		},
+		RateLimit: RateLimitConfig{
+			GlobalIPCapacity:       getInt("RATE_LIMIT_GLOBAL_IP_CAPACITY", 30),
+			GlobalIPRefillInterval: getDuration("RATE_LIMIT_GLOBAL_IP_REFILL_INTERVAL", 250*time.Millisecond),
+		},
 	}
 
 	cfg.AppEnv = strings.TrimSpace(cfg.AppEnv)
@@ -227,6 +237,9 @@ func Load() (Config, error) {
 	}
 	if cfg.HTTP.HealthStream.MaxDuration <= cfg.HTTP.HealthStream.CheckInterval || cfg.HTTP.HealthStream.MaxDuration <= cfg.HTTP.HealthStream.HeartbeatInterval {
 		return Config{}, fmt.Errorf("HEALTH_STREAM_MAX_DURATION must be greater than both HEALTH_STREAM_CHECK_INTERVAL and HEALTH_STREAM_HEARTBEAT_INTERVAL")
+	}
+	if cfg.RateLimit.GlobalIPCapacity <= 0 || cfg.RateLimit.GlobalIPRefillInterval <= 0 {
+		return Config{}, fmt.Errorf("RATE_LIMIT_GLOBAL_IP_CAPACITY and RATE_LIMIT_GLOBAL_IP_REFILL_INTERVAL must be > 0")
 	}
 	if cfg.ServiceName == "" {
 		return Config{}, fmt.Errorf("SERVICE_NAME must not be empty")

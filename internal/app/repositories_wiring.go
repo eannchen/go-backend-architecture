@@ -20,6 +20,7 @@ type appRepositories struct {
 	sessionRepo      repokvstore.SessionRepository
 	otpRepo          repokvstore.OTPRepository
 	oauthStateRepo   repokvstore.OAuthStateRepository
+	tokenBucketRepo  repokvstore.TokenBucketRepository
 }
 
 func (d wiring) buildRepositories(pool *pgxpool.Pool, redis redisStores) appRepositories {
@@ -35,5 +36,6 @@ func (d wiring) buildRepositories(pool *pgxpool.Pool, redis redisStores) appRepo
 		sessionRepo:      redis.session,
 		otpRepo:          redis.otp,
 		oauthStateRepo:   redis.oauthState,
+		tokenBucketRepo:  redis.tokenBucket,
 	}
 }

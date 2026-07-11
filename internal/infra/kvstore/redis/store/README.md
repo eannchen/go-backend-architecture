@@ -4,6 +4,7 @@
 
 - Each store owns its Redis key layout, serialization, TTL, and command coordination.
 - One store method per business operation. Redis primitives stay inside store methods.
+- Rate-limit stores use Lua so a distributed check-and-record operation is atomic.
 
 ## How to extend
 

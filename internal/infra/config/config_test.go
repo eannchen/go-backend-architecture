@@ -44,6 +44,8 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("OTEL_LOG_LEVEL", "info")
 	t.Setenv("LOG_DEVELOPMENT", "true")
 	t.Setenv("SHUTDOWN_GRACE_PERIOD", "10s")
+	t.Setenv("RATE_LIMIT_GLOBAL_IP_CAPACITY", "30")
+	t.Setenv("RATE_LIMIT_GLOBAL_IP_REFILL_INTERVAL", "250ms")
 }
 
 func TestLoad_RejectsWhitespaceOnlyRequiredStringFields(t *testing.T) {
@@ -146,6 +148,13 @@ func TestLoad_HTTPAndProductionSafety(t *testing.T) {
 				t.Setenv("SESSION_COOKIE_SECURE", "false")
 			},
 			wantErr: "SESSION_COOKIE_SECURE must be true when APP_ENV is not local",
+		},
+		{
+			name: "global rate limit must be positive",
+			setEnv: func(t *testing.T) {
+				t.Setenv("RATE_LIMIT_GLOBAL_IP_CAPACITY", "0")
+			},
+			wantErr: "RATE_LIMIT_GLOBAL_IP_CAPACITY and RATE_LIMIT_GLOBAL_IP_REFILL_INTERVAL must be > 0",
 		},
 		{
 			name: "health stream duration must include an update",
