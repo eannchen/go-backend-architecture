@@ -12,6 +12,20 @@ import (
 
 const otpKeyPrefix = "otp:"
 
+var consumeOTPScript = goredis.NewScript(`
+local stored = redis.call('GET', KEYS[1])
+
+if not stored then
+    return 0
+end
+
+if stored ~= ARGV[1] then
+    return 1
+end
+
+redis.call('DEL', KEYS[1])
+return 2`)
+
 // OTPStore implements OTPRepository using Redis with automatic TTL expiry.
 type OTPStore struct {
 	client *goredis.Client
@@ -28,12 +42,26 @@ func (s *OTPStore) Store(ctx context.Context, email, hashedCode string, ttl time
 	return nil
 }
 
-func (s *OTPStore) Get(ctx context.Context, email string) (string, error) {
-	code, err := s.client.Get(ctx, otpKeyPrefix+email).Result()
+func (s *OTPStore) Consume(ctx context.Context, email, candidateHash string) (bool, error) {
+	result, err := consumeOTPScript.Run(ctx, s.client, []string{otpKeyPrefix + email}, candidateHash).Result()
 	if err != nil {
-		return "", fmt.Errorf("get otp: %w", err)
+		return false, fmt.Errorf("consume otp: %w", err)
 	}
-	return code, nil
+
+	status, err := redisInt(result)
+	if err != nil {
+		return false, fmt.Errorf("consume otp: %w", err)
+	}
+	switch status {
+	case 0:
+		return false, repokvstore.ErrOTPNotFound
+	case 1:
+		return false, nil
+	case 2:
+		return true, nil
+	default:
+		return false, fmt.Errorf("consume otp: unexpected script status %d", status)
+	}
 }
 
 func (s *OTPStore) Delete(ctx context.Context, email string) error {

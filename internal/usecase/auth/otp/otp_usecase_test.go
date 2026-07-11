@@ -11,6 +11,7 @@ import (
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
 	"github.com/eannchen/go-backend-architecture/internal/repository/db/dbtest"
 	"github.com/eannchen/go-backend-architecture/internal/repository/external/otp/otptest"
+	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 	"github.com/eannchen/go-backend-architecture/internal/repository/kvstore/kvstoretest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )
@@ -19,13 +20,16 @@ func TestOTPAuthenticatorSendCode(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		email          string
-		storeErr       error
-		sendErr        error
-		wantCode       apperr.Code
-		wantStoreCalls int
-		wantSendCalls  int
+		name            string
+		email           string
+		storeErr        error
+		sendErr         error
+		deleteErr       error
+		wantCode        apperr.Code
+		wantStoreCalls  int
+		wantSendCalls   int
+		wantDeleteCalls int
+		wantWarnCalls   int
 	}{
 		{
 			name:     "rejects empty email",
@@ -39,12 +43,13 @@ func TestOTPAuthenticatorSendCode(t *testing.T) {
 			wantStoreCalls: 1,
 		},
 		{
-			name:           "wraps email failure",
-			email:          "user@example.com",
-			sendErr:        errors.New("provider unavailable"),
-			wantCode:       apperr.CodeInternal,
-			wantStoreCalls: 1,
-			wantSendCalls:  1,
+			name:            "wraps email failure",
+			email:           "user@example.com",
+			sendErr:         errors.New("provider unavailable"),
+			wantCode:        apperr.CodeInternal,
+			wantStoreCalls:  1,
+			wantSendCalls:   1,
+			wantDeleteCalls: 1,
 		},
 		{
 			name:           "stores hashed code then sends plain code",
@@ -62,14 +67,18 @@ func TestOTPAuthenticatorSendCode(t *testing.T) {
 				StoreFunc: func(context.Context, string, string, time.Duration) error {
 					return tt.storeErr
 				},
+				DeleteFunc: func(context.Context, string) error {
+					return tt.deleteErr
+				},
 			}
 			emailSender := &otptest.EmailSender{
 				SendOTPFunc: func(context.Context, string, string) error {
 					return tt.sendErr
 				},
 			}
+			log := &loggertest.Logger{}
 			uc := NewOTPAuthenticator(
-				&loggertest.Logger{},
+				log,
 				nil,
 				nil,
 				otpRepo,
@@ -90,6 +99,12 @@ func TestOTPAuthenticatorSendCode(t *testing.T) {
 			}
 			if emailSender.SendOTPCalls != tt.wantSendCalls {
 				t.Fatalf("expected send calls %d, got %d", tt.wantSendCalls, emailSender.SendOTPCalls)
+			}
+			if otpRepo.DeleteCalls != tt.wantDeleteCalls {
+				t.Fatalf("expected delete calls %d, got %d", tt.wantDeleteCalls, otpRepo.DeleteCalls)
+			}
+			if log.WarnCalls != tt.wantWarnCalls {
+				t.Fatalf("expected warn calls %d, got %d", tt.wantWarnCalls, log.WarnCalls)
 			}
 			if tt.wantSendCalls == 1 {
 				if emailSender.Email != tt.email {
@@ -120,19 +135,16 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 		email            string
 		code             string
 		storedHash       string
-		getOTPErr        error
-		deleteErr        error
+		consumeOTPErr    error
 		getUserResult    repodb.User
 		getUserErr       error
 		createUserResult repodb.User
 		createUserErr    error
 		wantIdentity     auth.Identity
 		wantCode         apperr.Code
-		wantGetOTPCalls  int
-		wantDeleteCalls  int
+		wantConsumeCalls int
 		wantGetUserCalls int
 		wantCreateCalls  int
-		wantWarnCalls    int
 	}{
 		{
 			name:     "rejects empty email",
@@ -145,20 +157,20 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 			wantCode: apperr.CodeInvalidArgument,
 		},
 		{
-			name:            "rejects missing otp",
-			email:           "user@example.com",
-			code:            validCode,
-			getOTPErr:       errors.New("not found"),
-			wantCode:        apperr.CodeUnauthorized,
-			wantGetOTPCalls: 1,
+			name:             "rejects missing otp",
+			email:            "user@example.com",
+			code:             validCode,
+			consumeOTPErr:    repokvstore.ErrOTPNotFound,
+			wantCode:         apperr.CodeUnauthorized,
+			wantConsumeCalls: 1,
 		},
 		{
-			name:            "rejects mismatched code",
-			email:           "user@example.com",
-			code:            "000000",
-			storedHash:      validHash,
-			wantCode:        apperr.CodeUnauthorized,
-			wantGetOTPCalls: 1,
+			name:             "rejects mismatched code",
+			email:            "user@example.com",
+			code:             "000000",
+			storedHash:       validHash,
+			wantCode:         apperr.CodeUnauthorized,
+			wantConsumeCalls: 1,
 		},
 		{
 			name:             "returns existing user identity",
@@ -167,8 +179,7 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 			storedHash:       validHash,
 			getUserResult:    repodb.User{ID: 42, Email: "user@example.com"},
 			wantIdentity:     auth.Identity{UserID: 42, Email: "user@example.com", Method: auth.MethodOTP},
-			wantGetOTPCalls:  1,
-			wantDeleteCalls:  1,
+			wantConsumeCalls: 1,
 			wantGetUserCalls: 1,
 		},
 		{
@@ -176,37 +187,30 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 			email:            "new@example.com",
 			code:             validCode,
 			storedHash:       validHash,
-			getUserErr:       errors.New("not found"),
+			getUserErr:       repodb.ErrNotFound,
 			createUserResult: repodb.User{ID: 99, Email: "new@example.com"},
 			wantIdentity:     auth.Identity{UserID: 99, Email: "new@example.com", Method: auth.MethodOTP},
-			wantGetOTPCalls:  1,
-			wantDeleteCalls:  1,
+			wantConsumeCalls: 1,
 			wantGetUserCalls: 1,
 			wantCreateCalls:  1,
 		},
 		{
-			name:             "logs delete failure and continues",
+			name:             "returns internal error when OTP consume fails",
 			email:            "user@example.com",
 			code:             validCode,
-			storedHash:       validHash,
-			deleteErr:        errors.New("delete failed"),
-			getUserResult:    repodb.User{ID: 7, Email: "user@example.com"},
-			wantIdentity:     auth.Identity{UserID: 7, Email: "user@example.com", Method: auth.MethodOTP},
-			wantGetOTPCalls:  1,
-			wantDeleteCalls:  1,
-			wantGetUserCalls: 1,
-			wantWarnCalls:    1,
+			consumeOTPErr:    errors.New("redis unavailable"),
+			wantCode:         apperr.CodeInternal,
+			wantConsumeCalls: 1,
 		},
 		{
 			name:             "maps duplicate create race to conflict",
 			email:            "race@example.com",
 			code:             validCode,
 			storedHash:       validHash,
-			getUserErr:       errors.New("not found"),
+			getUserErr:       repodb.ErrNotFound,
 			createUserErr:    repodb.ErrDuplicateKey,
 			wantCode:         apperr.CodeConflict,
-			wantGetOTPCalls:  1,
-			wantDeleteCalls:  1,
+			wantConsumeCalls: 1,
 			wantGetUserCalls: 1,
 			wantCreateCalls:  1,
 		},
@@ -215,11 +219,10 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 			email:            "slow@example.com",
 			code:             validCode,
 			storedHash:       validHash,
-			getUserErr:       errors.New("not found"),
+			getUserErr:       repodb.ErrNotFound,
 			createUserErr:    context.DeadlineExceeded,
 			wantCode:         apperr.CodeTimeout,
-			wantGetOTPCalls:  1,
-			wantDeleteCalls:  1,
+			wantConsumeCalls: 1,
 			wantGetUserCalls: 1,
 			wantCreateCalls:  1,
 		},
@@ -228,11 +231,10 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 			email:            "fail@example.com",
 			code:             validCode,
 			storedHash:       validHash,
-			getUserErr:       errors.New("not found"),
+			getUserErr:       repodb.ErrNotFound,
 			createUserErr:    errors.New("postgres unavailable"),
 			wantCode:         apperr.CodeInternal,
-			wantGetOTPCalls:  1,
-			wantDeleteCalls:  1,
+			wantConsumeCalls: 1,
 			wantGetUserCalls: 1,
 			wantCreateCalls:  1,
 		},
@@ -244,11 +246,8 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 
 			log := &loggertest.Logger{}
 			otpRepo := &kvstoretest.OTPRepository{
-				GetFunc: func(context.Context, string) (string, error) {
-					return tt.storedHash, tt.getOTPErr
-				},
-				DeleteFunc: func(context.Context, string) error {
-					return tt.deleteErr
+				ConsumeFunc: func(_ context.Context, _ string, candidateHash string) (bool, error) {
+					return candidateHash == tt.storedHash, tt.consumeOTPErr
 				},
 			}
 			userRepo := &dbtest.UserRepository{
@@ -271,20 +270,14 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 			if got != tt.wantIdentity {
 				t.Fatalf("expected identity %+v, got %+v", tt.wantIdentity, got)
 			}
-			if otpRepo.GetCalls != tt.wantGetOTPCalls {
-				t.Fatalf("expected otp get calls %d, got %d", tt.wantGetOTPCalls, otpRepo.GetCalls)
-			}
-			if otpRepo.DeleteCalls != tt.wantDeleteCalls {
-				t.Fatalf("expected otp delete calls %d, got %d", tt.wantDeleteCalls, otpRepo.DeleteCalls)
+			if otpRepo.ConsumeCalls != tt.wantConsumeCalls {
+				t.Fatalf("expected otp consume calls %d, got %d", tt.wantConsumeCalls, otpRepo.ConsumeCalls)
 			}
 			if userRepo.GetByEmailCalls != tt.wantGetUserCalls {
 				t.Fatalf("expected user get calls %d, got %d", tt.wantGetUserCalls, userRepo.GetByEmailCalls)
 			}
 			if userRepo.CreateByEmailCalls != tt.wantCreateCalls {
 				t.Fatalf("expected user create calls %d, got %d", tt.wantCreateCalls, userRepo.CreateByEmailCalls)
-			}
-			if log.WarnCalls != tt.wantWarnCalls {
-				t.Fatalf("expected warn calls %d, got %d", tt.wantWarnCalls, log.WarnCalls)
 			}
 		})
 	}

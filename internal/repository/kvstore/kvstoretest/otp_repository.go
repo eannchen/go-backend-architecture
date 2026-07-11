@@ -14,9 +14,10 @@ type OTPRepository struct {
 	StoreEmail      string
 	StoreHashedCode string
 	StoreTTL        time.Duration
-	GetFunc         func(context.Context, string) (string, error)
-	GetCalls        int
-	GetEmail        string
+	ConsumeFunc     func(context.Context, string, string) (bool, error)
+	ConsumeCalls    int
+	ConsumeEmail    string
+	ConsumeHash     string
 	DeleteFunc      func(context.Context, string) error
 	DeleteCalls     int
 	DeleteEmail     string
@@ -33,13 +34,14 @@ func (r *OTPRepository) Store(ctx context.Context, email, hashedCode string, ttl
 	return nil
 }
 
-func (r *OTPRepository) Get(ctx context.Context, email string) (string, error) {
-	r.GetCalls++
-	r.GetEmail = email
-	if r.GetFunc != nil {
-		return r.GetFunc(ctx, email)
+func (r *OTPRepository) Consume(ctx context.Context, email, candidateHash string) (bool, error) {
+	r.ConsumeCalls++
+	r.ConsumeEmail = email
+	r.ConsumeHash = candidateHash
+	if r.ConsumeFunc != nil {
+		return r.ConsumeFunc(ctx, email, candidateHash)
 	}
-	return "", nil
+	return false, nil
 }
 
 func (r *OTPRepository) Delete(ctx context.Context, email string) error {

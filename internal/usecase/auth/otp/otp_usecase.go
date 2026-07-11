@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -59,6 +58,9 @@ func NewOTPAuthenticator(
 	userRepo repodb.UserRepository,
 	cfg OTPConfig,
 ) OTPAuthenticator {
+	if log == nil {
+		log = logger.NoopLogger{}
+	}
 	if tracer == nil {
 		tracer = observability.NoopTracer{}
 	}
@@ -114,6 +116,9 @@ func (a *otpAuthenticator) SendCode(ctx context.Context, email string) (err erro
 	}
 
 	if err := a.emailSender.SendOTP(ctx, email, code); err != nil {
+		if deleteErr := a.otpRepo.Delete(ctx, email); deleteErr != nil {
+			a.log.Warn(ctx, "otp cleanup after email failure failed", logger.FromPairs("email", email, "error", deleteErr))
+		}
 		return apperr.Wrap(err, apperr.CodeInternal, "send otp email")
 	}
 
@@ -135,21 +140,23 @@ func (a *otpAuthenticator) VerifyCode(ctx context.Context, email, code string) (
 		return auth.Identity{}, apperr.New(apperr.CodeInvalidArgument, "email and code are required")
 	}
 
-	storedHash, err := a.otpRepo.Get(ctx, email)
+	matched, err := a.otpRepo.Consume(ctx, email, hashCode(code))
 	if err != nil {
+		if !errors.Is(err, repokvstore.ErrOTPNotFound) {
+			return auth.Identity{}, apperr.Wrap(err, apperr.CodeInternal, "consume otp code")
+		}
 		return auth.Identity{}, apperr.New(apperr.CodeUnauthorized, "invalid or expired otp code")
 	}
 
-	if !verifyHash(code, storedHash) {
+	if !matched {
 		return auth.Identity{}, apperr.New(apperr.CodeUnauthorized, "invalid otp code")
-	}
-
-	if err := a.otpRepo.Delete(ctx, email); err != nil {
-		a.log.Warn(ctx, "otp delete after verify failed", logger.FromPairs("email", email, "error", err))
 	}
 
 	user, err := a.userRepo.GetByEmail(ctx, email)
 	if err != nil {
+		if !errors.Is(err, repodb.ErrNotFound) {
+			return auth.Identity{}, apperr.Wrap(err, apperr.CodeInternal, "find user")
+		}
 		user, err = a.userRepo.CreateByEmail(ctx, email)
 		if err != nil {
 			if errors.Is(err, repodb.ErrDuplicateKey) {
@@ -182,10 +189,4 @@ func generateNumericCode(length int) (string, error) {
 func hashCode(code string) string {
 	h := sha256.Sum256([]byte(code))
 	return hex.EncodeToString(h[:])
-}
-
-func verifyHash(code, storedHash string) bool {
-	h := sha256.Sum256([]byte(code))
-	candidateHex := hex.EncodeToString(h[:])
-	return subtle.ConstantTimeCompare([]byte(candidateHex), []byte(storedHash)) == 1
 }
