@@ -23,7 +23,7 @@ func TestGlobalRateLimitMiddlewareRejectsWithRetryAfter(t *testing.T) {
 	e := echo.New()
 	rec := httptest.NewRecorder()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
-	h := NewGlobalRateLimit(limiterStub{d: globalratelimit.Decision{RetryAfter: 500 * time.Millisecond}}, nil).Handler()(func(*echo.Context) error { t.Fatal("next called"); return nil })
+	h := NewGlobalRateLimit(limiterStub{d: globalratelimit.Decision{RetryAfter: 500 * time.Millisecond}}, nil, nil).Handler()(func(*echo.Context) error { t.Fatal("next called"); return nil })
 	if err := h(c); err != nil {
 		t.Fatal(err)
 	}

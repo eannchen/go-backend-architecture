@@ -12,11 +12,12 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/repository/db/dbtest"
 	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external/oauth"
 	"github.com/eannchen/go-backend-architecture/internal/repository/external/oauth/oauthtest"
+	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 	"github.com/eannchen/go-backend-architecture/internal/repository/kvstore/kvstoretest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )
 
-func TestOAuthAuthenticatorAuthorizeURL(t *testing.T) {
+func TestOAuthAuthenticatorAuthorize(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -52,14 +53,14 @@ func TestOAuthAuthenticatorAuthorizeURL(t *testing.T) {
 			t.Parallel()
 
 			stateRepo := &kvstoretest.OAuthStateRepository{
-				StoreFunc: func(context.Context, string, time.Duration) error {
+				StoreFunc: func(context.Context, string, repokvstore.OAuthStateData, time.Duration) error {
 					return tt.storeErr
 				},
 			}
 			provider := &oauthtest.OAuthProvider{ProviderName: "google"}
 			uc := NewOAuthAuthenticator(nil, nil, stateRepo, &dbtest.UserRepository{}, provider)
 
-			got, err := uc.AuthorizeURL(context.Background(), tt.provider)
+			got, err := uc.Authorize(context.Background(), tt.provider)
 
 			if tt.wantCode != "" {
 				assertAppCode(t, err, tt.wantCode)
@@ -72,8 +73,13 @@ func TestOAuthAuthenticatorAuthorizeURL(t *testing.T) {
 			if provider.AuthCodeCalls != tt.wantAuthCalls {
 				t.Fatalf("expected auth url calls %d, got %d", tt.wantAuthCalls, provider.AuthCodeCalls)
 			}
-			if tt.wantAuthCalls == 1 && !strings.Contains(got, stateRepo.StoredState) {
-				t.Fatalf("expected redirect URL %q to contain stored state %q", got, stateRepo.StoredState)
+			if tt.wantAuthCalls == 1 {
+				if !strings.Contains(got.RedirectURL, stateRepo.StoredState) {
+					t.Fatalf("expected redirect URL %q to contain stored state %q", got.RedirectURL, stateRepo.StoredState)
+				}
+				if got.BrowserBinding == "" || stateRepo.StoredData.BrowserBindingHash != hashBrowserBinding(got.BrowserBinding) {
+					t.Fatalf("expected stored browser-binding hash, got %+v", stateRepo.StoredData)
+				}
 			}
 		})
 	}
@@ -172,13 +178,13 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 			t.Parallel()
 
 			stateRepo := &kvstoretest.OAuthStateRepository{
-				ConsumeFunc: func(context.Context, string) (bool, error) {
-					return tt.stateValid, tt.stateErr
+				ConsumeFunc: func(context.Context, string) (repokvstore.OAuthStateData, bool, error) {
+					return repokvstore.OAuthStateData{BrowserBindingHash: hashBrowserBinding("binding-1")}, tt.stateValid, tt.stateErr
 				},
 			}
 			provider := &oauthtest.OAuthProvider{
 				ProviderName: "google",
-				ExchangeFunc: func(context.Context, string) (repoexternal.OAuthUserInfo, error) {
+				ExchangeFunc: func(context.Context, string, string) (repoexternal.OAuthUserInfo, error) {
 					return tt.exchangeResult, tt.exchangeErr
 				},
 			}
@@ -189,7 +195,7 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 			}
 			uc := NewOAuthAuthenticator(nil, nil, stateRepo, userRepo, provider)
 
-			got, err := uc.HandleCallback(context.Background(), tt.provider, tt.code, "state-1")
+			got, err := uc.HandleCallback(context.Background(), tt.provider, tt.code, "state-1", "binding-1")
 
 			if tt.wantCode != "" {
 				assertAppCode(t, err, tt.wantCode)
@@ -219,6 +225,22 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestOAuthAuthenticatorHandleCallbackRejectsMismatchedBrowserBinding(t *testing.T) {
+	stateRepo := &kvstoretest.OAuthStateRepository{
+		ConsumeFunc: func(context.Context, string) (repokvstore.OAuthStateData, bool, error) {
+			return repokvstore.OAuthStateData{BrowserBindingHash: hashBrowserBinding("expected")}, true, nil
+		},
+	}
+	provider := &oauthtest.OAuthProvider{ProviderName: "google"}
+	uc := NewOAuthAuthenticator(nil, nil, stateRepo, &dbtest.UserRepository{}, provider)
+
+	_, err := uc.HandleCallback(context.Background(), "google", "code", "state", "wrong")
+	assertAppCode(t, err, apperr.CodeUnauthorized)
+	if provider.ExchangeCalls != 0 {
+		t.Fatalf("Exchange() calls = %d, want 0", provider.ExchangeCalls)
 	}
 }
 

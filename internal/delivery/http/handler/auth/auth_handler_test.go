@@ -18,6 +18,7 @@ import (
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
+	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
 	authoauthtest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth/oauthtest"
 	authotptest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp/otptest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth/session/sessiontest"
@@ -46,6 +47,83 @@ func newHandlerForTest(otp *authotptest.OTPAuthenticator, session *sessiontest.S
 		},
 		nil,
 	)
+}
+
+func TestHandlerOAuthFlowBindsCallbackToAuthorizeBrowser(t *testing.T) {
+	oauth := &authoauthtest.OAuthAuthenticator{
+		AuthorizeFunc: func(context.Context, string) (authoauth.Authorization, error) {
+			return authoauth.Authorization{
+				RedirectURL:    "https://provider.example/authorize",
+				BrowserBinding: "browser-binding",
+			}, nil
+		},
+		HandleCallbackFunc: func(_ context.Context, provider, code, state, browserBinding string) (auth.Identity, error) {
+			if provider != "google" || code != "code" || state != "state" || browserBinding != "browser-binding" {
+				t.Fatalf("unexpected callback inputs: provider=%q code=%q state=%q binding=%q", provider, code, state, browserBinding)
+			}
+			return auth.Identity{UserID: 7, Email: "user@example.com", Method: auth.MethodOAuth}, nil
+		},
+	}
+	session := &sessiontest.SessionManager{
+		CreateFunc: func(context.Context, auth.Identity) (auth.Session, error) {
+			return auth.Session{Token: "session-token"}, nil
+		},
+	}
+	h := NewHandler(
+		&loggertest.Logger{}, nil, httpresponse.NewResponder(nil), &authotptest.OTPAuthenticator{}, oauth, session,
+		SessionCookieConfig{Name: "session_id", TTL: 30 * time.Minute}, nil,
+	)
+	e := newEchoForTest()
+
+	authorizeReq := httptest.NewRequest(http.MethodGet, "/auth/oauth/google/authorize", nil)
+	authorizeRec := httptest.NewRecorder()
+	authorizeContext := e.NewContext(authorizeReq, authorizeRec)
+	authorizeContext.SetPath("/auth/oauth/:provider/authorize")
+	authorizeContext.SetPathValues(echo.PathValues{{Name: "provider", Value: "google"}})
+	if err := h.OAuthAuthorize(authorizeContext); err != nil {
+		t.Fatalf("OAuthAuthorize() error = %v", err)
+	}
+	if authorizeRec.Code != http.StatusFound {
+		t.Fatalf("authorize status = %d, want %d", authorizeRec.Code, http.StatusFound)
+	}
+	bindingCookie := authorizeRec.Result().Cookies()[0]
+	if bindingCookie.Name != oauthBrowserBindingCookieName || bindingCookie.Value != "browser-binding" || !bindingCookie.HttpOnly || bindingCookie.MaxAge != int(authoauth.BrowserBindingTTL.Seconds()) {
+		t.Fatalf("unexpected OAuth binding cookie: %+v", bindingCookie)
+	}
+
+	callbackReq := httptest.NewRequest(http.MethodGet, "/auth/oauth/google/callback?code=code&state=state", nil)
+	callbackReq.AddCookie(bindingCookie)
+	callbackRec := httptest.NewRecorder()
+	callbackContext := e.NewContext(callbackReq, callbackRec)
+	callbackContext.SetPath("/auth/oauth/:provider/callback")
+	callbackContext.SetPathValues(echo.PathValues{{Name: "provider", Value: "google"}})
+	if err := h.OAuthCallback(callbackContext); err != nil {
+		t.Fatalf("OAuthCallback() error = %v", err)
+	}
+	if callbackRec.Code != http.StatusOK {
+		t.Fatalf("callback status = %d, want %d", callbackRec.Code, http.StatusOK)
+	}
+	callbackCookies := callbackRec.Result().Cookies()
+	if len(callbackCookies) != 2 || callbackCookies[0].Name != "session_id" || callbackCookies[1].Name != oauthBrowserBindingCookieName || callbackCookies[1].MaxAge != -1 {
+		t.Fatalf("expected session and cleared OAuth binding cookies, got %+v", callbackCookies)
+	}
+}
+
+func TestHandlerOAuthCallbackRejectsMissingBrowserBinding(t *testing.T) {
+	h := newHandlerForTest(&authotptest.OTPAuthenticator{}, &sessiontest.SessionManager{})
+	e := newEchoForTest()
+	req := httptest.NewRequest(http.MethodGet, "/auth/oauth/google/callback?code=code&state=state", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPath("/auth/oauth/:provider/callback")
+	c.SetPathValues(echo.PathValues{{Name: "provider", Value: "google"}})
+
+	if err := h.OAuthCallback(c); err != nil {
+		t.Fatalf("OAuthCallback() error = %v", err)
+	}
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("callback status = %d, want %d", rec.Code, http.StatusUnauthorized)
+	}
 }
 
 func newEchoForTest() *echo.Echo {

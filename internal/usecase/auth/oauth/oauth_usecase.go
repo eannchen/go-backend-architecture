@@ -2,6 +2,9 @@ package oauth
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"errors"
 	"time"
 
@@ -13,7 +16,10 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )
 
-const oauthStateTTL = 10 * time.Minute
+// BrowserBindingTTL bounds the one-time browser cookie, OAuth state, and PKCE
+// verifier. Keeping their lifetimes equal avoids a valid state outliving its
+// browser proof.
+const BrowserBindingTTL = 10 * time.Minute
 
 // OAuthAuthenticator handles OAuth2 authorization-code flows.
 // Implementations manage provider selection, state tokens, and code exchange.
@@ -22,8 +28,15 @@ const oauthStateTTL = 10 * time.Minute
 //   - Multi-provider: registry of OAuthProvider implementations keyed by name.
 //   - Single-provider: hardcoded to one provider.
 type OAuthAuthenticator interface {
-	AuthorizeURL(ctx context.Context, provider string) (redirectURL string, err error)
-	HandleCallback(ctx context.Context, provider, code, state string) (auth.Identity, error)
+	Authorize(ctx context.Context, provider string) (Authorization, error)
+	HandleCallback(ctx context.Context, provider, code, state, browserBinding string) (auth.Identity, error)
+}
+
+// Authorization contains the provider redirect and the browser-only secret that
+// must return in the callback cookie. BrowserBinding is also the PKCE verifier.
+type Authorization struct {
+	RedirectURL    string
+	BrowserBinding string
 }
 
 type oauthAuthenticator struct {
@@ -65,7 +78,7 @@ func NewOAuthAuthenticator(
 	}
 }
 
-func (a *oauthAuthenticator) AuthorizeURL(ctx context.Context, provider string) (redirectURL string, err error) {
+func (a *oauthAuthenticator) Authorize(ctx context.Context, provider string) (authorization Authorization, err error) {
 	ctx, span := a.tracer.Start(ctx, "usecase", "oauth_authenticator.authorize_url",
 		observability.FromPairs("oauth.provider", provider),
 	)
@@ -73,22 +86,31 @@ func (a *oauthAuthenticator) AuthorizeURL(ctx context.Context, provider string) 
 
 	p, ok := a.providers[provider]
 	if !ok {
-		return "", apperr.New(apperr.CodeInvalidArgument, "unsupported oauth provider: "+provider)
+		return Authorization{}, apperr.New(apperr.CodeInvalidArgument, "unsupported oauth provider: "+provider)
 	}
 
 	state, err := auth.GenerateToken(16)
 	if err != nil {
-		return "", apperr.Wrap(err, apperr.CodeInternal, "generate oauth state")
+		return Authorization{}, apperr.Wrap(err, apperr.CodeInternal, "generate oauth state")
+	}
+	browserBinding, err := auth.GenerateToken(32)
+	if err != nil {
+		return Authorization{}, apperr.Wrap(err, apperr.CodeInternal, "generate oauth browser binding")
 	}
 
-	if err := a.stateRepo.Store(ctx, state, oauthStateTTL); err != nil {
-		return "", apperr.Wrap(err, apperr.CodeInternal, "store oauth state")
+	if err := a.stateRepo.Store(ctx, state, repokvstore.OAuthStateData{
+		BrowserBindingHash: hashBrowserBinding(browserBinding),
+	}, BrowserBindingTTL); err != nil {
+		return Authorization{}, apperr.Wrap(err, apperr.CodeInternal, "store oauth state")
 	}
 
-	return p.AuthCodeURL(state), nil
+	return Authorization{
+		RedirectURL:    p.AuthCodeURL(state, browserBinding),
+		BrowserBinding: browserBinding,
+	}, nil
 }
 
-func (a *oauthAuthenticator) HandleCallback(ctx context.Context, provider, code, state string) (identity auth.Identity, err error) {
+func (a *oauthAuthenticator) HandleCallback(ctx context.Context, provider, code, state, browserBinding string) (identity auth.Identity, err error) {
 	ctx, span := a.tracer.Start(ctx, "usecase", "oauth_authenticator.handle_callback",
 		observability.FromPairs("oauth.provider", provider),
 	)
@@ -105,16 +127,25 @@ func (a *oauthAuthenticator) HandleCallback(ctx context.Context, provider, code,
 	if !ok {
 		return auth.Identity{}, apperr.New(apperr.CodeInvalidArgument, "unsupported oauth provider: "+provider)
 	}
+	if browserBinding == "" {
+		return auth.Identity{}, apperr.New(apperr.CodeUnauthorized, "oauth browser binding is missing or expired")
+	}
 
-	valid, err := a.stateRepo.Consume(ctx, state)
+	stateData, found, err := a.stateRepo.Consume(ctx, state)
 	if err != nil {
 		return auth.Identity{}, apperr.Wrap(err, apperr.CodeInternal, "validate oauth state")
 	}
-	if !valid {
+	if !found {
 		return auth.Identity{}, apperr.New(apperr.CodeUnauthorized, "invalid or expired oauth state")
 	}
+	if subtle.ConstantTimeCompare(
+		[]byte(stateData.BrowserBindingHash),
+		[]byte(hashBrowserBinding(browserBinding)),
+	) != 1 {
+		return auth.Identity{}, apperr.New(apperr.CodeUnauthorized, "oauth browser binding is invalid or expired")
+	}
 
-	userInfo, err := p.Exchange(ctx, code)
+	userInfo, err := p.Exchange(ctx, code, browserBinding)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return auth.Identity{}, apperr.Wrap(err, apperr.CodeTimeout, "oauth code exchange timed out")
@@ -136,4 +167,9 @@ func (a *oauthAuthenticator) HandleCallback(ctx context.Context, provider, code,
 		Email:  user.Email,
 		Method: auth.MethodOAuth,
 	}, nil
+}
+
+func hashBrowserBinding(binding string) string {
+	sum := sha256.Sum256([]byte(binding))
+	return hex.EncodeToString(sum[:])
 }

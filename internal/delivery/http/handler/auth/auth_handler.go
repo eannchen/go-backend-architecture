@@ -6,16 +6,19 @@ import (
 
 	"github.com/labstack/echo/v5"
 
+	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	sessionmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/session"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
 	authotp "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp"
 	authsession "github.com/eannchen/go-backend-architecture/internal/usecase/auth/session"
 )
+
+const oauthBrowserBindingCookieName = "oauth_browser_binding"
 
 // SessionCookieConfig controls how the session cookie is set in the browser.
 type SessionCookieConfig struct {
@@ -140,13 +143,14 @@ func (h *Handler) OAuthAuthorize(c *echo.Context) error {
 
 	provider := c.Param("provider")
 
-	redirectURL, err := h.oauth.AuthorizeURL(ctx, provider)
+	authorization, err := h.oauth.Authorize(ctx, provider)
 	if err != nil {
 		spanErr = err
 		return h.responder.AppError(c, err)
 	}
+	h.setOAuthBrowserBindingCookie(c, authorization.BrowserBinding)
 
-	return c.Redirect(http.StatusFound, redirectURL)
+	return c.Redirect(http.StatusFound, authorization.RedirectURL)
 }
 
 func (h *Handler) OAuthCallback(c *echo.Context) error {
@@ -166,19 +170,30 @@ func (h *Handler) OAuthCallback(c *echo.Context) error {
 		return h.responder.InvalidQuery(c, err, "validation failed")
 	}
 
-	identity, err := h.oauth.HandleCallback(ctx, provider, q.Code, q.State)
+	browserBindingCookie, err := c.Cookie(oauthBrowserBindingCookieName)
+	if err != nil || browserBindingCookie == nil || browserBindingCookie.Value == "" {
+		spanErr = apperr.New(apperr.CodeUnauthorized, "oauth browser binding is missing or expired")
+		return h.responder.AppError(c, spanErr)
+	}
+
+	identity, err := h.oauth.HandleCallback(ctx, provider, q.Code, q.State, browserBindingCookie.Value)
 	if err != nil {
 		spanErr = err
+		h.clearOAuthBrowserBindingCookie(c)
 		return h.responder.AppError(c, err)
 	}
 
 	session, err := h.session.Create(ctx, identity)
 	if err != nil {
 		spanErr = err
+		h.clearOAuthBrowserBindingCookie(c)
 		return h.responder.AppError(c, err)
 	}
 
 	h.setSessionCookie(c, session.Token)
+	// An OAuth state is single-use. Clear its browser proof before writing the
+	// response so the Set-Cookie header is not lost after the body is committed.
+	h.clearOAuthBrowserBindingCookie(c)
 
 	return h.responder.Success(c, http.StatusOK, openapi.AuthResponse{
 		UserId: identity.UserID,
@@ -234,6 +249,30 @@ func (h *Handler) clearSessionCookie(c *echo.Context) {
 		Name:     h.cookie.Name,
 		Value:    "",
 		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   h.cookie.Secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func (h *Handler) setOAuthBrowserBindingCookie(c *echo.Context, binding string) {
+	c.SetCookie(&http.Cookie{
+		Name:     oauthBrowserBindingCookieName,
+		Value:    binding,
+		Path:     "/auth/oauth/",
+		MaxAge:   int(authoauth.BrowserBindingTTL.Seconds()),
+		HttpOnly: true,
+		Secure:   h.cookie.Secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func (h *Handler) clearOAuthBrowserBindingCookie(c *echo.Context) {
+	c.SetCookie(&http.Cookie{
+		Name:     oauthBrowserBindingCookieName,
+		Value:    "",
+		Path:     "/auth/oauth/",
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   h.cookie.Secure,

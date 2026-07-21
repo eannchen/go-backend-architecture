@@ -13,6 +13,8 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("HTTP_READ_TIMEOUT", "10s")
 	t.Setenv("HTTP_WRITE_TIMEOUT", "15s")
 	t.Setenv("HTTP_IDLE_TIMEOUT", "60s")
+	t.Setenv("HTTP_MAX_REQUEST_BODY_BYTES", "1048576")
+	t.Setenv("HTTP_MAX_HEADER_BYTES", "16384")
 	t.Setenv("HTTP_REQUEST_TIMEOUT", "10s")
 	t.Setenv("HTTP_CORS_ALLOW_ORIGINS", "http://localhost:3000")
 	t.Setenv("HTTP_TRUSTED_PROXY_CIDRS", "")
@@ -46,6 +48,46 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("SHUTDOWN_GRACE_PERIOD", "10s")
 	t.Setenv("RATE_LIMIT_GLOBAL_IP_CAPACITY", "30")
 	t.Setenv("RATE_LIMIT_GLOBAL_IP_REFILL_INTERVAL", "250ms")
+}
+
+func TestLoad_HTTPSizeLimits(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("HTTP_MAX_REQUEST_BODY_BYTES", "2097152")
+	t.Setenv("HTTP_MAX_HEADER_BYTES", "32768")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.HTTP.MaxRequestBodyBytes != 2<<20 {
+		t.Fatalf("MaxRequestBodyBytes = %d, want %d", cfg.HTTP.MaxRequestBodyBytes, 2<<20)
+	}
+	if cfg.HTTP.MaxHeaderBytes != 32<<10 {
+		t.Fatalf("MaxHeaderBytes = %d, want %d", cfg.HTTP.MaxHeaderBytes, 32<<10)
+	}
+}
+
+func TestLoad_RejectsNonPositiveHTTPSizeLimits(t *testing.T) {
+	tests := []struct {
+		name    string
+		key     string
+		wantErr string
+	}{
+		{name: "request body", key: "HTTP_MAX_REQUEST_BODY_BYTES", wantErr: "HTTP_MAX_REQUEST_BODY_BYTES must be > 0"},
+		{name: "headers", key: "HTTP_MAX_HEADER_BYTES", wantErr: "HTTP_MAX_HEADER_BYTES must be > 0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setValidEnv(t)
+			t.Setenv(tt.key, "0")
+
+			_, err := Load()
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Load() error = %v, want %q", err, tt.wantErr)
+			}
+		})
+	}
 }
 
 func TestLoad_RejectsWhitespaceOnlyRequiredStringFields(t *testing.T) {

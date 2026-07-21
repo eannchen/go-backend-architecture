@@ -22,6 +22,7 @@ import (
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
+	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
 )
 
 type inMemoryOTP struct{}
@@ -38,8 +39,10 @@ func (inMemoryOTP) VerifyCode(_ context.Context, email, _ string) (auth.Identity
 
 type inMemoryOAuth struct{}
 
-func (inMemoryOAuth) AuthorizeURL(context.Context, string) (string, error) { return "", nil }
-func (inMemoryOAuth) HandleCallback(context.Context, string, string, string) (auth.Identity, error) {
+func (inMemoryOAuth) Authorize(context.Context, string) (authoauth.Authorization, error) {
+	return authoauth.Authorization{}, nil
+}
+func (inMemoryOAuth) HandleCallback(context.Context, string, string, string, string) (auth.Identity, error) {
 	return auth.Identity{}, nil
 }
 

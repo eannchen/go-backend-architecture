@@ -12,13 +12,16 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 )
 
+const defaultMaxHeaderBytes = 16 << 10 // 16 KiB
+
 // ServerConfig holds HTTP server settings. Filled by app from infra config so delivery does not depend on infra.
 type ServerConfig struct {
-	Address      string
-	ReadTimeout  time.Duration
-	WriteTimeout time.Duration
-	IdleTimeout  time.Duration
-	IPExtractor  echo.IPExtractor
+	Address        string
+	ReadTimeout    time.Duration
+	WriteTimeout   time.Duration
+	IdleTimeout    time.Duration
+	MaxHeaderBytes int
+	IPExtractor    echo.IPExtractor
 }
 
 type Server struct {
@@ -28,7 +31,11 @@ type Server struct {
 	logger     logger.Logger
 }
 
-func NewServer(cfg ServerConfig, log logger.Logger, binder echo.Binder, validatorRegistrars []ValidationRegistrar, middlewares []echo.MiddlewareFunc, registrars ...RouteRegistrar) (*Server, error) {
+func NewServer(cfg ServerConfig, log logger.Logger, binder echo.Binder, validatorRegistrars []ValidationRegistrar, preMiddlewares, middlewares []echo.MiddlewareFunc, registrars ...RouteRegistrar) (*Server, error) {
+	if cfg.MaxHeaderBytes <= 0 {
+		cfg.MaxHeaderBytes = defaultMaxHeaderBytes
+	}
+
 	e := echo.New()
 	if binder != nil {
 		e.Binder = binder
@@ -42,6 +49,12 @@ func NewServer(cfg ServerConfig, log logger.Logger, binder echo.Binder, validato
 	e.Validator = requestValidator
 	if cfg.IPExtractor != nil {
 		e.IPExtractor = cfg.IPExtractor
+	}
+	for _, m := range preMiddlewares {
+		if m == nil {
+			continue
+		}
+		e.Pre(m)
 	}
 
 	for _, m := range middlewares {
@@ -65,6 +78,7 @@ func NewServer(cfg ServerConfig, log logger.Logger, binder echo.Binder, validato
 		WriteTimeout:      cfg.WriteTimeout,
 		IdleTimeout:       cfg.IdleTimeout,
 		ReadHeaderTimeout: cfg.ReadTimeout,
+		MaxHeaderBytes:    cfg.MaxHeaderBytes,
 	}
 
 	return &Server{

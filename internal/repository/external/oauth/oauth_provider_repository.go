@@ -11,6 +11,6 @@ type OAuthUserInfo struct {
 // OAuthProvider interacts with a single OAuth2 provider (e.g. Google, GitHub).
 type OAuthProvider interface {
 	Name() string
-	AuthCodeURL(state string) string
-	Exchange(ctx context.Context, code string) (OAuthUserInfo, error)
+	AuthCodeURL(state, codeVerifier string) string
+	Exchange(ctx context.Context, code, codeVerifier string) (OAuthUserInfo, error)
 }

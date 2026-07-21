@@ -8,13 +8,15 @@ import (
 
 // OAuthProvider is a reusable test double for repoexternal.OAuthProvider.
 type OAuthProvider struct {
-	ProviderName    string
-	AuthCodeURLFunc func(string) string
-	AuthCodeCalls   int
-	AuthCodeState   string
-	ExchangeFunc    func(context.Context, string) (repoexternal.OAuthUserInfo, error)
-	ExchangeCalls   int
-	ExchangeCode    string
+	ProviderName     string
+	AuthCodeURLFunc  func(string, string) string
+	AuthCodeCalls    int
+	AuthCodeState    string
+	AuthCodeVerifier string
+	ExchangeFunc     func(context.Context, string, string) (repoexternal.OAuthUserInfo, error)
+	ExchangeCalls    int
+	ExchangeCode     string
+	ExchangeVerifier string
 }
 
 func (p *OAuthProvider) Name() string {
@@ -24,20 +26,22 @@ func (p *OAuthProvider) Name() string {
 	return p.ProviderName
 }
 
-func (p *OAuthProvider) AuthCodeURL(state string) string {
+func (p *OAuthProvider) AuthCodeURL(state, codeVerifier string) string {
 	p.AuthCodeCalls++
 	p.AuthCodeState = state
+	p.AuthCodeVerifier = codeVerifier
 	if p.AuthCodeURLFunc != nil {
-		return p.AuthCodeURLFunc(state)
+		return p.AuthCodeURLFunc(state, codeVerifier)
 	}
 	return "https://oauth.test/authorize?state=" + state
 }
 
-func (p *OAuthProvider) Exchange(ctx context.Context, code string) (repoexternal.OAuthUserInfo, error) {
+func (p *OAuthProvider) Exchange(ctx context.Context, code, codeVerifier string) (repoexternal.OAuthUserInfo, error) {
 	p.ExchangeCalls++
 	p.ExchangeCode = code
+	p.ExchangeVerifier = codeVerifier
 	if p.ExchangeFunc != nil {
-		return p.ExchangeFunc(ctx, code)
+		return p.ExchangeFunc(ctx, code, codeVerifier)
 	}
 	return repoexternal.OAuthUserInfo{}, nil
 }

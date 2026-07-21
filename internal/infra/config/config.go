@@ -64,14 +64,18 @@ type OAuthProviderConfig struct {
 }
 
 type HTTPConfig struct {
-	Address           string
-	ReadTimeout       time.Duration
-	WriteTimeout      time.Duration
-	IdleTimeout       time.Duration
-	RequestTimeout    time.Duration
-	CORSAllowOrigins  []string
-	TrustedProxyCIDRs []string
-	HealthStream      HealthStreamConfig
+	Address      string
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
+	IdleTimeout  time.Duration
+	// MaxRequestBodyBytes and MaxHeaderBytes bound untrusted HTTP input before a
+	// handler allocates or parses it.
+	MaxRequestBodyBytes int64
+	MaxHeaderBytes      int
+	RequestTimeout      time.Duration
+	CORSAllowOrigins    []string
+	TrustedProxyCIDRs   []string
+	HealthStream        HealthStreamConfig
 }
 
 // HealthStreamConfig bounds the health SSE demonstration endpoint.
@@ -126,13 +130,15 @@ func Load() (Config, error) {
 		AppEnv:      getEnv("APP_ENV", "local"),
 		ServiceName: getEnv("SERVICE_NAME", "app"),
 		HTTP: HTTPConfig{
-			Address:           getEnv("HTTP_ADDRESS", ":8080"),
-			ReadTimeout:       getDuration("HTTP_READ_TIMEOUT", 10*time.Second),
-			WriteTimeout:      getDuration("HTTP_WRITE_TIMEOUT", 15*time.Second),
-			IdleTimeout:       getDuration("HTTP_IDLE_TIMEOUT", 60*time.Second),
-			RequestTimeout:    getDuration("HTTP_REQUEST_TIMEOUT", 10*time.Second),
-			CORSAllowOrigins:  getCSV("HTTP_CORS_ALLOW_ORIGINS", []string{"http://localhost:3000"}),
-			TrustedProxyCIDRs: getCSV("HTTP_TRUSTED_PROXY_CIDRS", nil),
+			Address:             getEnv("HTTP_ADDRESS", ":8080"),
+			ReadTimeout:         getDuration("HTTP_READ_TIMEOUT", 10*time.Second),
+			WriteTimeout:        getDuration("HTTP_WRITE_TIMEOUT", 15*time.Second),
+			IdleTimeout:         getDuration("HTTP_IDLE_TIMEOUT", 60*time.Second),
+			MaxRequestBodyBytes: int64(getInt("HTTP_MAX_REQUEST_BODY_BYTES", 1<<20)),
+			MaxHeaderBytes:      getInt("HTTP_MAX_HEADER_BYTES", 16<<10),
+			RequestTimeout:      getDuration("HTTP_REQUEST_TIMEOUT", 10*time.Second),
+			CORSAllowOrigins:    getCSV("HTTP_CORS_ALLOW_ORIGINS", []string{"http://localhost:3000"}),
+			TrustedProxyCIDRs:   getCSV("HTTP_TRUSTED_PROXY_CIDRS", nil),
 			HealthStream: HealthStreamConfig{
 				CheckInterval:     getDuration("HEALTH_STREAM_CHECK_INTERVAL", 15*time.Second),
 				HeartbeatInterval: getDuration("HEALTH_STREAM_HEARTBEAT_INTERVAL", 5*time.Second),
@@ -226,6 +232,12 @@ func Load() (Config, error) {
 	}
 	if cfg.HTTP.Address == "" {
 		return Config{}, fmt.Errorf("HTTP_ADDRESS must not be empty")
+	}
+	if cfg.HTTP.MaxRequestBodyBytes <= 0 {
+		return Config{}, fmt.Errorf("HTTP_MAX_REQUEST_BODY_BYTES must be > 0")
+	}
+	if cfg.HTTP.MaxHeaderBytes <= 0 {
+		return Config{}, fmt.Errorf("HTTP_MAX_HEADER_BYTES must be > 0")
 	}
 	if cfg.HTTP.RequestTimeout <= 0 {
 		return Config{}, fmt.Errorf("HTTP_REQUEST_TIMEOUT must be > 0")

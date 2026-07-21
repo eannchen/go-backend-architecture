@@ -160,9 +160,13 @@ paths:
       operationId: oauthAuthorize
       summary: Redirect to OAuth provider for authorization
       description: |
-        Generates a CSRF state token and redirects the user to the OAuth
-        provider's authorization page. The provider parameter selects which
-        OAuth integration to use (e.g. google).
+        Generates a one-time OAuth state token and a short-lived, HttpOnly
+        browser binding cookie (both valid for 10 minutes), then redirects the
+        browser to the provider's authorization page with PKCE. The callback
+        succeeds only in the browser that initiated this request. Open this URL
+        via navigation — a link, `window.location`, or popup — not via
+        `fetch`/XHR. The provider parameter selects which OAuth integration to
+        use (e.g. google).
       parameters:
         - name: provider
           in: path
@@ -187,7 +191,9 @@ paths:
       description: |
         Receives the authorization code and state from the OAuth provider.
         Exchanges the code for user info, finds or creates the account,
-        creates a session, and sets a session cookie.
+        creates a session, and sets a session cookie. The callback also
+        requires the short-lived browser binding cookie set by the authorize
+        endpoint; it is cleared after this request.
       parameters:
         - name: provider
           in: path
@@ -221,7 +227,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/APIError"
         "401":
-          description: OAuth state invalid or code exchange failed.
+          description: OAuth state or browser binding is invalid or expired, or code exchange with the provider failed.
           content:
             application/json:
               schema:

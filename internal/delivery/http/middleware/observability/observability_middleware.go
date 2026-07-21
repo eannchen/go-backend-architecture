@@ -10,22 +10,24 @@ import (
 
 // Middleware composes tracing and request logging in a fixed order.
 type Middleware struct {
-	trace *TraceMiddleware
-	log   *AccessLogMiddleware
+	trace   *TraceMiddleware
+	log     *AccessLogMiddleware
+	metrics *RequestMetricsMiddleware
 }
 
 // New creates fixed-order tracing and access-log middleware composition.
-func New(tracer observability.Tracer, log logger.Logger) *Middleware {
+func New(tracer observability.Tracer, log logger.Logger, meter observability.Meter) *Middleware {
 	meta := httpcontext.NewContextMeta()
 	return &Middleware{
-		trace: NewTraceMiddleware(tracer, meta),
-		log:   NewAccessLogMiddleware(log, meta),
+		trace:   NewTraceMiddleware(tracer, meta),
+		log:     NewAccessLogMiddleware(log, meta),
+		metrics: NewRequestMetricsMiddleware(meter),
 	}
 }
 
 // Handler builds the Echo middleware function for observability composition.
 func (m *Middleware) Handler() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return m.trace.Handler()(m.log.Handler()(next))
+		return m.trace.Handler()(m.log.Handler()(m.metrics.Handler()(next)))
 	}
 }

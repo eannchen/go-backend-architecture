@@ -46,12 +46,12 @@ func (p *Provider) Name() string {
 	return "google"
 }
 
-func (p *Provider) AuthCodeURL(state string) string {
-	return p.cfg.AuthCodeURL(state, oauth2.AccessTypeOffline)
+func (p *Provider) AuthCodeURL(state, codeVerifier string) string {
+	return p.cfg.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(codeVerifier))
 }
 
-func (p *Provider) Exchange(ctx context.Context, code string) (repoexternal.OAuthUserInfo, error) {
-	token, err := p.cfg.Exchange(ctx, code)
+func (p *Provider) Exchange(ctx context.Context, code, codeVerifier string) (repoexternal.OAuthUserInfo, error) {
+	token, err := p.cfg.Exchange(ctx, code, oauth2.VerifierOption(codeVerifier))
 	if err != nil {
 		return repoexternal.OAuthUserInfo{}, fmt.Errorf("exchange oauth code: %w", err)
 	}
