@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package user.v1;
+
+option go_package = "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/gen/user/v1;userv1";
+
+// UserService exposes user queries to gRPC clients.
+service UserService {
+  // GetUser returns one user by identifier.
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+}
+
+// GetUserRequest identifies the requested user.
+message GetUserRequest {
+  // id is the stable user identifier.
+  int64 id = 1;
+}
+
+// GetUserResponse contains the requested user.
+message GetUserResponse {
+  // user is the user matched by the request identifier.
+  User user = 1;
+}
+
+// User is the gRPC representation of a user.
+message User {
+  // id is the stable user identifier.
+  int64 id = 1;
+
+  // email is the user's normalized email address.
+  string email = 2;
+}

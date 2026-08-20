@@ -11,7 +11,8 @@ alwaysApply: true
 4. Keep the template structure (layers, layout, wiring). Extend existing patterns; add new ones only when the template has no seam. Within it, write idiomatic Go — refactor awkward implementation; don't work around it. Hotfix (user asks minimal/urgent): smallest correct diff only.
 5. Use same constructor and wiring patterns.
 6. Comment why, not what. Keep comments short and scannable; skip restating code.
-7. For HTTP changes: update `docs/openapi.yaml` first, run `make openapi-generate`, then adapt handlers.
-8. Use binding tags on DTOs (`trim:"false"`, `case:"lower"`, `case:"upper"`); no manual trim/case.
-9. Follow **File and directory naming** conventions above.
-10. Avoid redundant passes over the same data unless clarity or separation is worth it.
+7. For HTTP changes: update `contracts/http/openapi.yaml` first, run `make openapi-generate`, then adapt handlers.
+8. For gRPC contract changes: update `contracts/grpc/` first, run `make proto-lint proto-generate`, then adapt services.
+9. Use binding tags on DTOs (`trim:"false"`, `case:"lower"`, `case:"upper"`); no manual trim/case.
+10. Follow **File and directory naming** conventions above.
+11. Avoid redundant passes over the same data unless clarity or separation is worth it.

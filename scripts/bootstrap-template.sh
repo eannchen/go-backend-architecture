@@ -148,7 +148,13 @@ main() {
   replace_in_files \
     "Go Backend Architecture Template API" \
     "${api_title}" \
-    "docs/openapi.yaml"
+    "contracts/http/openapi.yaml"
+
+  # Keep generated gRPC package imports aligned with the bootstrapped module.
+  local proto_file
+  while IFS= read -r proto_file; do
+    replace_in_file "$proto_file" "${template_module}/" "${module}/"
+  done < <(find contracts/grpc -type f -name '*.proto')
 
   # Badge URLs use the GitHub owner/repo path (e.g. eannchen/go-backend-architecture).
   # Replace before slug tokens so the partial slug match doesn't leave a stale owner.
@@ -176,8 +182,8 @@ Updated template identifiers:
   api title:    ${api_title}
 
 Next steps:
-  1. Review .env.example, docker-compose.yml, and docs/openapi.yaml.
-  2. Run make openapi-generate
+  1. Review .env.example, docker-compose.yml, and contracts/.
+  2. Run make openapi-generate proto-lint proto-generate
   3. Run make test
 EOF
 }

@@ -9,6 +9,7 @@ GOOSE_MIGRATION_DIR ?= $(CURDIR)/internal/infra/db/postgres/migrations
 GO_TEST ?= go test
 AIR_CMD ?= air -c .air.toml
 OAPI_CODEGEN_CMD ?= github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+BUF_CMD ?= github.com/bufbuild/buf/cmd/buf@v1.72.0
 SQLC_CMD ?= github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 GOOSE_CMD ?= github.com/pressly/goose/v3/cmd/goose@latest
 GOOSE_RUN = GOOSE_DRIVER=$(GOOSE_DRIVER) GOOSE_DBSTRING='$(GOOSE_DBSTRING)' GOOSE_MIGRATION_DIR=$(GOOSE_MIGRATION_DIR) go run $(GOOSE_CMD)
@@ -18,7 +19,7 @@ INTEGRATION_PACKAGES := \
 	./internal/infra/kvstore/redis/store \
 	./internal/delivery/http/integration
 
-.PHONY: install run run-stop fmt-check vet build check test test-cover test-race test-integration test-all ci openapi-generate sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring openapi sqlc mup mdown mstatus
+.PHONY: install run run-stop fmt-check vet build check test test-cover test-race test-integration test-all ci openapi-generate proto-generate proto-lint sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring openapi proto proto-check sqlc mup mdown mstatus
 
 run:
 	$(AIR_CMD)
@@ -37,6 +38,7 @@ install:
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 	go install github.com/pressly/goose/v3/cmd/goose@latest
 	go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+	go install github.com/bufbuild/buf/cmd/buf@v1.72.0
 
 fmt-check:
 	@unformatted="$$(gofmt -l .)"; \
@@ -72,7 +74,13 @@ test-all: test test-integration
 ci: check test-race test-integration
 
 openapi-generate:
-	go run $(OAPI_CODEGEN_CMD) -config oapi-codegen.yaml docs/openapi.yaml
+	go run $(OAPI_CODEGEN_CMD) -config oapi-codegen.yaml contracts/http/openapi.yaml
+
+proto-generate:
+	go run $(BUF_CMD) generate
+
+proto-lint:
+	go run $(BUF_CMD) lint
 
 sqlc-generate:
 	go run $(SQLC_CMD) generate
@@ -103,6 +111,8 @@ dev-logs:
 	docker compose logs -f postgres redis hyperdx otel-collector
 
 openapi: openapi-generate
+proto: proto-generate
+proto-check: proto-lint
 sqlc: sqlc-generate
 mup: migrate-up
 mdown: migrate-down
