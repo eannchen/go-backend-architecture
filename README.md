@@ -55,6 +55,9 @@ See package-level `README.md` files and [`AGENTS.md`](AGENTS.md) for implementat
 - [`go-playground/validator/v10`](https://github.com/go-playground/validator) - request/DTO validation (struct tags)
 - [`OpenAPI 3`](https://spec.openapis.org/oas/latest.html) - source of truth for HTTP contracts
 - [`oapi-codegen`](https://github.com/oapi-codegen/oapi-codegen) - backend transport model generation from OpenAPI
+- [`Buf`](https://buf.build/) - protobuf linting and reproducible gRPC code generation
+- [`gRPC-Go`](https://github.com/grpc/grpc-go) - Go gRPC client and server APIs
+- [`Protocol Buffers`](https://protobuf.dev/) - gRPC contract language and Go message generation
 
 **Database**
 
@@ -113,8 +116,8 @@ Why SQL-first data access (no ORM)
 This updates module/import paths, service and stack naming, OpenAPI title, and README title.
 
 3. If you cloned this repo directly, rename your project directory and set the Git remote to your new repository. The script does not change directory names or remotes.
-4. Validate with `make openapi-generate && make test`.
-5. Review `docker-compose.yml`, `.env.example`, and `docs/openapi.yaml` for project-specific values. The auth (pluggable OTP/OAuth + session), cached user store, and health modules are production-ready foundations—extend them and add your own migrations and features.
+4. Validate contracts with `make openapi-generate proto-lint proto-generate`, then run `make test`.
+5. Review `docker-compose.yml`, `.env.example`, and `contracts/` for project-specific values. The auth (pluggable OTP/OAuth + session), cached user store, and health modules are production-ready foundations—extend them and add your own migrations and features.
 6. Review `AGENTS.md` and package-level `README.md` files before feature development.
 
 ## Setup and Run
@@ -125,7 +128,7 @@ This updates module/import paths, service and stack naming, OpenAPI title, and R
 4. `make run`
 5. Verify `GET /health?check=ready`
 
-Common commands: `make dev-logs`, `make dev-down`, `make migrate-status`, `make openapi-generate`, `make run-stop`.
+Common commands: `make dev-logs`, `make dev-down`, `make migrate-status`, `make openapi-generate`, `make proto-lint`, `make proto-generate`, `make run-stop`.
 
 Default local ports: Postgres `5432`, Redis `6379`, OTel `4317/4318`, HyperDX `8081`.
 
