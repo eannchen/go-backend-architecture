@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package diagnostics.v1;
+
+option go_package = "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/gen/diagnostics/v1;diagnosticsv1";
+
+// DiagnosticsService exposes detailed, application-specific health information.
+service DiagnosticsService {
+  // GetHealth runs a liveness or readiness check and returns dependency details.
+  rpc GetHealth(GetHealthRequest) returns (GetHealthResponse);
+}
+
+// HealthCheckMode selects the depth of a diagnostics check.
+enum HealthCheckMode {
+  // HEALTH_CHECK_MODE_UNSPECIFIED uses the server default, which is readiness.
+  HEALTH_CHECK_MODE_UNSPECIFIED = 0;
+
+  // HEALTH_CHECK_MODE_LIVE checks only whether the process can handle requests.
+  HEALTH_CHECK_MODE_LIVE = 1;
+
+  // HEALTH_CHECK_MODE_READY checks the process and all required dependencies.
+  HEALTH_CHECK_MODE_READY = 2;
+}
+
+// HealthStatus describes one dependency's state for the requested check.
+enum HealthStatus {
+  // HEALTH_STATUS_UNSPECIFIED means the server did not produce a recognized state.
+  HEALTH_STATUS_UNSPECIFIED = 0;
+
+  // HEALTH_STATUS_UP means the dependency passed its check.
+  HEALTH_STATUS_UP = 1;
+
+  // HEALTH_STATUS_DOWN means the dependency failed its check.
+  HEALTH_STATUS_DOWN = 2;
+
+  // HEALTH_STATUS_SKIPPED means the requested check mode did not inspect the dependency.
+  HEALTH_STATUS_SKIPPED = 3;
+}
+
+// GetHealthRequest configures a detailed diagnostics check.
+message GetHealthRequest {
+  // mode selects a liveness or readiness check; unspecified defaults to readiness.
+  HealthCheckMode mode = 1;
+}
+
+// GetHealthResponse reports the overall result and individual dependency states.
+message GetHealthResponse {
+  // healthy is true when the requested check completed without an unavailable dependency.
+  bool healthy = 1;
+
+  // database contains the relational database state and available server details.
+  DatabaseHealth database = 2;
+
+  // cache contains the cache dependency state.
+  DependencyHealth cache = 3;
+
+  // kv_store contains the key-value store dependency state.
+  DependencyHealth kv_store = 4;
+
+  // vector_store contains the vector extension dependency state.
+  DependencyHealth vector_store = 5;
+}
+
+// DatabaseHealth reports database state and details that are known after a successful check.
+message DatabaseHealth {
+  // status is the database state for the requested check.
+  HealthStatus status = 1;
+
+  // name is the connected database name when the server returned it.
+  optional string name = 2;
+
+  // in_recovery reports whether PostgreSQL is in recovery when that value is available.
+  optional bool in_recovery = 3;
+
+  // uptime_seconds is the database server uptime when that value is available.
+  optional int64 uptime_seconds = 4;
+}
+
+// DependencyHealth reports the state of a dependency without additional metadata.
+message DependencyHealth {
+  // status is the dependency state for the requested check.
+  HealthStatus status = 1;
+}
