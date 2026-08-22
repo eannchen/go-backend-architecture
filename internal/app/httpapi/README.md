@@ -1,4 +1,4 @@
-# internal/app/api
+# internal/app/httpapi
 
 ## Pattern used
 
@@ -8,5 +8,5 @@
 
 ## How to extend
 
-- Add HTTP-specific constructor wiring in the matching `api_*_wiring.go` file.
+- Add HTTP-specific constructor wiring in the matching `httpapi_*_wiring.go` file.
 - Keep process-neutral setup in `internal/app/runtime` and business logic outside this package.

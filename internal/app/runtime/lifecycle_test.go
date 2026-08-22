@@ -1,9 +1,8 @@
-package main
+package runtime
 
 import (
 	"context"
 	"errors"
-	"net/http"
 	"testing"
 	"time"
 
@@ -22,8 +21,7 @@ func TestRunLifecycle(t *testing.T) {
 		wantLogMessages []string
 	}{
 		{
-			name:     "server closed during graceful shutdown",
-			startErr: http.ErrServerClosed,
+			name:     "clean server stop",
 			wantCode: 0,
 		},
 		{
@@ -34,7 +32,6 @@ func TestRunLifecycle(t *testing.T) {
 		},
 		{
 			name:            "graceful shutdown error",
-			startErr:        http.ErrServerClosed,
 			shutdownErr:     shutdownErr,
 			wantCode:        1,
 			wantLogMessages: []string{"graceful shutdown failed"},
@@ -56,16 +53,17 @@ func TestRunLifecycle(t *testing.T) {
 				ErrorFunc: func(context.Context, string, error, ...logger.Fields) {},
 			}
 
-			code := runLifecycle(ctx, cancel, lifecycle{
-				start: func() error {
+			code := RunLifecycle(ctx, cancel, Lifecycle{
+				Start: func() error {
 					return tt.startErr
 				},
-				shutdown: func(context.Context) error {
+				Shutdown: func(context.Context) error {
 					shutdownCalls++
 					return tt.shutdownErr
 				},
-				gracePeriod: time.Second,
-				log:         log,
+				GracePeriod: time.Second,
+				Logger:      log,
+				Component:   "test_server",
 			})
 
 			if code != tt.wantCode {

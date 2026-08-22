@@ -7,7 +7,8 @@ GOOSE_DRIVER ?= postgres
 GOOSE_DBSTRING ?= $(DB_URL)
 GOOSE_MIGRATION_DIR ?= $(CURDIR)/internal/infra/db/postgres/migrations
 GO_TEST ?= go test
-AIR_CMD ?= air -c .air.toml
+AIR_HTTPAPI_CMD ?= air -c .air.toml
+AIR_GRPCAPI_CMD ?= air -c .air.grpcapi.toml
 OAPI_CODEGEN_CMD ?= github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 BUF_CMD ?= github.com/bufbuild/buf/cmd/buf@v1.72.0
 SQLC_CMD ?= github.com/sqlc-dev/sqlc/cmd/sqlc@latest
@@ -19,18 +20,32 @@ INTEGRATION_PACKAGES := \
 	./internal/infra/kvstore/redis/store \
 	./internal/delivery/http/integration
 
-.PHONY: install run run-stop fmt-check vet build check test test-cover test-race test-integration test-all ci openapi-generate proto-generate proto-lint sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring openapi proto proto-check sqlc mup mdown mstatus
+.PHONY: install run run-httpapi run-httpapi-stop run-grpcapi run-grpcapi-stop fmt-check vet build check test test-cover test-race test-grpc test-integration test-all ci openapi-generate proto-generate proto-lint sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring openapi proto proto-check sqlc mup mdown mstatus
 
-run:
-	$(AIR_CMD)
+run: run-httpapi
 
-run-stop:
+run-httpapi:
+	$(AIR_HTTPAPI_CMD)
+
+run-httpapi-stop:
 	@pids=$$(lsof -tiTCP:8080 -sTCP:LISTEN); \
 	if [ -n "$$pids" ]; then \
 		echo "Stopping process(es) on :8080 -> $$pids"; \
 		kill $$pids; \
 	else \
 		echo "No process is listening on :8080"; \
+	fi
+
+run-grpcapi:
+	$(AIR_GRPCAPI_CMD)
+
+run-grpcapi-stop:
+	@pids=$$(lsof -tiTCP:9090 -sTCP:LISTEN); \
+	if [ -n "$$pids" ]; then \
+		echo "Stopping process(es) on :9090 -> $$pids"; \
+		kill $$pids; \
+	else \
+		echo "No process is listening on :9090"; \
 	fi
 
 install:
@@ -64,6 +79,9 @@ test-cover:
 
 test-race:
 	$(GO_TEST) -race ./...
+
+test-grpc:
+	$(GO_TEST) ./internal/delivery/grpc/...
 
 test-integration:
 	# Disabling the cache proves container startup, migrations, and cleanup on every run.

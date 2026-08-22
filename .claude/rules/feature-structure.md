@@ -4,7 +4,7 @@ description: Feature Structure
 
 # Feature Structure
 
-Create in order, then wire in the matching process composition file (for the HTTP API, `internal/app/api/api_*_wiring.go`):
+Create in order, then wire in the matching process composition file (`internal/app/httpapi/httpapi_*_wiring.go` for HTTP or `internal/app/grpcapi/grpcapi_*_wiring.go` for gRPC):
 
 ```
 internal/usecase/<feature>/

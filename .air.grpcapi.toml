@@ -1,0 +1,15 @@
+root = "."
+tmp_dir = "tmp/grpcapi"
+
+[build]
+cmd = "go build -o ./tmp/grpcapi/grpcapi ./cmd/grpcapi"
+entrypoint = ["./tmp/grpcapi/grpcapi"]
+include_ext = ["go", "sql", "proto", "yaml", "yml", "env"]
+exclude_dir = ["tmp", ".git", "vendor", "volumes"]
+delay = 1000
+send_interrupt = true
+kill_delay = "15s"
+stop_on_error = true
+
+[log]
+time = true

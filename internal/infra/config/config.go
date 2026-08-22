@@ -14,6 +14,7 @@ type Config struct {
 	AppEnv      string
 	ServiceName string
 	HTTP        HTTPConfig
+	GRPC        GRPCConfig
 	DB          DBConfig
 	Redis       RedisConfig
 	Auth        AuthConfig
@@ -78,6 +79,12 @@ type HTTPConfig struct {
 	HealthStream        HealthStreamConfig
 }
 
+type GRPCConfig struct {
+	Address               string
+	HealthRefreshInterval time.Duration
+	ReflectionEnabled     bool
+}
+
 // HealthStreamConfig bounds the health SSE demonstration endpoint.
 type HealthStreamConfig struct {
 	CheckInterval     time.Duration
@@ -126,8 +133,9 @@ type ShutdownConfig struct {
 }
 
 func Load() (Config, error) {
+	appEnv := getEnv("APP_ENV", "local")
 	cfg := Config{
-		AppEnv:      getEnv("APP_ENV", "local"),
+		AppEnv:      appEnv,
 		ServiceName: getEnv("SERVICE_NAME", "app"),
 		HTTP: HTTPConfig{
 			Address:             getEnv("HTTP_ADDRESS", ":8080"),
@@ -144,6 +152,11 @@ func Load() (Config, error) {
 				HeartbeatInterval: getDuration("HEALTH_STREAM_HEARTBEAT_INTERVAL", 5*time.Second),
 				MaxDuration:       getDuration("HEALTH_STREAM_MAX_DURATION", time.Minute),
 			},
+		},
+		GRPC: GRPCConfig{
+			Address:               getEnv("GRPC_ADDRESS", ":9090"),
+			HealthRefreshInterval: getDuration("GRPC_HEALTH_REFRESH_INTERVAL", 10*time.Second),
+			ReflectionEnabled:     getBool("GRPC_REFLECTION_ENABLED", isLocalAppEnv(appEnv)),
 		},
 		DB: DBConfig{
 			URL:               getEnv("DB_URL", "postgres://postgres:postgres@localhost:5432/app?sslmode=disable"),
@@ -208,6 +221,7 @@ func Load() (Config, error) {
 	cfg.AppEnv = strings.TrimSpace(cfg.AppEnv)
 	cfg.ServiceName = strings.TrimSpace(cfg.ServiceName)
 	cfg.HTTP.Address = strings.TrimSpace(cfg.HTTP.Address)
+	cfg.GRPC.Address = strings.TrimSpace(cfg.GRPC.Address)
 	cfg.DB.URL = strings.TrimSpace(cfg.DB.URL)
 	cfg.Redis.Addr = strings.TrimSpace(cfg.Redis.Addr)
 	cfg.OTel.ExporterEndpoint = strings.TrimSpace(cfg.OTel.ExporterEndpoint)
@@ -253,6 +267,15 @@ func Load() (Config, error) {
 	}
 	if cfg.HTTP.HealthStream.MaxDuration <= cfg.HTTP.HealthStream.CheckInterval || cfg.HTTP.HealthStream.MaxDuration <= cfg.HTTP.HealthStream.HeartbeatInterval {
 		return Config{}, fmt.Errorf("HEALTH_STREAM_MAX_DURATION must be greater than both HEALTH_STREAM_CHECK_INTERVAL and HEALTH_STREAM_HEARTBEAT_INTERVAL")
+	}
+	if cfg.GRPC.Address == "" {
+		return Config{}, fmt.Errorf("GRPC_ADDRESS must not be empty")
+	}
+	if cfg.GRPC.HealthRefreshInterval <= 0 {
+		return Config{}, fmt.Errorf("GRPC_HEALTH_REFRESH_INTERVAL must be > 0")
+	}
+	if cfg.Shutdown.GracePeriod <= 0 {
+		return Config{}, fmt.Errorf("SHUTDOWN_GRACE_PERIOD must be > 0")
 	}
 	if cfg.RateLimit.GlobalIPCapacity <= 0 || cfg.RateLimit.GlobalIPRefillInterval <= 0 {
 		return Config{}, fmt.Errorf("RATE_LIMIT_GLOBAL_IP_CAPACITY and RATE_LIMIT_GLOBAL_IP_REFILL_INTERVAL must be > 0")
