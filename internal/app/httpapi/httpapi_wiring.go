@@ -1,4 +1,4 @@
-package api
+package httpapi
 
 import (
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"

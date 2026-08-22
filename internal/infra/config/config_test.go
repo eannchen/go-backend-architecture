@@ -21,6 +21,9 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("HEALTH_STREAM_CHECK_INTERVAL", "15s")
 	t.Setenv("HEALTH_STREAM_HEARTBEAT_INTERVAL", "5s")
 	t.Setenv("HEALTH_STREAM_MAX_DURATION", "1m")
+	t.Setenv("GRPC_ADDRESS", ":9090")
+	t.Setenv("GRPC_HEALTH_REFRESH_INTERVAL", "10s")
+	t.Setenv("GRPC_REFLECTION_ENABLED", "true")
 	t.Setenv("DB_URL", "postgres://postgres:postgres@localhost:5432/app?sslmode=disable")
 	t.Setenv("DB_MAX_CONNS", "10")
 	t.Setenv("DB_MIN_CONNS", "2")
@@ -107,6 +110,11 @@ func TestLoad_RejectsWhitespaceOnlyRequiredStringFields(t *testing.T) {
 			wantErr: "HTTP_ADDRESS must not be empty",
 		},
 		{
+			name:    "grpc address",
+			key:     "GRPC_ADDRESS",
+			wantErr: "GRPC_ADDRESS must not be empty",
+		},
+		{
 			name:    "database url",
 			key:     "DB_URL",
 			wantErr: "DB_URL must not be empty",
@@ -138,6 +146,7 @@ func TestLoad_TrimsRequiredStringFields(t *testing.T) {
 	setValidEnv(t)
 	t.Setenv("SERVICE_NAME", "  accounts-api  ")
 	t.Setenv("HTTP_ADDRESS", "  :9090  ")
+	t.Setenv("GRPC_ADDRESS", "  :9091  ")
 	t.Setenv("DB_URL", "  postgres://postgres:postgres@localhost:5432/app?sslmode=disable  ")
 	t.Setenv("REDIS_ADDR", "  localhost:6379  ")
 
@@ -151,6 +160,9 @@ func TestLoad_TrimsRequiredStringFields(t *testing.T) {
 	}
 	if cfg.HTTP.Address != ":9090" {
 		t.Fatalf("expected trimmed HTTP_ADDRESS, got %q", cfg.HTTP.Address)
+	}
+	if cfg.GRPC.Address != ":9091" {
+		t.Fatalf("expected trimmed GRPC_ADDRESS, got %q", cfg.GRPC.Address)
 	}
 	if len(cfg.HTTP.CORSAllowOrigins) != 1 || cfg.HTTP.CORSAllowOrigins[0] != "http://localhost:3000" {
 		t.Fatalf("CORS origins = %#v, want localhost origin", cfg.HTTP.CORSAllowOrigins)
@@ -211,6 +223,20 @@ func TestLoad_HTTPAndProductionSafety(t *testing.T) {
 				t.Setenv("HEALTH_STREAM_MAX_DURATION", "15s")
 			},
 			wantErr: "HEALTH_STREAM_MAX_DURATION must be greater than both",
+		},
+		{
+			name: "grpc health refresh interval must be positive",
+			setEnv: func(t *testing.T) {
+				t.Setenv("GRPC_HEALTH_REFRESH_INTERVAL", "0s")
+			},
+			wantErr: "GRPC_HEALTH_REFRESH_INTERVAL must be > 0",
+		},
+		{
+			name: "shutdown grace period must be positive",
+			setEnv: func(t *testing.T) {
+				t.Setenv("SHUTDOWN_GRACE_PERIOD", "0s")
+			},
+			wantErr: "SHUTDOWN_GRACE_PERIOD must be > 0",
 		},
 	}
 

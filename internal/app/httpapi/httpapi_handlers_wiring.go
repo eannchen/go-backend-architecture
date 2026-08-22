@@ -1,4 +1,4 @@
-package api
+package httpapi
 
 import (
 	httpdelivery "github.com/eannchen/go-backend-architecture/internal/delivery/http"

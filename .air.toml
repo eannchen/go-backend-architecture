@@ -1,13 +1,14 @@
 root = "."
-tmp_dir = "tmp"
+tmp_dir = "tmp/httpapi"
 
 [build]
-cmd = "go build -o ./tmp/api ./cmd/api"
-entrypoint = "./tmp/api"
-full_bin = "./tmp/api"
+cmd = "go build -o ./tmp/httpapi/httpapi ./cmd/httpapi"
+entrypoint = ["./tmp/httpapi/httpapi"]
 include_ext = ["go", "sql", "yaml", "yml", "env"]
 exclude_dir = ["tmp", ".git", "vendor", "volumes"]
 delay = 1000
+send_interrupt = true
+kill_delay = "15s"
 stop_on_error = true
 
 [log]

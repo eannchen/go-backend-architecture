@@ -2,8 +2,9 @@
 
 ## Pattern used
 
-- Owns dependencies shared by every deployable process: configuration, logging, database pool, and observability.
+- Owns dependencies shared by every deployable process: configuration, logging, database and Redis connections, and observability.
 - Provides one shutdown boundary for those shared resources.
+- Provides the common start, signal, and graceful-shutdown lifecycle used by process entrypoints.
 
 ## How to extend
 

@@ -1,4 +1,4 @@
-package main
+package runtime
 
 import (
 	"context"
@@ -14,16 +14,17 @@ func TestRunLifecycleShutsDownAfterFatalStartError(t *testing.T) {
 	shutdownCalls := 0
 	ctx, cancel := context.WithCancel(context.Background())
 
-	code := runLifecycle(ctx, cancel, lifecycle{
-		start: func() error {
+	code := RunLifecycle(ctx, cancel, Lifecycle{
+		Start: func() error {
 			return startErr
 		},
-		shutdown: func(context.Context) error {
+		Shutdown: func(context.Context) error {
 			shutdownCalls++
 			return nil
 		},
-		gracePeriod: time.Second,
-		log:         logger.NoopLogger{},
+		GracePeriod: time.Second,
+		Logger:      logger.NoopLogger{},
+		Component:   "test_server",
 	})
 
 	if code != 1 {

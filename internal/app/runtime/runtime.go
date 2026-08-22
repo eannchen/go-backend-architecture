@@ -5,11 +5,13 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/eannchen/go-backend-architecture/internal/infra/db/postgres"
 	zaplogger "github.com/eannchen/go-backend-architecture/internal/infra/logger/zap"
 	"github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
+	"github.com/eannchen/go-backend-architecture/internal/infra/redisconn"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
@@ -21,6 +23,7 @@ type Runtime struct {
 	Config        config.Config
 	Logger        logger.Logger
 	DBPool        *pgxpool.Pool
+	RedisClient   *goredis.Client
 	Observability observability.Runtime
 }
 
@@ -43,12 +46,22 @@ func New(ctx context.Context) (*Runtime, error) {
 	if err != nil {
 		return nil, errutil.Join(err, errutil.Step("shutdown observability after db init failure", obs.Shutdown(ctx)), errutil.Step("sync logger after db init failure", log.Sync()))
 	}
-	return &Runtime{Config: cfg, Logger: log, DBPool: pool, Observability: obs}, nil
+	redisClient := redisconn.NewClient(cfg.Redis)
+	return &Runtime{
+		Config:        cfg,
+		Logger:        log,
+		DBPool:        pool,
+		RedisClient:   redisClient,
+		Observability: obs,
+	}, nil
 }
 
 func (r *Runtime) Shutdown(ctx context.Context) error {
-	postgres.ClosePool(ctx, r.DBPool, r.Logger)
 	var err error
+	if r.RedisClient != nil {
+		err = errors.Join(err, r.RedisClient.Close())
+	}
+	postgres.ClosePool(ctx, r.DBPool, r.Logger)
 	if r.Observability != nil {
 		err = errors.Join(err, r.Observability.Shutdown(ctx))
 	}

@@ -1,11 +1,11 @@
-# cmd/api
+# cmd/httpapi
 
 Process entrypoint package.
 
 ## Pattern used
 
 - Owns process boot lifecycle only (construct app, start server, handle shutdown signals).
-- Keeps orchestration thin and delegates HTTP wiring to `internal/app/api`.
+- Keeps orchestration thin and delegates HTTP wiring to `internal/app/httpapi`.
 
 ## How to extend
 

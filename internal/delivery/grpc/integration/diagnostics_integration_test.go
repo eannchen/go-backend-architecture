@@ -18,6 +18,7 @@ import (
 	grpcresponse "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
 	diagnosticsservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics"
 	grpchealth "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
@@ -38,7 +39,16 @@ func TestDetailedAndStandardHealthServicesCoexist(t *testing.T) {
 	diagnosticsv1.RegisterDiagnosticsServiceServer(server, diagnosticsservice.NewService(uc, grpcresponse.NewResponder()))
 	standardHealth := grpcstandardhealth.NewServer()
 	healthpb.RegisterHealthServer(server, standardHealth)
-	reporter := grpchealth.NewReporter(uc, standardHealth, diagnosticsv1.DiagnosticsService_ServiceDesc.ServiceName)
+	reporter, err := grpchealth.NewReporter(
+		grpchealth.ReporterConfig{RefreshInterval: time.Hour},
+		logger.NoopLogger{},
+		uc,
+		standardHealth,
+		diagnosticsv1.DiagnosticsService_ServiceDesc.ServiceName,
+	)
+	if err != nil {
+		t.Fatalf("create standard health reporter: %v", err)
+	}
 
 	serveErr := make(chan error, 1)
 	go func() {
