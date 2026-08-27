@@ -28,8 +28,10 @@ func (f ServiceRegistrarFunc) RegisterGRPC(registrar googlegrpc.ServiceRegistrar
 }
 
 type ServerConfig struct {
-	Address           string
-	ReflectionEnabled bool
+	Address             string
+	ReflectionEnabled   bool
+	MaxRecvMessageBytes int
+	MaxSendMessageBytes int
 }
 
 type Server struct {
@@ -47,6 +49,9 @@ func NewServer(
 ) (*Server, error) {
 	if cfg.Address == "" {
 		return nil, fmt.Errorf("gRPC server address must not be empty")
+	}
+	if cfg.MaxRecvMessageBytes < 0 || cfg.MaxSendMessageBytes < 0 {
+		return nil, fmt.Errorf("gRPC message limits must not be negative")
 	}
 	listener, err := net.Listen("tcp", cfg.Address)
 	if err != nil {
@@ -67,7 +72,13 @@ func newServer(
 		log = logger.NoopLogger{}
 	}
 
-	options := make([]googlegrpc.ServerOption, 0, 2)
+	options := make([]googlegrpc.ServerOption, 0, 4)
+	if cfg.MaxRecvMessageBytes > 0 {
+		options = append(options, googlegrpc.MaxRecvMsgSize(cfg.MaxRecvMessageBytes))
+	}
+	if cfg.MaxSendMessageBytes > 0 {
+		options = append(options, googlegrpc.MaxSendMsgSize(cfg.MaxSendMessageBytes))
+	}
 	if len(unaryInterceptors) > 0 {
 		options = append(options, googlegrpc.ChainUnaryInterceptor(unaryInterceptors...))
 	}

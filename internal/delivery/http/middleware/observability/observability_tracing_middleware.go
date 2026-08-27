@@ -2,6 +2,7 @@ package observabilitymw
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/labstack/echo/v5"
 
@@ -12,21 +13,14 @@ import (
 // TraceMiddleware manages request span lifecycle and response/error trace attributes.
 type TraceMiddleware struct {
 	tracer observability.Tracer
-	meta   httpcontext.Meta
 }
 
-// NewTraceMiddleware creates trace middleware with response metadata.
-func NewTraceMiddleware(tracer observability.Tracer, meta httpcontext.Meta) *TraceMiddleware {
+// NewTraceMiddleware creates request tracing middleware.
+func NewTraceMiddleware(tracer observability.Tracer) *TraceMiddleware {
 	if tracer == nil {
 		tracer = observability.NoopTracer{}
 	}
-	if meta == nil {
-		meta = httpcontext.NewContextMeta()
-	}
-	return &TraceMiddleware{
-		tracer: tracer,
-		meta:   meta,
-	}
+	return &TraceMiddleware{tracer: tracer}
 }
 
 // Handler builds the Echo middleware function for request tracing.
@@ -34,7 +28,7 @@ func (m *TraceMiddleware) Handler() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			req := c.Request()
-			ctx := m.tracer.ExtractHTTP(req.Context(), req.Header)
+			ctx := m.tracer.Extract(req.Context(), headerCarrier{Header: req.Header})
 
 			route := c.Path()
 			if route == "" {
@@ -62,13 +56,13 @@ func (m *TraceMiddleware) Handler() echo.MiddlewareFunc {
 			_, statusCode := echo.ResolveResponseStatus(c.Response(), handlerErr)
 			span.SetAttributes(observability.FromPairs(keyHTTPResponseStatus, statusCode))
 
-			originalError := m.meta.GetError(c)
-			errorDetails := m.meta.GetErrorDetails(c)
-			transportCode, transportMsg := m.meta.GetTransportError(c)
+			originalError := httpcontext.Error(c)
+			errorDetails := httpcontext.ErrorDetails(c)
+			transportCode, transportMsg := httpcontext.TransportError(c)
 			if originalError != nil {
 				span.SetAttributes(observability.FromPairs(
 					keyError, originalError.Error(),
-					keyErrorChain, errorCauseChain(originalError),
+					keyErrorChain, observability.ErrorCauseChain(originalError),
 				))
 			}
 			if len(errorDetails) > 0 {
@@ -85,4 +79,14 @@ func (m *TraceMiddleware) Handler() echo.MiddlewareFunc {
 			return handlerErr
 		}
 	}
+}
+
+type headerCarrier struct{ http.Header }
+
+func (c headerCarrier) Keys() []string {
+	keys := make([]string, 0, len(c.Header))
+	for key := range c.Header {
+		keys = append(keys, key)
+	}
+	return keys
 }

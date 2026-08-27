@@ -7,6 +7,7 @@ import (
 
 	apiotel "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
@@ -43,6 +44,25 @@ func TestSpanFinish_ServerErrorHasErrorStatus(t *testing.T) {
 	}
 	if got := ended[0].Status().Code; got != codes.Error {
 		t.Fatalf("span status = %s, want %s", got, codes.Error)
+	}
+}
+
+func TestTracerExtractsRemoteParentFromTextCarrier(t *testing.T) {
+	recorder := installSpanRecorder(t)
+	carrier := propagation.MapCarrier{
+		"traceparent": "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+	}
+
+	ctx := NewTracer("test").Extract(context.Background(), carrier)
+	_, span := NewTracer("test").StartServer(ctx, "grpc", "/test.Service/Check")
+	span.Finish(nil)
+
+	ended := recorder.Ended()
+	if len(ended) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(ended))
+	}
+	if got := ended[0].Parent().TraceID().String(); got != "0123456789abcdef0123456789abcdef" {
+		t.Fatalf("parent trace ID = %q", got)
 	}
 }
 

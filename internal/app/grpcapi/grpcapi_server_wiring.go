@@ -7,6 +7,9 @@ import (
 
 	grpcdelivery "github.com/eannchen/go-backend-architecture/internal/delivery/grpc"
 	diagnosticsv1 "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/gen/diagnostics/v1"
+	observabilityinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/observability"
+	recoveryinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/recovery"
+	requestcontextinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/requestcontext"
 	grpcresponse "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
 	diagnosticsservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics"
 	healthservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health"
@@ -34,15 +37,28 @@ func (d wiring) buildServer(healthUsecase usecasehealth.Usecase) (serverComponen
 	if err != nil {
 		return serverComponents{}, err
 	}
+	requestContext := requestcontextinterceptor.New(d.cfg.GRPC.RequestTimeout, responder)
+	requestObservability := observabilityinterceptor.New(d.tracer, d.log, d.meter)
+	recovery := recoveryinterceptor.New(d.log, responder)
 
 	server, err := grpcdelivery.NewServer(
 		grpcdelivery.ServerConfig{
-			Address:           d.cfg.GRPC.Address,
-			ReflectionEnabled: d.cfg.GRPC.ReflectionEnabled,
+			Address:             d.cfg.GRPC.Address,
+			ReflectionEnabled:   d.cfg.GRPC.ReflectionEnabled,
+			MaxRecvMessageBytes: d.cfg.GRPC.MaxRecvMessageBytes,
+			MaxSendMessageBytes: d.cfg.GRPC.MaxSendMessageBytes,
 		},
 		d.log,
-		nil,
-		nil,
+		[]googlegrpc.UnaryServerInterceptor{
+			requestContext.Unary(),
+			requestObservability.Unary(),
+			recovery.Unary(),
+		},
+		[]googlegrpc.StreamServerInterceptor{
+			requestContext.Stream(),
+			requestObservability.Stream(),
+			recovery.Stream(),
+		},
 		grpcdelivery.ServiceRegistrarFunc(func(registrar googlegrpc.ServiceRegistrar) {
 			diagnosticsv1.RegisterDiagnosticsServiceServer(registrar, diagnostics)
 		}),

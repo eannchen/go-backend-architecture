@@ -1,6 +1,7 @@
 package apperr
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 )
@@ -8,6 +9,17 @@ import (
 type Code string
 
 type Details map[string]any
+
+func (d Details) String() string {
+	if len(d) == 0 {
+		return ""
+	}
+	value, err := json.Marshal(d)
+	if err != nil {
+		return fmt.Sprintf("%v", map[string]any(d))
+	}
+	return string(value)
+}
 
 const (
 	CodeInvalidArgument Code = "INVALID_ARGUMENT"

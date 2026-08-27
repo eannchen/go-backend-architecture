@@ -28,7 +28,7 @@ func TestSessionMiddlewareRejectsMissingCredentials(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mw := New(&sessiontest.SessionManager{}, "session_id", httpresponse.NewResponder(nil))
+			mw := New(&sessiontest.SessionManager{}, "session_id", httpresponse.NewResponder())
 			e := echo.New()
 			req := httptest.NewRequest(http.MethodGet, "/me", nil)
 			if tt.cookie != nil {
@@ -65,7 +65,7 @@ func TestSessionMiddlewareReturnsValidationError(t *testing.T) {
 			return auth.Session{}, apperr.New(apperr.CodeUnauthorized, "invalid session")
 		},
 	}
-	mw := New(session, "session_id", httpresponse.NewResponder(nil))
+	mw := New(session, "session_id", httpresponse.NewResponder())
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/me", nil)
 	req.AddCookie(&http.Cookie{Name: "session_id", Value: "bad-token"})
@@ -101,7 +101,7 @@ func TestSessionMiddlewareSetsSessionContext(t *testing.T) {
 			return wantSession, nil
 		},
 	}
-	mw := New(session, "session_id", httpresponse.NewResponder(nil))
+	mw := New(session, "session_id", httpresponse.NewResponder())
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/me", nil)
 	req.AddCookie(&http.Cookie{Name: "session_id", Value: "token-1"})

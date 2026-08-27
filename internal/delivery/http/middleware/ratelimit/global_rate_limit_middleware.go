@@ -19,7 +19,7 @@ type GlobalRateLimitMiddleware struct {
 
 func NewGlobalRateLimit(limiter globalratelimit.Limiter, responder httpresponse.Responder, meter observability.Meter) *GlobalRateLimitMiddleware {
 	if responder == nil {
-		responder = httpresponse.NewResponder(nil)
+		responder = httpresponse.NewResponder()
 	}
 	if meter == nil {
 		meter = observability.NoopMeter{}

@@ -16,6 +16,7 @@ import (
 	contextmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/context"
 	observabilitymw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/observability"
 	ratelimitmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/ratelimit"
+	recoverymw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/recovery"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
 )
@@ -45,7 +46,7 @@ func (d wiring) buildServer(responder httpresponse.Responder, repos appRepositor
 
 	middlewares := []echo.MiddlewareFunc{
 		observabilitymw.New(d.tracer, d.log, d.meter).Handler(),
-		echoMiddleware.Recover(),
+		recoverymw.New(d.log, responder).Handler(),
 		echoMiddleware.SecureWithConfig(secureCfg),
 		globalLimiter.Handler(),
 		echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{

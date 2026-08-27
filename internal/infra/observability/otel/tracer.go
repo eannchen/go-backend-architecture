@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -49,9 +48,16 @@ func (t *tracer) StartServer(ctx context.Context, scope, spanName string, option
 	return ctx, &span{span: s}
 }
 
-func (t *tracer) ExtractHTTP(ctx context.Context, headers http.Header) context.Context {
-	return propagation.TraceContext{}.Extract(ctx, propagation.HeaderCarrier(headers))
+func (t *tracer) Extract(ctx context.Context, carrier observability.TextMapCarrier) context.Context {
+	if carrier == nil {
+		return ctx
+	}
+	return propagation.TraceContext{}.Extract(ctx, textMapCarrier{carrier})
 }
+
+type textMapCarrier struct{ observability.TextMapCarrier }
+
+var _ propagation.TextMapCarrier = textMapCarrier{}
 
 func (t *tracer) tracerName(scope string) string {
 	return t.serviceName + "/" + scope

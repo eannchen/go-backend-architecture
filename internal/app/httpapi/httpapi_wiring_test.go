@@ -10,7 +10,6 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
@@ -44,7 +43,7 @@ func TestBuildServerAppliesHTTPProtection(t *testing.T) {
 		},
 	}, &loggertest.Logger{}, observability.NoopTracer{}, observability.NoopMeter{})
 
-	server, err := wiring.buildServer(httpresponse.NewResponder(httpcontext.NewContextMeta()), appRepositories{tokenBucketRepo: permissiveTokenBucket{}}, appHandlers{}, appUsecases{})
+	server, err := wiring.buildServer(httpresponse.NewResponder(), appRepositories{tokenBucketRepo: permissiveTokenBucket{}}, appHandlers{}, appUsecases{})
 	if err != nil {
 		t.Fatalf("buildServer() error = %v", err)
 	}

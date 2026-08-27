@@ -36,7 +36,7 @@ func newHandlerForTest(otp *authotptest.OTPAuthenticator, session *sessiontest.S
 	return NewHandler(
 		&loggertest.Logger{},
 		nil,
-		httpresponse.NewResponder(nil),
+		httpresponse.NewResponder(),
 		otp,
 		&authoauthtest.OAuthAuthenticator{},
 		session,
@@ -70,7 +70,7 @@ func TestHandlerOAuthFlowBindsCallbackToAuthorizeBrowser(t *testing.T) {
 		},
 	}
 	h := NewHandler(
-		&loggertest.Logger{}, nil, httpresponse.NewResponder(nil), &authotptest.OTPAuthenticator{}, oauth, session,
+		&loggertest.Logger{}, nil, httpresponse.NewResponder(), &authotptest.OTPAuthenticator{}, oauth, session,
 		SessionCookieConfig{Name: "session_id", TTL: 30 * time.Minute}, nil,
 	)
 	e := newEchoForTest()

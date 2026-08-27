@@ -6,7 +6,6 @@ import (
 
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
 	httpDelivery "github.com/eannchen/go-backend-architecture/internal/delivery/http"
-	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
 )
@@ -28,7 +27,7 @@ func New(ctx context.Context) (*App, error) {
 
 	repositories := wiring.buildRepositories(runtime.DBPool, redisStores)
 	usecases := wiring.buildUsecases(repositories)
-	responder := httpresponse.NewResponder(httpcontext.NewContextMeta())
+	responder := httpresponse.NewResponder()
 	handlers := wiring.buildHandlers(responder, usecases)
 	server, err := wiring.buildServer(responder, repositories, handlers, usecases)
 	if err != nil {

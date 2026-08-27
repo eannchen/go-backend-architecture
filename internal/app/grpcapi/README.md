@@ -3,7 +3,7 @@
 ## Pattern used
 
 - Composes the standalone gRPC process from shared runtime dependencies.
-- Builds health repositories and usecase, custom diagnostics, standard health, and the transport server.
+- Builds health repositories and usecase, custom diagnostics, standard health, transport interceptors, and the server.
 - Starts and shuts down the standard health reporter around the transport server lifecycle.
 
 ## How to extend

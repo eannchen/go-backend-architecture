@@ -84,3 +84,23 @@ func (e *responseError) Unwrap() error {
 func (e *responseError) GRPCStatus() *status.Status {
 	return e.grpcStatus
 }
+
+// IsClientError lets transport-neutral tracing distinguish expected client
+// outcomes from server failures without importing gRPC.
+func (e *responseError) IsClientError() bool {
+	switch e.grpcStatus.Code() {
+	case codes.Canceled,
+		codes.InvalidArgument,
+		codes.NotFound,
+		codes.AlreadyExists,
+		codes.PermissionDenied,
+		codes.Unauthenticated,
+		codes.ResourceExhausted,
+		codes.FailedPrecondition,
+		codes.Aborted,
+		codes.OutOfRange:
+		return true
+	default:
+		return false
+	}
+}

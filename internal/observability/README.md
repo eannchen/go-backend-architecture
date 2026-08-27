@@ -4,6 +4,7 @@
 
 - Framework-agnostic interfaces (Tracer, Span, Meter, LogEmitter) so app layers do not import OpenTelemetry.
 - Context helpers carry correlation IDs across layers.
+- Shared error-chain formatting keeps transport tracing and logging consistent.
 
 ## How to extend
 

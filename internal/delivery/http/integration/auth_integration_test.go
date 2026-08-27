@@ -112,7 +112,7 @@ func newAuthTestServer() *echo.Echo {
 	e.Binder = binding.NewNormalizeBinder(nil)
 	e.Validator = &echoValidator{v: validator.New()}
 
-	responder := httpresponse.NewResponder(nil)
+	responder := httpresponse.NewResponder()
 	session := newInMemorySessionManager()
 	authHandler := authhttp.NewHandler(
 		&loggertest.Logger{},

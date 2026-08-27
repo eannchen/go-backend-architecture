@@ -3,8 +3,8 @@ package sessionmw
 import (
 	"github.com/labstack/echo/v5"
 
-	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
+	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	authsession "github.com/eannchen/go-backend-architecture/internal/usecase/auth/session"
 )
 
@@ -18,7 +18,7 @@ type SessionMiddleware struct {
 // New creates a session middleware.
 func New(session authsession.SessionManager, cookieName string, responder httpresponse.Responder) *SessionMiddleware {
 	if responder == nil {
-		responder = httpresponse.NewResponder(nil)
+		responder = httpresponse.NewResponder()
 	}
 	return &SessionMiddleware{
 		session:    session,

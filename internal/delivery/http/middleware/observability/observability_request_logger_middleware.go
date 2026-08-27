@@ -7,26 +7,20 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
 // AccessLogMiddleware writes a single access log line per completed request.
 type AccessLogMiddleware struct {
-	log  logger.Logger
-	meta httpcontext.Meta
+	log logger.Logger
 }
 
-// NewAccessLogMiddleware creates access-log middleware with shared metadata.
-func NewAccessLogMiddleware(log logger.Logger, meta httpcontext.Meta) *AccessLogMiddleware {
+// NewAccessLogMiddleware creates request access-log middleware.
+func NewAccessLogMiddleware(log logger.Logger) *AccessLogMiddleware {
 	if log == nil {
 		log = logger.NoopLogger{}
 	}
-	if meta == nil {
-		meta = httpcontext.NewContextMeta()
-	}
-	return &AccessLogMiddleware{
-		log:  log,
-		meta: meta,
-	}
+	return &AccessLogMiddleware{log: log}
 }
 
 // Handler builds the Echo middleware function for request logs.
@@ -56,12 +50,12 @@ func (m *AccessLogMiddleware) Handler() echo.MiddlewareFunc {
 				keyDurationMS, duration.Milliseconds(),
 			)
 
-			originalErr := m.meta.GetError(c)
-			errorDetails := m.meta.GetErrorDetails(c)
-			transportCode, transportMsg := m.meta.GetTransportError(c)
+			originalErr := httpcontext.Error(c)
+			errorDetails := httpcontext.ErrorDetails(c)
+			transportCode, transportMsg := httpcontext.TransportError(c)
 			if originalErr != nil {
 				fields[keyError] = originalErr.Error()
-				fields[keyErrorChain] = errorCauseChain(originalErr)
+				fields[keyErrorChain] = observability.ErrorCauseChain(originalErr)
 			}
 			if len(errorDetails) > 0 {
 				fields[keyErrorDetails] = errorDetails.String()

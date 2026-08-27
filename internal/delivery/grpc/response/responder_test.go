@@ -105,3 +105,23 @@ func TestResponderErrorUsesExplicitTransportStatus(t *testing.T) {
 		t.Fatal("response error does not preserve the original cause")
 	}
 }
+
+func TestResponseErrorClassifiesClientStatuses(t *testing.T) {
+	tests := []struct {
+		code codes.Code
+		want bool
+	}{
+		{code: codes.InvalidArgument, want: true},
+		{code: codes.Unauthenticated, want: true},
+		{code: codes.Internal, want: false},
+		{code: codes.Unavailable, want: false},
+	}
+
+	for _, tt := range tests {
+		err := NewResponder().Error(errors.New("cause"), tt.code, "safe")
+		reporter, ok := err.(interface{ IsClientError() bool })
+		if !ok || reporter.IsClientError() != tt.want {
+			t.Fatalf("code %v client error = %v, want %v", tt.code, ok && reporter.IsClientError(), tt.want)
+		}
+	}
+}
