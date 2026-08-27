@@ -5,7 +5,6 @@ package store
 import (
 	"context"
 	"errors"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -14,13 +13,10 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
-	"github.com/eannchen/go-backend-architecture/internal/util/testutil"
 )
 
 func TestUserStoreIntegration(t *testing.T) {
-	pool := openPostgresPool(t)
-	defer pool.Close()
-	requireUserSchema(t, pool)
+	pool := requirePostgresTestPool(t)
 
 	store := NewUserStore(pool, observability.NoopTracer{})
 	ctx := context.Background()
@@ -28,6 +24,8 @@ func TestUserStoreIntegration(t *testing.T) {
 	email := "user-store-" + suffix + "@example.com"
 	oauthEmail := "oauth-" + suffix + "@example.com"
 	providerUserID := "provider-user-" + suffix
+	// The container is shared by every test in this package, so each test owns
+	// cleanup for the rows it creates. t.Cleanup runs even when an assertion fails.
 	t.Cleanup(func() { cleanupUsersByEmail(t, pool, email, oauthEmail) })
 
 	created, err := store.CreateByEmail(ctx, email)
@@ -83,44 +81,13 @@ func TestUserStoreIntegration(t *testing.T) {
 	}
 }
 
-func openPostgresPool(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-
-	testutil.SkipUnlessEnv(t, "DB_URL")
-	dbURL := os.Getenv("DB_URL")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	pool, err := pgxpool.New(ctx, dbURL)
-	if err != nil {
-		t.Skipf("skip: unable to create postgres pool: %v", err)
-	}
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
-		t.Skipf("skip: postgres unavailable: %v", err)
-	}
-	return pool
-}
-
-func requireUserSchema(t *testing.T, pool *pgxpool.Pool) {
+func cleanupUsersByEmail(t *testing.T, pool *pgxpool.Pool, email, oauthEmail string) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	if _, err := pool.Exec(ctx, "SELECT 1 FROM users LIMIT 1"); err != nil {
-		t.Skipf("skip: users schema is not migrated: %v", err)
-	}
-}
-
-func cleanupUsersByEmail(t *testing.T, pool *pgxpool.Pool, emails ...string) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	if _, err := pool.Exec(ctx, "DELETE FROM users WHERE email IN ($1, $2)", emails[0], emails[1]); err != nil {
+	if _, err := pool.Exec(ctx, "DELETE FROM users WHERE email IN ($1, $2)", email, oauthEmail); err != nil {
 		t.Fatalf("cleanup test users: %v", err)
 	}
 }
