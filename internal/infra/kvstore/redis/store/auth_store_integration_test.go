@@ -5,25 +5,24 @@ package store
 import (
 	"context"
 	"errors"
-	"os"
 	"strconv"
 	"testing"
 	"time"
 
-	goredis "github.com/redis/go-redis/v9"
-
 	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
-	"github.com/eannchen/go-backend-architecture/internal/util/testutil"
 )
 
 func TestSessionStoreIntegration(t *testing.T) {
-	client := openRedisClient(t)
-	defer client.Close()
+	client := requireRedisTestClient(t)
 
 	store := NewSessionStore(client)
 	ctx := context.Background()
 	token := "test-session-" + strconv.FormatInt(time.Now().UnixNano(), 10)
-	t.Cleanup(func() { _ = store.Delete(context.Background(), token) })
+	t.Cleanup(func() {
+		if err := store.Delete(context.Background(), token); err != nil {
+			t.Errorf("cleanup session: %v", err)
+		}
+	})
 
 	want := repokvstore.SessionData{
 		Token:     token,
@@ -35,6 +34,7 @@ func TestSessionStoreIntegration(t *testing.T) {
 	if err := store.Create(ctx, want, time.Minute); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	requirePositiveRedisTTL(t, sessionKeyPrefix+token, time.Minute)
 
 	got, err := store.GetByToken(ctx, token)
 	if err != nil {
@@ -53,17 +53,21 @@ func TestSessionStoreIntegration(t *testing.T) {
 }
 
 func TestOTPStoreIntegration(t *testing.T) {
-	client := openRedisClient(t)
-	defer client.Close()
+	client := requireRedisTestClient(t)
 
 	store := NewOTPStore(client)
 	ctx := context.Background()
 	email := "otp-" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com"
-	t.Cleanup(func() { _ = store.Delete(context.Background(), email) })
+	t.Cleanup(func() {
+		if err := store.Delete(context.Background(), email); err != nil {
+			t.Errorf("cleanup OTP: %v", err)
+		}
+	})
 
 	if err := store.Store(ctx, email, "hashed-code", time.Minute); err != nil {
 		t.Fatalf("store otp: %v", err)
 	}
+	requirePositiveRedisTTL(t, otpKeyPrefix+email, time.Minute)
 	matched, err := store.Consume(ctx, email, "wrong-hash")
 	if err != nil {
 		t.Fatalf("consume otp: %v", err)
@@ -85,57 +89,31 @@ func TestOTPStoreIntegration(t *testing.T) {
 }
 
 func TestOAuthStateStoreIntegration(t *testing.T) {
-	client := openRedisClient(t)
-	defer client.Close()
+	client := requireRedisTestClient(t)
 
 	store := NewOAuthStateStore(client)
 	ctx := context.Background()
 	state := "state-" + strconv.FormatInt(time.Now().UnixNano(), 10)
-	t.Cleanup(func() { _, _ = store.Consume(context.Background(), state) })
+	key := oauthStateKeyPrefix + state
+	t.Cleanup(func() { cleanupRedisKeys(t, key) })
+	want := repokvstore.OAuthStateData{BrowserBindingHash: "browser-binding-hash"}
 
-	if err := store.Store(ctx, state, time.Minute); err != nil {
+	if err := store.Store(ctx, state, want, time.Minute); err != nil {
 		t.Fatalf("store state: %v", err)
 	}
-	ok, err := store.Consume(ctx, state)
+	requirePositiveRedisTTL(t, key, time.Minute)
+	got, found, err := store.Consume(ctx, state)
 	if err != nil {
 		t.Fatalf("consume state: %v", err)
 	}
-	if !ok {
-		t.Fatal("expected first consume to find state")
+	if !found || got != want {
+		t.Fatalf("first consume = %+v, %v; want %+v, true", got, found, want)
 	}
-	ok, err = store.Consume(ctx, state)
+	_, found, err = store.Consume(ctx, state)
 	if err != nil {
 		t.Fatalf("consume state again: %v", err)
 	}
-	if ok {
+	if found {
 		t.Fatal("expected second consume to miss state")
 	}
-}
-
-func openRedisClient(t *testing.T) *goredis.Client {
-	t.Helper()
-
-	testutil.SkipUnlessEnv(t, "REDIS_ADDR")
-	addr := os.Getenv("REDIS_ADDR")
-	db := 0
-	if v := os.Getenv("REDIS_DB"); v != "" {
-		parsed, err := strconv.Atoi(v)
-		if err != nil {
-			t.Skipf("skip: invalid REDIS_DB=%q: %v", v, err)
-		}
-		db = parsed
-	}
-
-	client := goredis.NewClient(&goredis.Options{
-		Addr:     addr,
-		Password: os.Getenv("REDIS_PASSWORD"),
-		DB:       db,
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := client.Ping(ctx).Err(); err != nil {
-		client.Close()
-		t.Skipf("skip: redis unavailable: %v", err)
-	}
-	return client
 }

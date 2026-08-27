@@ -4,25 +4,25 @@ package store
 
 import (
 	"context"
-	"os"
 	"strconv"
 	"testing"
 	"time"
 
-	goredis "github.com/redis/go-redis/v9"
-
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
-	"github.com/eannchen/go-backend-architecture/internal/util/testutil"
 )
 
 func TestUserCacheStoreIntegration(t *testing.T) {
-	client := openRedisClient(t)
-	defer client.Close()
+	client := requireRedisTestClient(t)
 
 	ctx := context.Background()
 	store := NewUserCacheStore(client, time.Minute)
 	id := time.Now().UnixNano()
-	t.Cleanup(func() { _ = store.DeleteByID(context.Background(), id) })
+	key := userKeyPrefix + strconv.FormatInt(id, 10)
+	t.Cleanup(func() {
+		if err := store.DeleteByID(context.Background(), id); err != nil {
+			t.Errorf("cleanup cached user: %v", err)
+		}
+	})
 
 	user := repodb.User{ID: id, Email: "cache@example.com"}
 	foundUser, found, err := store.GetByID(ctx, id)
@@ -35,6 +35,15 @@ func TestUserCacheStoreIntegration(t *testing.T) {
 
 	if err := store.SetByID(ctx, id, user); err != nil {
 		t.Fatalf("set user: %v", err)
+	}
+	// TTL is Redis-owned behavior, so a real Redis integration test should prove
+	// the expiry was stored rather than only checking the serialized value.
+	ttl, err := client.TTL(ctx, key).Result()
+	if err != nil {
+		t.Fatalf("read cached user TTL: %v", err)
+	}
+	if ttl <= 0 || ttl > time.Minute {
+		t.Fatalf("cached user TTL = %v, want within (0, %v]", ttl, time.Minute)
 	}
 	got, found, err := store.GetByID(ctx, id)
 	if err != nil {
@@ -54,32 +63,4 @@ func TestUserCacheStoreIntegration(t *testing.T) {
 	if found {
 		t.Fatal("expected cache miss after delete")
 	}
-}
-
-func openRedisClient(t *testing.T) *goredis.Client {
-	t.Helper()
-
-	testutil.SkipUnlessEnv(t, "REDIS_ADDR")
-	addr := os.Getenv("REDIS_ADDR")
-	db := 0
-	if v := os.Getenv("REDIS_DB"); v != "" {
-		parsed, err := strconv.Atoi(v)
-		if err != nil {
-			t.Skipf("skip: invalid REDIS_DB=%q: %v", v, err)
-		}
-		db = parsed
-	}
-
-	client := goredis.NewClient(&goredis.Options{
-		Addr:     addr,
-		Password: os.Getenv("REDIS_PASSWORD"),
-		DB:       db,
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := client.Ping(ctx).Err(); err != nil {
-		client.Close()
-		t.Skipf("skip: redis unavailable: %v", err)
-	}
-	return client
 }

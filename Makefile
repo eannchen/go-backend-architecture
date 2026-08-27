@@ -13,7 +13,7 @@ SQLC_CMD ?= github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 GOOSE_CMD ?= github.com/pressly/goose/v3/cmd/goose@latest
 GOOSE_RUN = GOOSE_DRIVER=$(GOOSE_DRIVER) GOOSE_DBSTRING='$(GOOSE_DBSTRING)' GOOSE_MIGRATION_DIR=$(GOOSE_MIGRATION_DIR) go run $(GOOSE_CMD)
 
-.PHONY: install run run-stop test test-cover test-integration test-integration-postgres test-integration-real openapi-generate sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring test-all cover itest itest-postgres itest-real openapi sqlc mup mdown mstatus
+.PHONY: install run run-stop test test-cover test-integration test-integration-postgres test-integration-redis test-integration-real openapi-generate sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring test-all cover itest itest-postgres itest-redis itest-real openapi sqlc mup mdown mstatus
 
 run:
 	$(AIR_CMD)
@@ -45,6 +45,10 @@ test-integration:
 test-integration-postgres:
 	# Integration tests must execute so each run proves fresh container setup and cleanup.
 	$(GO_TEST) -count=1 -tags=integration ./internal/infra/db/postgres/store
+
+test-integration-redis:
+	# Each package starts and removes its own Redis container; cached results would bypass that proof.
+	$(GO_TEST) -count=1 -tags=integration ./internal/infra/cache/redis/store ./internal/infra/kvstore/redis/store
 
 test-integration-real:
 	$(GO_TEST) -tags=integration ./...
@@ -84,6 +88,7 @@ test-all: test
 cover: test-cover
 itest: test-integration
 itest-postgres: test-integration-postgres
+itest-redis: test-integration-redis
 itest-real: test-integration-real
 openapi: openapi-generate
 sqlc: sqlc-generate
