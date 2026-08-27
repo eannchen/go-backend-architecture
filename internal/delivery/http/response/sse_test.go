@@ -16,7 +16,7 @@ func TestStartSSEWritesEventAndCommentFrames(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	stream, err := NewResponder(nil).StartSSE(c)
+	stream, err := NewResponder().StartSSE(c)
 	if err != nil {
 		t.Fatalf("StartSSE() error = %v", err)
 	}
@@ -47,7 +47,7 @@ func TestStartSSERejectsNonFlushingWriter(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/stream", nil)
 	c := e.NewContext(req, &nonFlushingWriter{header: make(http.Header)})
 
-	stream, err := NewResponder(nil).StartSSE(c)
+	stream, err := NewResponder().StartSSE(c)
 	if stream != nil {
 		t.Fatal("expected no stream")
 	}
@@ -62,7 +62,7 @@ func TestStartSSESupportsWrappedFlusher(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, &wrappedWriter{ResponseWriter: rec})
 
-	stream, err := NewResponder(nil).StartSSE(c)
+	stream, err := NewResponder().StartSSE(c)
 
 	if err != nil || stream == nil {
 		t.Fatalf("StartSSE() = %v, %v; want stream", stream, err)

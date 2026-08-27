@@ -3,12 +3,12 @@ package otel
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"testing"
 
 	apiotel "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	apitrace "go.opentelemetry.io/otel/trace"
@@ -90,11 +90,12 @@ func TestTracerStartServer_RecordsKindAttributesAndIDs(t *testing.T) {
 	}
 }
 
-func TestTracerExtractHTTP_ContinuesRemoteTrace(t *testing.T) {
-	headers := http.Header{}
-	headers.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+func TestTracerExtractContinuesRemoteTrace(t *testing.T) {
+	carrier := propagation.MapCarrier{
+		"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+	}
 
-	ctx := NewTracer("accounts-api").ExtractHTTP(context.Background(), headers)
+	ctx := NewTracer("accounts-api").Extract(context.Background(), carrier)
 	spanContext := apitrace.SpanContextFromContext(ctx)
 
 	if !spanContext.IsValid() || !spanContext.IsRemote() {
@@ -102,6 +103,25 @@ func TestTracerExtractHTTP_ContinuesRemoteTrace(t *testing.T) {
 	}
 	if got := spanContext.TraceID().String(); got != "4bf92f3577b34da6a3ce929d0e0e4736" {
 		t.Fatalf("trace ID = %q, want propagated trace ID", got)
+	}
+}
+
+func TestTracerExtractsRemoteParentFromTextCarrier(t *testing.T) {
+	recorder := installSpanRecorder(t)
+	carrier := propagation.MapCarrier{
+		"traceparent": "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+	}
+
+	ctx := NewTracer("test").Extract(context.Background(), carrier)
+	_, span := NewTracer("test").StartServer(ctx, "grpc", "/test.Service/Check")
+	span.Finish(nil)
+
+	ended := recorder.Ended()
+	if len(ended) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(ended))
+	}
+	if got := ended[0].Parent().TraceID().String(); got != "0123456789abcdef0123456789abcdef" {
+		t.Fatalf("parent trace ID = %q", got)
 	}
 }
 

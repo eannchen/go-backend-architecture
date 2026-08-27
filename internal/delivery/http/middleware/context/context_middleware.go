@@ -2,20 +2,18 @@ package contextmw
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"time"
 
 	"github.com/labstack/echo/v5"
 
+	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
 const (
 	requestIDHeader = "X-Request-ID"
-	maxRequestIDLen = 128
 )
 
 // RequestContextMiddleware enriches request context with request ID and timeout.
@@ -39,7 +37,7 @@ func WithTimeoutSkipper(skip func(c *echo.Context) bool) Option {
 // NewRequestContextMiddleware creates request context middleware with optional timeout.
 func NewRequestContextMiddleware(timeout time.Duration, responder httpresponse.Responder, opts ...Option) *RequestContextMiddleware {
 	if responder == nil {
-		responder = httpresponse.NewResponder(nil)
+		responder = httpresponse.NewResponder()
 	}
 	m := &RequestContextMiddleware{
 		timeout:   timeout,
@@ -61,8 +59,12 @@ func (m *RequestContextMiddleware) Handler() echo.MiddlewareFunc {
 			requestID := req.Header.Get(requestIDHeader)
 			switch {
 			case requestID == "":
-				requestID = randomID()
-			case !isValidRequestID(requestID):
+				var err error
+				requestID, err = observability.GenerateRequestID()
+				if err != nil {
+					return m.responder.Error(c, err, httpresponse.Code(apperr.CodeInternal), "internal server error")
+				}
+			case !observability.IsValidRequestID(requestID):
 				return m.responder.Error(c,
 					fmt.Errorf("invalid X-Request-ID header: %q", requestID),
 					httpresponse.CodeInvalidRequestID,
@@ -83,22 +85,4 @@ func (m *RequestContextMiddleware) Handler() echo.MiddlewareFunc {
 			return next(c)
 		}
 	}
-}
-
-func isValidRequestID(id string) bool {
-	if len(id) == 0 || len(id) > maxRequestIDLen {
-		return false
-	}
-	for _, c := range id {
-		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.') {
-			return false
-		}
-	}
-	return true
-}
-
-func randomID() string {
-	var b [16]byte
-	_, _ = rand.Read(b[:])
-	return hex.EncodeToString(b[:])
 }

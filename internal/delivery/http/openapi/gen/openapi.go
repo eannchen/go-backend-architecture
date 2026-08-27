@@ -121,6 +121,12 @@ type OTPVerifyRequest struct {
 	Email openapi_types.Email `json:"email"`
 }
 
+// InternalError Standard error payload returned when a request is invalid or the server cannot fulfill it.
+type InternalError = APIError
+
+// RequestTimeout Standard error payload returned when a request is invalid or the server cannot fulfill it.
+type RequestTimeout = APIError
+
 // OauthCallbackParams defines parameters for OauthCallback.
 type OauthCallbackParams struct {
 	// Code Authorization code returned by the OAuth provider.

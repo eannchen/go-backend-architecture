@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func setValidEnv(t *testing.T) {
@@ -24,6 +25,9 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("GRPC_ADDRESS", ":9090")
 	t.Setenv("GRPC_HEALTH_REFRESH_INTERVAL", "10s")
 	t.Setenv("GRPC_REFLECTION_ENABLED", "true")
+	t.Setenv("GRPC_REQUEST_TIMEOUT", "10s")
+	t.Setenv("GRPC_MAX_RECV_MESSAGE_BYTES", "4194304")
+	t.Setenv("GRPC_MAX_SEND_MESSAGE_BYTES", "4194304")
 	t.Setenv("DB_URL", "postgres://postgres:postgres@localhost:5432/app?sslmode=disable")
 	t.Setenv("DB_MAX_CONNS", "10")
 	t.Setenv("DB_MIN_CONNS", "2")
@@ -67,6 +71,24 @@ func TestLoad_HTTPSizeLimits(t *testing.T) {
 	}
 	if cfg.HTTP.MaxHeaderBytes != 32<<10 {
 		t.Fatalf("MaxHeaderBytes = %d, want %d", cfg.HTTP.MaxHeaderBytes, 32<<10)
+	}
+}
+
+func TestLoad_GRPCRequestLimits(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("GRPC_REQUEST_TIMEOUT", "3s")
+	t.Setenv("GRPC_MAX_RECV_MESSAGE_BYTES", "2097152")
+	t.Setenv("GRPC_MAX_SEND_MESSAGE_BYTES", "1048576")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.GRPC.RequestTimeout != 3*time.Second {
+		t.Fatalf("RequestTimeout = %s, want 3s", cfg.GRPC.RequestTimeout)
+	}
+	if cfg.GRPC.MaxRecvMessageBytes != 2<<20 || cfg.GRPC.MaxSendMessageBytes != 1<<20 {
+		t.Fatalf("gRPC message limits = (%d, %d)", cfg.GRPC.MaxRecvMessageBytes, cfg.GRPC.MaxSendMessageBytes)
 	}
 }
 
@@ -230,6 +252,27 @@ func TestLoad_HTTPAndProductionSafety(t *testing.T) {
 				t.Setenv("GRPC_HEALTH_REFRESH_INTERVAL", "0s")
 			},
 			wantErr: "GRPC_HEALTH_REFRESH_INTERVAL must be > 0",
+		},
+		{
+			name: "grpc request timeout must be positive",
+			setEnv: func(t *testing.T) {
+				t.Setenv("GRPC_REQUEST_TIMEOUT", "0s")
+			},
+			wantErr: "GRPC_REQUEST_TIMEOUT must be > 0",
+		},
+		{
+			name: "grpc receive message limit must be positive",
+			setEnv: func(t *testing.T) {
+				t.Setenv("GRPC_MAX_RECV_MESSAGE_BYTES", "0")
+			},
+			wantErr: "GRPC_MAX_RECV_MESSAGE_BYTES and GRPC_MAX_SEND_MESSAGE_BYTES must be > 0",
+		},
+		{
+			name: "grpc send message limit must be positive",
+			setEnv: func(t *testing.T) {
+				t.Setenv("GRPC_MAX_SEND_MESSAGE_BYTES", "0")
+			},
+			wantErr: "GRPC_MAX_RECV_MESSAGE_BYTES and GRPC_MAX_SEND_MESSAGE_BYTES must be > 0",
 		},
 		{
 			name: "shutdown grace period must be positive",

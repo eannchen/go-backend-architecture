@@ -9,37 +9,33 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
-func TestContextMetaReadWrite(t *testing.T) {
+func TestMetadataReadWrite(t *testing.T) {
 	e := echo.New()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
 	wantErr := errors.New("boom")
 	wantDetails := Details{"stage": "bind"}
-	meta := ContextMeta{}
+	SetError(c, wantErr)
+	SetErrorDetails(c, wantDetails)
+	SetTransportError(c, "INVALID_QUERY", "invalid query")
 
-	meta.SetError(c, wantErr)
-	meta.SetErrorDetails(c, wantDetails)
-	meta.SetTransportError(c, "INVALID_QUERY", "invalid query")
-
-	if got := meta.GetError(c); got != wantErr {
+	if got := Error(c); got != wantErr {
 		t.Fatalf("error = %v, want %v", got, wantErr)
 	}
-	if got := meta.GetErrorDetails(c); got["stage"] != "bind" {
+	if got := ErrorDetails(c); got["stage"] != "bind" {
 		t.Fatalf("details = %#v, want bind stage", got)
 	}
-	if code, message := meta.GetTransportError(c); code != "INVALID_QUERY" || message != "invalid query" {
+	if code, message := TransportError(c); code != "INVALID_QUERY" || message != "invalid query" {
 		t.Fatalf("transport error = %q %q, want INVALID_QUERY invalid query", code, message)
 	}
 }
 
-func TestContextMetaMissingValuesReturnZeroValues(t *testing.T) {
+func TestMissingMetadataReturnsZeroValues(t *testing.T) {
 	e := echo.New()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
-	meta := ContextMeta{}
-
-	if meta.GetError(c) != nil || meta.GetErrorDetails(c) != nil {
+	if Error(c) != nil || ErrorDetails(c) != nil {
 		t.Fatal("expected missing error metadata to return nil")
 	}
-	if code, message := meta.GetTransportError(c); code != "" || message != "" {
+	if code, message := TransportError(c); code != "" || message != "" {
 		t.Fatalf("transport error = %q %q, want empty values", code, message)
 	}
 }

@@ -10,7 +10,6 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
@@ -48,7 +47,7 @@ func TestBuildServerAppliesEnvironmentHTTPProtection(t *testing.T) {
 					return repokvstore.TokenBucketDecision{Allowed: true}, nil
 				},
 			}
-			server, err := wiring.buildServer(httpresponse.NewResponder(httpcontext.NewContextMeta()), appRepositories{tokenBucketRepo: tokenBucket}, appHandlers{}, appUsecases{})
+			server, err := wiring.buildServer(httpresponse.NewResponder(), appRepositories{tokenBucketRepo: tokenBucket}, appHandlers{}, appUsecases{})
 			if err != nil {
 				t.Fatalf("buildServer() error = %v", err)
 			}

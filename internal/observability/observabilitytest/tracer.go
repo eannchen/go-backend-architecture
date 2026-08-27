@@ -2,7 +2,6 @@ package observabilitytest
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
@@ -19,9 +18,9 @@ type Tracer struct {
 	StartServerScope    string
 	StartServerSpanName string
 	StartServerFields   []observability.Fields
-	ExtractHTTPFunc     func(context.Context, http.Header) context.Context
-	ExtractHTTPCalls    int
-	ExtractHTTPHeaders  http.Header
+	ExtractFunc         func(context.Context, observability.TextMapCarrier) context.Context
+	ExtractCalls        int
+	ExtractCarrier      observability.TextMapCarrier
 }
 
 func (t *Tracer) Start(ctx context.Context, scope, spanName string, fields ...observability.Fields) (context.Context, observability.Span) {
@@ -46,13 +45,13 @@ func (t *Tracer) StartServer(ctx context.Context, scope, spanName string, fields
 	return t.StartServerFunc(ctx, scope, spanName, fields...)
 }
 
-func (t *Tracer) ExtractHTTP(ctx context.Context, headers http.Header) context.Context {
-	t.ExtractHTTPCalls++
-	t.ExtractHTTPHeaders = headers
-	if t.ExtractHTTPFunc == nil {
-		panic("unexpected Tracer.ExtractHTTP call")
+func (t *Tracer) Extract(ctx context.Context, carrier observability.TextMapCarrier) context.Context {
+	t.ExtractCalls++
+	t.ExtractCarrier = carrier
+	if t.ExtractFunc == nil {
+		panic("unexpected Tracer.Extract call")
 	}
-	return t.ExtractHTTPFunc(ctx, headers)
+	return t.ExtractFunc(ctx, carrier)
 }
 
 // Span is the canonical configurable double for observability.Span.

@@ -11,14 +11,19 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	grpcstandardhealth "google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	diagnosticsv1 "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/gen/diagnostics/v1"
+	observabilityinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/observability"
+	recoveryinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/recovery"
+	requestcontextinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/requestcontext"
 	grpcresponse "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
 	diagnosticsservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics"
 	grpchealth "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
@@ -35,8 +40,15 @@ func TestDetailedAndStandardHealthServicesCoexist(t *testing.T) {
 	}
 
 	listener := bufconn.Listen(bufferSize)
-	server := grpc.NewServer()
-	diagnosticsv1.RegisterDiagnosticsServiceServer(server, diagnosticsservice.NewService(uc, grpcresponse.NewResponder()))
+	responder := grpcresponse.NewResponder()
+	requestContext := requestcontextinterceptor.New(time.Second, responder)
+	requestObservability := observabilityinterceptor.New(observability.NoopTracer{}, logger.NoopLogger{}, observability.NoopMeter{})
+	recovery := recoveryinterceptor.New(logger.NoopLogger{}, responder)
+	server := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(requestContext.Unary(), requestObservability.Unary(), recovery.Unary()),
+		grpc.ChainStreamInterceptor(requestContext.Stream(), requestObservability.Stream(), recovery.Stream()),
+	)
+	diagnosticsv1.RegisterDiagnosticsServiceServer(server, diagnosticsservice.NewService(uc, responder))
 	standardHealth := grpcstandardhealth.NewServer()
 	healthpb.RegisterHealthServer(server, standardHealth)
 	reporter, err := grpchealth.NewReporter(
@@ -83,12 +95,17 @@ func TestDetailedAndStandardHealthServicesCoexist(t *testing.T) {
 	defer cancel()
 
 	diagnosticsClient := diagnosticsv1.NewDiagnosticsServiceClient(conn)
-	detailed, err := diagnosticsClient.GetHealth(ctx, &diagnosticsv1.GetHealthRequest{})
+	requestCtx := metadata.AppendToOutgoingContext(ctx, requestcontextinterceptor.RequestIDMetadataKey, "integration-01")
+	var responseHeader metadata.MD
+	detailed, err := diagnosticsClient.GetHealth(requestCtx, &diagnosticsv1.GetHealthRequest{}, grpc.Header(&responseHeader))
 	if err != nil {
 		t.Fatalf("GetHealth() error = %v", err)
 	}
 	if !detailed.GetHealthy() || detailed.GetDatabase().GetName() != "app" {
 		t.Fatalf("unexpected detailed health response: %v", detailed)
+	}
+	if got := responseHeader.Get(requestcontextinterceptor.RequestIDMetadataKey); len(got) != 1 || got[0] != "integration-01" {
+		t.Fatalf("response request ID = %v, want integration-01", got)
 	}
 
 	standardClient := healthpb.NewHealthClient(conn)

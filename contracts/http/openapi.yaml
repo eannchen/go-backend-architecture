@@ -40,12 +40,16 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/APIError"
+        "500":
+          $ref: "#/components/responses/InternalError"
         "503":
           description: Ready check failed; at least one dependency is unavailable.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
+        "504":
+          $ref: "#/components/responses/RequestTimeout"
 
   /health/stream:
     get:
@@ -88,11 +92,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/APIError"
         "500":
-          description: Streaming is unavailable before the response starts.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/APIError"
+          $ref: "#/components/responses/InternalError"
 
   /auth/otp/send:
     post:
@@ -120,6 +120,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/APIError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "504":
+          $ref: "#/components/responses/RequestTimeout"
 
   /auth/otp/verify:
     post:
@@ -154,6 +158,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/APIError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "504":
+          $ref: "#/components/responses/RequestTimeout"
 
   /auth/oauth/{provider}/authorize:
     get:
@@ -183,6 +191,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/APIError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "504":
+          $ref: "#/components/responses/RequestTimeout"
 
   /auth/oauth/{provider}/callback:
     get:
@@ -232,6 +244,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/APIError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "504":
+          $ref: "#/components/responses/RequestTimeout"
 
   /auth/logout:
     post:
@@ -247,6 +263,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "504":
+          $ref: "#/components/responses/RequestTimeout"
 
   /auth/me:
     get:
@@ -268,8 +288,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/APIError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "504":
+          $ref: "#/components/responses/RequestTimeout"
 
 components:
+  responses:
+    InternalError:
+      description: An unexpected server failure prevented the operation from completing.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+    RequestTimeout:
+      description: The server-side request deadline expired before the operation completed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/APIError"
+
   schemas:
     HealthResponse:
       description: Aggregate status of the service and its dependencies for health checks.

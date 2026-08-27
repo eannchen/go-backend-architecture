@@ -2,8 +2,15 @@ package observability
 
 import (
 	"context"
-	"net/http"
 )
+
+// TextMapCarrier carries distributed-tracing metadata without tying the
+// observability contract to a transport framework.
+type TextMapCarrier interface {
+	Get(key string) string
+	Set(key, value string)
+	Keys() []string
+}
 
 // Span is an observability-agnostic span contract for app layers.
 type Span interface {
@@ -16,7 +23,7 @@ type Span interface {
 type Tracer interface {
 	Start(ctx context.Context, scope, spanName string, fields ...Fields) (context.Context, Span)
 	StartServer(ctx context.Context, scope, spanName string, fields ...Fields) (context.Context, Span)
-	ExtractHTTP(ctx context.Context, headers http.Header) context.Context
+	Extract(ctx context.Context, carrier TextMapCarrier) context.Context
 }
 
 type NoopTracer struct{}
@@ -31,7 +38,7 @@ func (NoopTracer) StartServer(ctx context.Context, _ string, _ string, _ ...Fiel
 	return ctx, noopSpan{}
 }
 
-func (NoopTracer) ExtractHTTP(ctx context.Context, _ http.Header) context.Context {
+func (NoopTracer) Extract(ctx context.Context, _ TextMapCarrier) context.Context {
 	return ctx
 }
 

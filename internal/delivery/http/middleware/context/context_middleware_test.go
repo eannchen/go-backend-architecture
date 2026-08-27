@@ -58,7 +58,7 @@ func TestRequestContextMiddlewareTimeoutSkipper(t *testing.T) {
 			if tt.requestID != "" && responseID != tt.requestID {
 				t.Fatalf("response ID = %q, want preserved ID %q", responseID, tt.requestID)
 			}
-			if !isValidRequestID(responseID) {
+			if !observability.IsValidRequestID(responseID) {
 				t.Fatalf("generated request ID %q is invalid", responseID)
 			}
 		})
@@ -70,7 +70,7 @@ func TestRequestContextMiddlewareRejectsInvalidRequestID(t *testing.T) {
 		"contains spaces",
 		"contains/slash",
 		"非ascii",
-		strings.Repeat("x", maxRequestIDLen+1),
+		strings.Repeat("x", 129),
 	}
 
 	for _, requestID := range tests {

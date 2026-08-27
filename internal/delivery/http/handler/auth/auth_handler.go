@@ -53,7 +53,7 @@ func NewHandler(
 		tracer = observability.NoopTracer{}
 	}
 	if responder == nil {
-		responder = httpresponse.NewResponder(nil)
+		responder = httpresponse.NewResponder()
 	}
 	return &Handler{
 		logger:    log,

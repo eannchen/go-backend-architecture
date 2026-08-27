@@ -83,6 +83,9 @@ type GRPCConfig struct {
 	Address               string
 	HealthRefreshInterval time.Duration
 	ReflectionEnabled     bool
+	RequestTimeout        time.Duration
+	MaxRecvMessageBytes   int
+	MaxSendMessageBytes   int
 }
 
 // HealthStreamConfig bounds the health SSE demonstration endpoint.
@@ -157,6 +160,9 @@ func Load() (Config, error) {
 			Address:               getEnv("GRPC_ADDRESS", ":9090"),
 			HealthRefreshInterval: getDuration("GRPC_HEALTH_REFRESH_INTERVAL", 10*time.Second),
 			ReflectionEnabled:     getBool("GRPC_REFLECTION_ENABLED", isLocalAppEnv(appEnv)),
+			RequestTimeout:        getDuration("GRPC_REQUEST_TIMEOUT", 10*time.Second),
+			MaxRecvMessageBytes:   getInt("GRPC_MAX_RECV_MESSAGE_BYTES", 4<<20),
+			MaxSendMessageBytes:   getInt("GRPC_MAX_SEND_MESSAGE_BYTES", 4<<20),
 		},
 		DB: DBConfig{
 			URL:               getEnv("DB_URL", "postgres://postgres:postgres@localhost:5432/app?sslmode=disable"),
@@ -273,6 +279,12 @@ func Load() (Config, error) {
 	}
 	if cfg.GRPC.HealthRefreshInterval <= 0 {
 		return Config{}, fmt.Errorf("GRPC_HEALTH_REFRESH_INTERVAL must be > 0")
+	}
+	if cfg.GRPC.RequestTimeout <= 0 {
+		return Config{}, fmt.Errorf("GRPC_REQUEST_TIMEOUT must be > 0")
+	}
+	if cfg.GRPC.MaxRecvMessageBytes <= 0 || cfg.GRPC.MaxSendMessageBytes <= 0 {
+		return Config{}, fmt.Errorf("GRPC_MAX_RECV_MESSAGE_BYTES and GRPC_MAX_SEND_MESSAGE_BYTES must be > 0")
 	}
 	if cfg.Shutdown.GracePeriod <= 0 {
 		return Config{}, fmt.Errorf("SHUTDOWN_GRACE_PERIOD must be > 0")

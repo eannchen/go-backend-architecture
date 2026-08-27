@@ -3,7 +3,6 @@ package observabilitymw
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,27 +15,6 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
 )
-
-func TestErrorCauseChain(t *testing.T) {
-	root := errors.New("root")
-	tests := []struct {
-		name string
-		err  error
-		want string
-	}{
-		{name: "nil", want: ""},
-		{name: "single", err: root, want: "root"},
-		{name: "wrapped", err: fmt.Errorf("wrapped: %w", root), want: "wrapped: root; root"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := errorCauseChain(tt.err); got != tt.want {
-				t.Fatalf("cause chain = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
 
 func TestAccessLogMiddlewareRecordsRequestOutcome(t *testing.T) {
 	tests := []struct {
@@ -58,15 +36,14 @@ func TestAccessLogMiddlewareRecordsRequestOutcome(t *testing.T) {
 				InfoFunc:         func(context.Context, string, ...logger.Fields) {},
 				ErrorNoStackFunc: func(context.Context, string, error, ...logger.Fields) {},
 			}
-			meta := httpcontext.ContextMeta{}
 			e := echo.New()
 			c := e.NewContext(httptest.NewRequest(http.MethodGet, "/users/42", nil), httptest.NewRecorder())
 			c.SetPath("/users/:id")
-			handler := NewAccessLogMiddleware(log, meta).Handler()(func(c *echo.Context) error {
+			handler := NewAccessLogMiddleware(log).Handler()(func(c *echo.Context) error {
 				if tt.originalErr != nil {
-					meta.SetError(c, tt.originalErr)
-					meta.SetErrorDetails(c, httpcontext.Details{"dependency": "postgres"})
-					meta.SetTransportError(c, "UNAVAILABLE", "database unavailable")
+					httpcontext.SetError(c, tt.originalErr)
+					httpcontext.SetErrorDetails(c, httpcontext.Details{"dependency": "postgres"})
+					httpcontext.SetTransportError(c, "UNAVAILABLE", "database unavailable")
 				}
 				if tt.handlerErr != nil {
 					return tt.handlerErr
@@ -119,30 +96,29 @@ func TestTraceMiddlewareRecordsSpanAndPropagatesIDs(t *testing.T) {
 		IDsFunc:           func() (string, string, bool) { return "trace-1", "span-1", true },
 	}
 	tracer := &observabilitytest.Tracer{
-		ExtractHTTPFunc: func(ctx context.Context, _ http.Header) context.Context { return ctx },
+		ExtractFunc: func(ctx context.Context, _ observability.TextMapCarrier) context.Context { return ctx },
 		StartServerFunc: func(ctx context.Context, _, _ string, _ ...observability.Fields) (context.Context, observability.Span) {
 			return ctx, span
 		},
 	}
-	meta := httpcontext.ContextMeta{}
 	e := echo.New()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/users/42", nil), httptest.NewRecorder())
 	c.SetPath("/users/:id")
-	handler := NewTraceMiddleware(tracer, meta).Handler()(func(c *echo.Context) error {
+	handler := NewTraceMiddleware(tracer).Handler()(func(c *echo.Context) error {
 		traceID, spanID := observability.TraceFromContext(c.Request().Context())
 		if traceID != "trace-1" || spanID != "span-1" {
 			t.Fatalf("trace context = %q %q, want propagated IDs", traceID, spanID)
 		}
-		meta.SetErrorDetails(c, httpcontext.Details{"dependency": "postgres"})
-		meta.SetTransportError(c, "INTERNAL", "internal server error")
+		httpcontext.SetErrorDetails(c, httpcontext.Details{"dependency": "postgres"})
+		httpcontext.SetTransportError(c, "INTERNAL", "internal server error")
 		return handlerErr
 	})
 
 	if err := handler(c); err != handlerErr {
 		t.Fatalf("handler error = %v, want %v", err, handlerErr)
 	}
-	if tracer.ExtractHTTPCalls != 1 || tracer.StartServerCalls != 1 {
-		t.Fatalf("tracer calls = extract:%d start:%d, want one each", tracer.ExtractHTTPCalls, tracer.StartServerCalls)
+	if tracer.ExtractCalls != 1 || tracer.StartServerCalls != 1 {
+		t.Fatalf("tracer calls = extract:%d start:%d, want one each", tracer.ExtractCalls, tracer.StartServerCalls)
 	}
 	if tracer.StartServerScope != "http" || tracer.StartServerSpanName != "GET /users/:id" {
 		t.Fatalf("started span = %q %q", tracer.StartServerScope, tracer.StartServerSpanName)
