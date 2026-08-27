@@ -77,14 +77,17 @@ func TestUnaryRecordsOriginalServerFailure(t *testing.T) {
 	if got := tracer.span.attributes[keyErrorChain]; got != cause.Error() {
 		t.Fatalf("span error chain = %v, want %q", got, cause.Error())
 	}
-	if got := tracer.span.attributes[keyTransportCode]; got != codes.Internal.String() {
-		t.Fatalf("span transport code = %v, want %q", got, codes.Internal.String())
+	if got := tracer.span.attributes[keyGRPCStatusCode]; got != int(codes.Internal) {
+		t.Fatalf("span gRPC status = %v, want %d", got, codes.Internal)
 	}
-	if got := tracer.span.attributes[keyTransportMessage]; got != "internal server error" {
-		t.Fatalf("span transport message = %v, want internal server error", got)
+	if _, exists := tracer.span.attributes[keyErrorCode]; exists {
+		t.Fatalf("span has application code for non-application error: %#v", tracer.span.attributes)
+	}
+	if got := tracer.span.attributes[keyErrorMessage]; got != "internal server error" {
+		t.Fatalf("span error message = %v, want internal server error", got)
 	}
 	fields := log.ErrorsNoStack[0].Fields[0]
-	if fields[keyErrorChain] != cause.Error() || fields[keyTransportCode] != codes.Internal.String() {
+	if fields[keyErrorChain] != cause.Error() || fields[keyGRPCStatusCode] != int(codes.Internal) {
 		t.Fatalf("access-log error fields = %#v", fields)
 	}
 }
@@ -121,25 +124,34 @@ func TestUnaryRecordsApplicationErrorDetailsWithoutAddingThemToMetrics(t *testin
 	if got := tracer.span.attributes[keyErrorDetails]; got != `{"field":"name"}` {
 		t.Fatalf("span error details = %v", got)
 	}
-	if got := tracer.span.attributes[keyTransportCode]; got != codes.InvalidArgument.String() {
-		t.Fatalf("span transport code = %v", got)
+	if got := tracer.span.attributes[keyGRPCStatusCode]; got != int(codes.InvalidArgument) {
+		t.Fatalf("span gRPC status = %v", got)
 	}
-	if got := tracer.span.attributes[keyTransportMessage]; got != "invalid request" {
-		t.Fatalf("span transport message = %v", got)
+	if got := tracer.span.attributes[keyErrorCode]; got != string(apperr.CodeInvalidArgument) {
+		t.Fatalf("span application error code = %v", got)
+	}
+	if got := tracer.span.attributes[keyErrorMessage]; got != "invalid request" {
+		t.Fatalf("span error message = %v", got)
 	}
 	if log.InfoCalls != 1 || log.ErrorNoStackCalls != 0 {
 		t.Fatalf("info logs = %d, error logs = %d", log.InfoCalls, log.ErrorNoStackCalls)
 	}
 	fields := log.Infos[0].Fields[0]
-	if fields[keyErrorDetails] != `{"field":"name"}` || fields[keyTransportCode] != codes.InvalidArgument.String() {
+	if fields[keyErrorDetails] != `{"field":"name"}` || fields[keyErrorCode] != string(apperr.CodeInvalidArgument) || fields[keyGRPCStatusCode] != int(codes.InvalidArgument) {
 		t.Fatalf("access-log error fields = %#v", fields)
 	}
 	for _, sample := range meter.counters["grpc_server_errors_total"] {
+		if sample.fields[keyGRPCStatusCode] != int(codes.InvalidArgument) {
+			t.Fatalf("error metric gRPC status = %#v", sample.fields)
+		}
 		if _, exists := sample.fields[keyError]; exists {
 			t.Fatalf("error metric contains unbounded error field: %#v", sample.fields)
 		}
 		if _, exists := sample.fields[keyErrorDetails]; exists {
 			t.Fatalf("error metric contains unbounded details field: %#v", sample.fields)
+		}
+		if _, exists := sample.fields[keyErrorCode]; exists {
+			t.Fatalf("error metric contains application error code: %#v", sample.fields)
 		}
 	}
 }

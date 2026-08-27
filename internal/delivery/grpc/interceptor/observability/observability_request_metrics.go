@@ -16,6 +16,7 @@ type RequestMetrics struct {
 	activeStreams appobservability.UpDownCounter
 }
 
+// NewRequestMetrics creates gRPC server request metrics.
 func NewRequestMetrics(meter appobservability.Meter) *RequestMetrics {
 	if meter == nil {
 		meter = appobservability.NoopMeter{}
@@ -28,27 +29,30 @@ func NewRequestMetrics(meter appobservability.Meter) *RequestMetrics {
 	}
 }
 
+// Record records one completed RPC.
 func (m *RequestMetrics) Record(ctx context.Context, outcome rpcOutcome) {
-	fields := metricFields(outcome.rpc, outcome.code.String())
+	fields := metricFields(outcome.rpc, int(outcome.status))
 	m.requests.Add(ctx, 1, fields)
 	m.duration.Record(ctx, outcome.duration.Seconds(), fields)
-	if outcome.code != codes.OK {
+	if outcome.status != codes.OK {
 		m.errors.Add(ctx, 1, fields)
 	}
 }
 
+// StreamStarted increments the active-stream count.
 func (m *RequestMetrics) StreamStarted(ctx context.Context, rpc rpcInfo) {
 	m.activeStreams.Add(ctx, 1, rpc.fields())
 }
 
+// StreamFinished decrements the active-stream count and records its outcome.
 func (m *RequestMetrics) StreamFinished(ctx context.Context, outcome rpcOutcome) {
 	m.activeStreams.Add(ctx, -1, outcome.rpc.fields())
 	m.Record(ctx, outcome)
 }
 
-func metricFields(rpc rpcInfo, statusCode string) appobservability.Fields {
+func metricFields(rpc rpcInfo, status int) appobservability.Fields {
 	return appobservability.MergeFields(
 		rpc.fields(),
-		appobservability.FromPairs(keyGRPCStatusCode, statusCode),
+		appobservability.FromPairs(keyGRPCStatusCode, status),
 	)
 }

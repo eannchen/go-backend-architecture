@@ -14,6 +14,7 @@ type Tracing struct {
 	tracer appobservability.Tracer
 }
 
+// NewTracing creates gRPC server tracing.
 func NewTracing(tracer appobservability.Tracer) *Tracing {
 	if tracer == nil {
 		tracer = appobservability.NoopTracer{}
@@ -21,6 +22,7 @@ func NewTracing(tracer appobservability.Tracer) *Tracing {
 	return &Tracing{tracer: tracer}
 }
 
+// Start extracts parent trace context and starts a gRPC server span.
 func (t *Tracing) Start(ctx context.Context, rpc rpcInfo) (context.Context, appobservability.Span) {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		ctx = t.tracer.Extract(ctx, metadataCarrier{MD: md})
@@ -32,19 +34,24 @@ func (t *Tracing) Start(ctx context.Context, rpc rpcInfo) (context.Context, appo
 	return ctx, span
 }
 
+// Finish records the normalized outcome and ends the span.
 func (*Tracing) Finish(span appobservability.Span, outcome rpcOutcome) {
-	fields := appobservability.FromPairs(keyGRPCStatusCode, int(outcome.code))
-	if outcome.err != nil {
+	fields := appobservability.FromPairs(keyGRPCStatusCode, int(outcome.status))
+	if outcome.errorInfo.original != nil {
 		fields[keyError] = outcome.errorInfo.original.Error()
 		fields[keyErrorChain] = outcome.errorInfo.chain
-		fields[keyTransportCode] = outcome.errorInfo.transportCode
-		fields[keyTransportMessage] = outcome.errorInfo.transportMessage
-		if outcome.errorInfo.details != "" {
-			fields[keyErrorDetails] = outcome.errorInfo.details
-		}
+	}
+	if outcome.errorInfo.details != "" {
+		fields[keyErrorDetails] = outcome.errorInfo.details
+	}
+	if outcome.errorInfo.code != "" {
+		fields[keyErrorCode] = outcome.errorInfo.code
+	}
+	if outcome.errorInfo.message != "" {
+		fields[keyErrorMessage] = outcome.errorInfo.message
 	}
 	span.SetAttributes(fields)
-	span.Finish(outcome.err)
+	span.Finish(outcome.handlerErr)
 }
 
 type metadataCarrier struct{ metadata.MD }
