@@ -12,7 +12,11 @@ import (
 
 type requestInfo struct {
 	method string
-	route  string
+	// route is the registered template (for example, /users/:id). Its bounded
+	// values are suitable for grouping traces, logs, and metrics.
+	route string
+	// path is the concrete request path (for example, /users/42). It helps
+	// diagnose individual requests but is intentionally excluded from metrics.
 	path   string
 	header http.Header
 }
@@ -21,6 +25,8 @@ func newRequestInfo(c *echo.Context) requestInfo {
 	request := c.Request()
 	route := c.Path()
 	if route == "" {
+		// Keep unmatched requests in one bounded group while preserving the
+		// concrete path separately for tracing and access logs.
 		route = "unmatched"
 	}
 	return requestInfo{
