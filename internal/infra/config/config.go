@@ -86,6 +86,16 @@ type GRPCConfig struct {
 	RequestTimeout        time.Duration
 	MaxRecvMessageBytes   int
 	MaxSendMessageBytes   int
+	TLS                   GRPCTLSConfig
+}
+
+// GRPCTLSConfig controls server identity and optional client-certificate verification.
+type GRPCTLSConfig struct {
+	Enabled                  bool
+	CertificateFile          string
+	PrivateKeyFile           string
+	ClientCAFile             string
+	RequireClientCertificate bool
 }
 
 // HealthStreamConfig bounds the health SSE demonstration endpoint.
@@ -163,6 +173,13 @@ func Load() (Config, error) {
 			RequestTimeout:        getDuration("GRPC_REQUEST_TIMEOUT", 10*time.Second),
 			MaxRecvMessageBytes:   getInt("GRPC_MAX_RECV_MESSAGE_BYTES", 4<<20),
 			MaxSendMessageBytes:   getInt("GRPC_MAX_SEND_MESSAGE_BYTES", 4<<20),
+			TLS: GRPCTLSConfig{
+				Enabled:                  getBool("GRPC_TLS_ENABLED", false),
+				CertificateFile:          getEnv("GRPC_TLS_CERT_FILE", ""),
+				PrivateKeyFile:           getEnv("GRPC_TLS_KEY_FILE", ""),
+				ClientCAFile:             getEnv("GRPC_TLS_CLIENT_CA_FILE", ""),
+				RequireClientCertificate: getBool("GRPC_TLS_REQUIRE_CLIENT_CERT", false),
+			},
 		},
 		DB: DBConfig{
 			URL:               getEnv("DB_URL", "postgres://postgres:postgres@localhost:5432/app?sslmode=disable"),
@@ -228,6 +245,9 @@ func Load() (Config, error) {
 	cfg.ServiceName = strings.TrimSpace(cfg.ServiceName)
 	cfg.HTTP.Address = strings.TrimSpace(cfg.HTTP.Address)
 	cfg.GRPC.Address = strings.TrimSpace(cfg.GRPC.Address)
+	cfg.GRPC.TLS.CertificateFile = strings.TrimSpace(cfg.GRPC.TLS.CertificateFile)
+	cfg.GRPC.TLS.PrivateKeyFile = strings.TrimSpace(cfg.GRPC.TLS.PrivateKeyFile)
+	cfg.GRPC.TLS.ClientCAFile = strings.TrimSpace(cfg.GRPC.TLS.ClientCAFile)
 	cfg.DB.URL = strings.TrimSpace(cfg.DB.URL)
 	cfg.Redis.Addr = strings.TrimSpace(cfg.Redis.Addr)
 	cfg.OTel.ExporterEndpoint = strings.TrimSpace(cfg.OTel.ExporterEndpoint)
@@ -286,6 +306,9 @@ func Load() (Config, error) {
 	if cfg.GRPC.MaxRecvMessageBytes <= 0 || cfg.GRPC.MaxSendMessageBytes <= 0 {
 		return Config{}, fmt.Errorf("GRPC_MAX_RECV_MESSAGE_BYTES and GRPC_MAX_SEND_MESSAGE_BYTES must be > 0")
 	}
+	if err := validateGRPCTLS(cfg.GRPC.TLS); err != nil {
+		return Config{}, err
+	}
 	if cfg.Shutdown.GracePeriod <= 0 {
 		return Config{}, fmt.Errorf("SHUTDOWN_GRACE_PERIOD must be > 0")
 	}
@@ -316,6 +339,22 @@ func Load() (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func validateGRPCTLS(cfg GRPCTLSConfig) error {
+	if !cfg.Enabled {
+		if cfg.RequireClientCertificate {
+			return fmt.Errorf("GRPC_TLS_REQUIRE_CLIENT_CERT requires GRPC_TLS_ENABLED")
+		}
+		return nil
+	}
+	if cfg.CertificateFile == "" || cfg.PrivateKeyFile == "" {
+		return fmt.Errorf("GRPC_TLS_CERT_FILE and GRPC_TLS_KEY_FILE are required when GRPC_TLS_ENABLED is true")
+	}
+	if cfg.RequireClientCertificate && cfg.ClientCAFile == "" {
+		return fmt.Errorf("GRPC_TLS_CLIENT_CA_FILE is required when GRPC_TLS_REQUIRE_CLIENT_CERT is true")
+	}
+	return nil
 }
 
 func getEnv(key, fallback string) string {

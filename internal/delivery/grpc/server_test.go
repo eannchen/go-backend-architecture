@@ -2,6 +2,8 @@ package grpc
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"net"
 	"testing"
@@ -9,6 +11,7 @@ import (
 
 	googlegrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	grpcstandardhealth "google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -17,6 +20,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/internal/util/testutil"
 )
 
 func TestServerRegistersAndServesServices(t *testing.T) {
@@ -233,6 +237,151 @@ func TestServerEnforcesMessageLimits(t *testing.T) {
 				t.Fatalf("Start() error = %v", err)
 			}
 		})
+	}
+}
+
+func TestServerTLSAcceptsTrustedRootAndRejectsUntrustedRoot(t *testing.T) {
+	authority := testutil.NewCertificateAuthority(t)
+	listener := startSecureHealthServer(t, &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{authority.IssueServerCertificate(t, "localhost")},
+	})
+
+	t.Run("trusted root", func(t *testing.T) {
+		conn := newSecureBufconnClient(t, listener, &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    authority.CertPool(),
+			ServerName: "localhost",
+		})
+		assertServingHealth(t, conn)
+	})
+
+	t.Run("untrusted root", func(t *testing.T) {
+		conn := newSecureBufconnClient(t, listener, &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    x509.NewCertPool(),
+			ServerName: "localhost",
+		})
+		assertHealthUnavailable(t, conn)
+	})
+}
+
+func TestServerMTLSRequiresTrustedClientCertificate(t *testing.T) {
+	authority := testutil.NewCertificateAuthority(t)
+	listener := startSecureHealthServer(t, &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{authority.IssueServerCertificate(t, "localhost")},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    authority.CertPool(),
+	})
+
+	t.Run("trusted client certificate", func(t *testing.T) {
+		conn := newSecureBufconnClient(t, listener, &tls.Config{
+			MinVersion:   tls.VersionTLS12,
+			RootCAs:      authority.CertPool(),
+			ServerName:   "localhost",
+			Certificates: []tls.Certificate{authority.IssueClientCertificate(t, "trusted client")},
+		})
+		assertServingHealth(t, conn)
+	})
+
+	t.Run("missing client certificate", func(t *testing.T) {
+		conn := newSecureBufconnClient(t, listener, &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    authority.CertPool(),
+			ServerName: "localhost",
+		})
+		assertHealthUnavailable(t, conn)
+	})
+
+	t.Run("untrusted client certificate", func(t *testing.T) {
+		untrustedAuthority := testutil.NewCertificateAuthority(t)
+		conn := newSecureBufconnClient(t, listener, &tls.Config{
+			MinVersion:   tls.VersionTLS12,
+			RootCAs:      authority.CertPool(),
+			ServerName:   "localhost",
+			Certificates: []tls.Certificate{untrustedAuthority.IssueClientCertificate(t, "untrusted client")},
+		})
+		assertHealthUnavailable(t, conn)
+	})
+}
+
+func startSecureHealthServer(t *testing.T, tlsCfg *tls.Config) *bufconn.Listener {
+	t.Helper()
+	standardHealth := grpcstandardhealth.NewServer()
+	standardHealth.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	listener := bufconn.Listen(1 << 20)
+	server := newServer(
+		ServerConfig{
+			Address:              "bufconn",
+			TransportCredentials: credentials.NewTLS(tlsCfg),
+		},
+		nil,
+		listener,
+		nil,
+		nil,
+		ServiceRegistrarFunc(func(registrar googlegrpc.ServiceRegistrar) {
+			healthpb.RegisterHealthServer(registrar, standardHealth)
+		}),
+	)
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- server.Start() }()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := server.Shutdown(ctx); err != nil {
+			t.Errorf("shutdown secure gRPC server: %v", err)
+		}
+		if err := <-serveErr; err != nil {
+			t.Errorf("serve secure gRPC server: %v", err)
+		}
+		if err := listener.Close(); err != nil {
+			t.Errorf("close secure gRPC listener: %v", err)
+		}
+	})
+	return listener
+}
+
+func newSecureBufconnClient(t *testing.T, listener *bufconn.Listener, tlsCfg *tls.Config) *googlegrpc.ClientConn {
+	t.Helper()
+	conn, err := googlegrpc.NewClient(
+		"passthrough:///bufconn",
+		googlegrpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return listener.DialContext(ctx)
+		}),
+		googlegrpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
+	)
+	if err != nil {
+		t.Fatalf("create secure gRPC client: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("close secure gRPC client: %v", err)
+		}
+	})
+	return conn
+}
+
+func assertServingHealth(t *testing.T, conn *googlegrpc.ClientConn) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	response, err := healthpb.NewHealthClient(conn).Check(ctx, &healthpb.HealthCheckRequest{})
+	if err != nil {
+		t.Fatalf("secure health check: %v", err)
+	}
+	if response.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+		t.Fatalf("health status = %v, want SERVING", response.GetStatus())
+	}
+}
+
+func assertHealthUnavailable(t *testing.T, conn *googlegrpc.ClientConn) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, err := healthpb.NewHealthClient(conn).Check(ctx, &healthpb.HealthCheckRequest{})
+	if status.Code(err) != codes.Unavailable {
+		t.Fatalf("health status code = %v, want Unavailable; error = %v", status.Code(err), err)
 	}
 }
 

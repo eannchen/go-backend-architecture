@@ -4,6 +4,7 @@
 
 - Test-only helpers keep integration setup consistent without entering production code.
 - Explicit shell variables take precedence over values in a local `.env` file.
+- Short-lived certificate authorities provide deterministic TLS and mTLS test setup without committed private keys.
 
 ## How to extend
 
