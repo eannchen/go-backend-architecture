@@ -8,6 +8,7 @@
 - OpenAPI-generated models in `openapi/gen/` from `contracts/http/openapi.yaml`.
 - Request binding normalization in `binding/`, injected as the server's Binder.
 - Request-scoped Echo context values (session, response metadata for observability) live in `httpcontext/` so handlers and middleware share one place for Set/Get helpers.
+- One observability middleware coordinates tracing, metrics, and access logging from a shared request outcome.
 
 ## How to extend
 

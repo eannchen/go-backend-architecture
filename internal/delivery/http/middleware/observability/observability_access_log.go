@@ -1,19 +1,17 @@
-package observability
+package observabilitymw
 
 import (
 	"context"
 
-	"google.golang.org/grpc/codes"
-
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 )
 
-// AccessLog writes one structured completion log per RPC.
+// AccessLog writes one structured completion log per HTTP request.
 type AccessLog struct {
 	log logger.Logger
 }
 
-// NewAccessLog creates gRPC request access logging.
+// NewAccessLog creates HTTP request access logging.
 func NewAccessLog(log logger.Logger) *AccessLog {
 	if log == nil {
 		log = logger.NoopLogger{}
@@ -22,13 +20,12 @@ func NewAccessLog(log logger.Logger) *AccessLog {
 }
 
 // Record relies on the logger's context provider for request and trace IDs.
-func (l *AccessLog) Record(ctx context.Context, outcome rpcOutcome) {
+func (l *AccessLog) Record(ctx context.Context, outcome requestOutcome) {
 	fields := logger.FromPairs(
-		keyRPCSystem, "grpc",
-		keyRPCService, outcome.rpc.service,
-		keyRPCMethod, outcome.rpc.method,
-		keyRPCType, outcome.rpc.rpcType,
-		keyGRPCStatusCode, int(outcome.status),
+		keyHTTPRequestMethod, outcome.request.method,
+		keyHTTPRoute, outcome.request.route,
+		keyURLPath, outcome.request.path,
+		keyHTTPResponseStatus, outcome.status,
 		keyDurationMS, outcome.duration.Milliseconds(),
 	)
 	if outcome.errorInfo.original != nil {
@@ -44,18 +41,9 @@ func (l *AccessLog) Record(ctx context.Context, outcome rpcOutcome) {
 	if outcome.errorInfo.message != "" {
 		fields[keyErrorMessage] = outcome.errorInfo.message
 	}
-	if isServerError(outcome.status) {
+	if outcome.status >= 500 {
 		l.log.ErrorNoStack(ctx, "request completed", outcome.errorInfo.original, fields)
 		return
 	}
 	l.log.Info(ctx, "request completed", fields)
-}
-
-func isServerError(status codes.Code) bool {
-	switch status {
-	case codes.Unknown, codes.DeadlineExceeded, codes.Unimplemented, codes.Internal, codes.Unavailable, codes.DataLoss:
-		return true
-	default:
-		return false
-	}
 }

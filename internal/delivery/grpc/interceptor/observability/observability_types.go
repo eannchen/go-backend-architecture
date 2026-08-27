@@ -38,21 +38,21 @@ func (i rpcInfo) fields() appobservability.Fields {
 }
 
 type rpcOutcome struct {
-	rpc       rpcInfo
-	duration  time.Duration
-	code      codes.Code
-	err       error
-	errorInfo rpcError
+	rpc        rpcInfo
+	duration   time.Duration
+	status     codes.Code
+	handlerErr error
+	errorInfo  rpcErrorInfo
 }
 
-func newRPCOutcome(rpc rpcInfo, duration time.Duration, err error) rpcOutcome {
-	code := status.Code(err)
+func newRPCOutcome(rpc rpcInfo, duration time.Duration, handlerErr error) rpcOutcome {
+	rpcStatus := status.Code(handlerErr)
 	return rpcOutcome{
-		rpc:       rpc,
-		duration:  duration,
-		code:      code,
-		err:       err,
-		errorInfo: inspectRPCError(err, code),
+		rpc:        rpc,
+		duration:   duration,
+		status:     rpcStatus,
+		handlerErr: handlerErr,
+		errorInfo:  inspectRPCError(handlerErr),
 	}
 }
 

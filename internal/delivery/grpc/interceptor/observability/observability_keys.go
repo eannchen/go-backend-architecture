@@ -10,7 +10,7 @@ const (
 	keyError             = "error"
 	keyErrorChain        = "error.chain"
 	keyErrorDetails      = "error.details"
-	keyTransportCode     = "error.transport.code"
-	keyTransportMessage  = "error.transport.message"
+	keyErrorCode         = "error.code"
+	keyErrorMessage      = "error.message"
 	instrumentationScope = "grpc"
 )
