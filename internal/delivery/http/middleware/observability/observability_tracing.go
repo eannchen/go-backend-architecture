@@ -59,7 +59,12 @@ func (*Tracing) Finish(span observability.Span, outcome requestOutcome) {
 	span.Finish(outcome.errorInfo.original)
 }
 
+// headerCarrier adapts HTTP headers to the transport-neutral tracing carrier.
+// Embedded http.Header already supplies compatible scalar Get and Set methods;
+// only key enumeration needs an adapter.
 type headerCarrier struct{ http.Header }
+
+var _ observability.TextMapCarrier = headerCarrier{}
 
 func (c headerCarrier) Keys() []string {
 	keys := make([]string, 0, len(c.Header))

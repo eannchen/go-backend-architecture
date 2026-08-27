@@ -35,6 +35,8 @@ func (m *RequestMetrics) Record(ctx context.Context, outcome requestOutcome) {
 	}
 }
 
+// metricFields intentionally excludes the concrete URL path to prevent one
+// metric series per resource identifier or unknown URL.
 func metricFields(request requestInfo, status int) observability.Fields {
 	return observability.MergeFields(
 		request.fields(),

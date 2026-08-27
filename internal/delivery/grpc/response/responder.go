@@ -73,14 +73,17 @@ type responseError struct {
 	grpcStatus *status.Status
 }
 
+// Error satisfies Go's error interface while exposing only the safe gRPC status text.
 func (e *responseError) Error() string {
 	return e.grpcStatus.Err().Error()
 }
 
+// Unwrap retains the original cause for errors.Is, errors.As, logging, and tracing.
 func (e *responseError) Unwrap() error {
 	return e.cause
 }
 
+// GRPCStatus lets grpc-go serialize the intended status code and safe message.
 func (e *responseError) GRPCStatus() *status.Status {
 	return e.grpcStatus
 }

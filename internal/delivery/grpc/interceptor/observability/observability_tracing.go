@@ -54,13 +54,19 @@ func (*Tracing) Finish(span appobservability.Span, outcome rpcOutcome) {
 	span.Finish(outcome.handlerErr)
 }
 
+// metadataCarrier adapts multi-value gRPC metadata to the tracing carrier's
+// scalar Get and Set methods and supplies key enumeration.
 type metadataCarrier struct{ metadata.MD }
+
+var _ appobservability.TextMapCarrier = metadataCarrier{}
 
 func (c metadataCarrier) Get(key string) string {
 	values := c.MD.Get(key)
 	if len(values) == 0 {
 		return ""
 	}
+	// Trace propagation fields such as traceparent are single-value fields;
+	// select the first value when adapting gRPC's multi-value metadata.
 	return values[0]
 }
 
