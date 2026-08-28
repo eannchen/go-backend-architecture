@@ -7,5 +7,6 @@
 
 ## How to extend
 
-- Reuse `RunPackage` from a package `TestMain`; do not share one container across Go packages.
+- Reuse `RunPackage` for Redis-only suites, or `Start` when composing multiple dependencies in one package `TestMain`.
+- Do not share one container across Go packages.
 - Keep test-key cleanup in the test that created the key so isolation remains visible.

@@ -13,7 +13,7 @@ SQLC_CMD ?= github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 GOOSE_CMD ?= github.com/pressly/goose/v3/cmd/goose@latest
 GOOSE_RUN = GOOSE_DRIVER=$(GOOSE_DRIVER) GOOSE_DBSTRING='$(GOOSE_DBSTRING)' GOOSE_MIGRATION_DIR=$(GOOSE_MIGRATION_DIR) go run $(GOOSE_CMD)
 
-.PHONY: install run run-stop test test-cover test-integration test-integration-postgres test-integration-redis test-integration-real openapi-generate sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring test-all cover itest itest-postgres itest-redis itest-real openapi sqlc mup mdown mstatus
+.PHONY: install run run-stop test test-cover test-integration test-integration-postgres test-integration-redis test-integration-http-real test-integration-real openapi-generate sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring test-all cover itest itest-postgres itest-redis itest-http-real itest-real openapi sqlc mup mdown mstatus
 
 run:
 	$(AIR_CMD)
@@ -40,7 +40,8 @@ test-cover:
 	$(GO_TEST) -coverprofile=coverage.out ./...
 
 test-integration:
-	$(GO_TEST) ./internal/delivery/http/integration
+	# HTTP integration tests use real dependencies and are excluded from the default suite.
+	$(GO_TEST) -count=1 -tags=integration ./internal/delivery/http/integration
 
 test-integration-postgres:
 	# Integration tests must execute so each run proves fresh container setup and cleanup.
@@ -89,6 +90,7 @@ cover: test-cover
 itest: test-integration
 itest-postgres: test-integration-postgres
 itest-redis: test-integration-redis
+itest-http-real: test-integration-http-real
 itest-real: test-integration-real
 openapi: openapi-generate
 sqlc: sqlc-generate

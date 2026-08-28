@@ -20,7 +20,8 @@ import (
 // between a developer laptop and CI without a dependency update in this repository.
 const redisTestImage = "redis:8.10.0-alpine"
 
-type packageRedis struct {
+// Instance is one disposable Redis container owned by a test package.
+type Instance struct {
 	container testcontainers.Container
 	client    *goredis.Client
 }
@@ -30,7 +31,7 @@ func RunPackage(m *testing.M, packageName string, setClient func(*goredis.Client
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	testRedis, err := startPackage(ctx)
+	testRedis, err := Start(ctx)
 	if err != nil {
 		// The integration build tag is an explicit request to exercise Redis. If
 		// Docker is unavailable, failing prevents CI from reporting a false success.
@@ -50,7 +51,8 @@ func RunPackage(m *testing.M, packageName string, setClient func(*goredis.Client
 	return exitCode
 }
 
-func startPackage(ctx context.Context) (*packageRedis, error) {
+// Start creates a fresh Redis instance and waits until it accepts commands.
+func Start(ctx context.Context) (*Instance, error) {
 	container, err := testcontainers.Run(
 		ctx,
 		redisTestImage,
@@ -82,14 +84,16 @@ func startPackage(ctx context.Context) (*packageRedis, error) {
 		)
 	}
 
-	return &packageRedis{container: container, client: client}, nil
+	return &Instance{container: container, client: client}, nil
 }
 
-func (r *packageRedis) Client() *goredis.Client {
+// Client returns the package-shared client; individual tests must not close it.
+func (r *Instance) Client() *goredis.Client {
 	return r.client
 }
 
-func (r *packageRedis) Close() error {
+// Close closes the client and explicitly removes the package container.
+func (r *Instance) Close() error {
 	// Testcontainers has a resource reaper as a safety net, but explicit cleanup
 	// makes ownership deterministic and leaves no service running after the package.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

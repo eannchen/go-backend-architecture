@@ -81,6 +81,19 @@ func TestUserStoreIntegration(t *testing.T) {
 	}
 }
 
+func TestUserStoreIntegration_MissingUserMapsNotFound(t *testing.T) {
+	store := NewUserStore(requirePostgresTestPool(t), observability.NoopTracer{})
+	ctx := context.Background()
+	missingEmail := "missing-" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com"
+
+	if _, err := store.GetByEmail(ctx, missingEmail); !errors.Is(err, repodb.ErrNotFound) {
+		t.Fatalf("GetByEmail error = %v, want ErrNotFound", err)
+	}
+	if _, err := store.GetByID(ctx, -1); !errors.Is(err, repodb.ErrNotFound) {
+		t.Fatalf("GetByID error = %v, want ErrNotFound", err)
+	}
+}
+
 func cleanupUsersByEmail(t *testing.T, pool *pgxpool.Pool, email, oauthEmail string) {
 	t.Helper()
 
