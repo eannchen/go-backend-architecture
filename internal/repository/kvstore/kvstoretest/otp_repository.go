@@ -28,29 +28,29 @@ func (r *OTPRepository) Store(ctx context.Context, email, hashedCode string, ttl
 	r.StoreEmail = email
 	r.StoreHashedCode = hashedCode
 	r.StoreTTL = ttl
-	if r.StoreFunc != nil {
-		return r.StoreFunc(ctx, email, hashedCode, ttl)
+	if r.StoreFunc == nil {
+		panic("unexpected OTPRepository.Store call")
 	}
-	return nil
+	return r.StoreFunc(ctx, email, hashedCode, ttl)
 }
 
 func (r *OTPRepository) Consume(ctx context.Context, email, candidateHash string) (bool, error) {
 	r.ConsumeCalls++
 	r.ConsumeEmail = email
 	r.ConsumeHash = candidateHash
-	if r.ConsumeFunc != nil {
-		return r.ConsumeFunc(ctx, email, candidateHash)
+	if r.ConsumeFunc == nil {
+		panic("unexpected OTPRepository.Consume call")
 	}
-	return false, nil
+	return r.ConsumeFunc(ctx, email, candidateHash)
 }
 
 func (r *OTPRepository) Delete(ctx context.Context, email string) error {
 	r.DeleteCalls++
 	r.DeleteEmail = email
-	if r.DeleteFunc != nil {
-		return r.DeleteFunc(ctx, email)
+	if r.DeleteFunc == nil {
+		panic("unexpected OTPRepository.Delete call")
 	}
-	return nil
+	return r.DeleteFunc(ctx, email)
 }
 
 var _ repokvstore.OTPRepository = (*OTPRepository)(nil)

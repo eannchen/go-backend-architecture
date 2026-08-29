@@ -12,8 +12,13 @@ OAPI_CODEGEN_CMD ?= github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@lat
 SQLC_CMD ?= github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 GOOSE_CMD ?= github.com/pressly/goose/v3/cmd/goose@latest
 GOOSE_RUN = GOOSE_DRIVER=$(GOOSE_DRIVER) GOOSE_DBSTRING='$(GOOSE_DBSTRING)' GOOSE_MIGRATION_DIR=$(GOOSE_MIGRATION_DIR) go run $(GOOSE_CMD)
+INTEGRATION_PACKAGES := \
+	./internal/infra/db/postgres/store \
+	./internal/infra/cache/redis/store \
+	./internal/infra/kvstore/redis/store \
+	./internal/delivery/http/integration
 
-.PHONY: install run run-stop test test-cover test-integration test-integration-postgres test-integration-redis test-integration-http-real test-integration-real openapi-generate sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring test-all cover itest itest-postgres itest-redis itest-http-real itest-real openapi sqlc mup mdown mstatus
+.PHONY: install run run-stop test test-cover test-integration test-all openapi-generate sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring openapi sqlc mup mdown mstatus
 
 run:
 	$(AIR_CMD)
@@ -40,19 +45,10 @@ test-cover:
 	$(GO_TEST) -coverprofile=coverage.out ./...
 
 test-integration:
-	# HTTP integration tests use real dependencies and are excluded from the default suite.
-	$(GO_TEST) -count=1 -tags=integration ./internal/delivery/http/integration
+	# Disabling the cache proves container startup, migrations, and cleanup on every run.
+	$(GO_TEST) -count=1 -tags=integration $(INTEGRATION_PACKAGES)
 
-test-integration-postgres:
-	# Integration tests must execute so each run proves fresh container setup and cleanup.
-	$(GO_TEST) -count=1 -tags=integration ./internal/infra/db/postgres/store
-
-test-integration-redis:
-	# Each package starts and removes its own Redis container; cached results would bypass that proof.
-	$(GO_TEST) -count=1 -tags=integration ./internal/infra/cache/redis/store ./internal/infra/kvstore/redis/store
-
-test-integration-real:
-	$(GO_TEST) -tags=integration ./...
+test-all: test test-integration
 
 openapi-generate:
 	go run $(OAPI_CODEGEN_CMD) -config oapi-codegen.yaml docs/openapi.yaml
@@ -85,13 +81,6 @@ dev-down:
 dev-logs:
 	docker compose logs -f postgres redis hyperdx otel-collector
 
-test-all: test
-cover: test-cover
-itest: test-integration
-itest-postgres: test-integration-postgres
-itest-redis: test-integration-redis
-itest-http-real: test-integration-http-real
-itest-real: test-integration-real
 openapi: openapi-generate
 sqlc: sqlc-generate
 mup: migrate-up

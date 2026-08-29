@@ -17,17 +17,17 @@ import (
 )
 
 var (
-	httpTestPostgres *pgxpool.Pool
-	httpTestRedis    *goredis.Client
+	postgresPool *pgxpool.Pool
+	redisClient  *goredis.Client
 )
 
-// TestMain starts both real adapters once for this package. Individual tests
+// TestMain starts both containers once for this package. Individual tests
 // still own their rows and keys because the containers are shared within the package.
 func TestMain(m *testing.M) {
-	os.Exit(runHTTPRealDependencyTests(m))
+	os.Exit(runIntegrationTests(m))
 }
 
-func runHTTPRealDependencyTests(m *testing.M) int {
+func runIntegrationTests(m *testing.M) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -45,10 +45,10 @@ func runHTTPRealDependencyTests(m *testing.M) int {
 		return 1
 	}
 
-	httpTestPostgres = testPostgres.Pool()
-	httpTestRedis = testRedis.Client()
+	postgresPool = testPostgres.Pool()
+	redisClient = testRedis.Client()
 	exitCode := m.Run()
-	exitCode = verifyHTTPTestDataCleanup(exitCode)
+	exitCode = verifyTestDataCleanup(exitCode)
 
 	if err := testRedis.Close(); err != nil {
 		fmt.Fprintf(os.Stderr, "close HTTP-test Redis dependency: %v\n", err)
@@ -61,11 +61,11 @@ func runHTTPRealDependencyTests(m *testing.M) int {
 	return exitCode
 }
 
-func verifyHTTPTestDataCleanup(exitCode int) int {
+func verifyTestDataCleanup(exitCode int) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	remainingKeys, err := httpTestRedis.DBSize(ctx).Result()
+	remainingKeys, err := redisClient.DBSize(ctx).Result()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "verify HTTP-test Redis cleanup: %v\n", err)
 		return 1
@@ -76,7 +76,7 @@ func verifyHTTPTestDataCleanup(exitCode int) int {
 	}
 
 	var remainingRows int
-	if err := httpTestPostgres.QueryRow(ctx, `
+	if err := postgresPool.QueryRow(ctx, `
 		SELECT (SELECT COUNT(*) FROM users) + (SELECT COUNT(*) FROM oauth_connections)
 	`).Scan(&remainingRows); err != nil {
 		fmt.Fprintf(os.Stderr, "verify HTTP-test PostgreSQL cleanup: %v\n", err)

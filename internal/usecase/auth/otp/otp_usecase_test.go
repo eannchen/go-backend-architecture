@@ -107,13 +107,13 @@ func TestOTPAuthenticatorSendCode(t *testing.T) {
 				t.Fatalf("expected warn calls %d, got %d", tt.wantWarnCalls, log.WarnCalls)
 			}
 			if tt.wantSendCalls == 1 {
-				if emailSender.Email != tt.email {
-					t.Fatalf("expected email %q, got %q", tt.email, emailSender.Email)
+				if emailSender.SendOTPEmail != tt.email {
+					t.Fatalf("expected email %q, got %q", tt.email, emailSender.SendOTPEmail)
 				}
-				if len(emailSender.Code) != 6 {
-					t.Fatalf("expected 6 digit code, got %q", emailSender.Code)
+				if len(emailSender.SendOTPCode) != 6 {
+					t.Fatalf("expected 6 digit code, got %q", emailSender.SendOTPCode)
 				}
-				if otpRepo.StoreHashedCode != hashCode(emailSender.Code) {
+				if otpRepo.StoreHashedCode != hashCode(emailSender.SendOTPCode) {
 					t.Fatalf("expected stored hash to match sent code")
 				}
 				if otpRepo.StoreTTL != 5*time.Minute {

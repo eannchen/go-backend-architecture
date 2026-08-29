@@ -16,13 +16,8 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
+	"github.com/eannchen/go-backend-architecture/internal/repository/kvstore/kvstoretest"
 )
-
-type permissiveTokenBucket struct{}
-
-func (permissiveTokenBucket) Allow(context.Context, string, int, time.Duration) (repokvstore.TokenBucketDecision, error) {
-	return repokvstore.TokenBucketDecision{Allowed: true}, nil
-}
 
 func TestBuildIPExtractorRejectsInvalidCIDR(t *testing.T) {
 	_, err := buildIPExtractor([]string{"not-a-cidr"})
@@ -44,7 +39,12 @@ func TestBuildServerAppliesHTTPProtection(t *testing.T) {
 		},
 	}, &loggertest.Logger{}, observability.NoopTracer{}, observability.NoopMeter{})
 
-	server, err := wiring.buildServer(httpresponse.NewResponder(httpcontext.NewContextMeta()), appRepositories{tokenBucketRepo: permissiveTokenBucket{}}, appHandlers{}, appUsecases{})
+	tokenBucket := &kvstoretest.TokenBucketRepository{
+		AllowFunc: func(context.Context, string, int, time.Duration) (repokvstore.TokenBucketDecision, error) {
+			return repokvstore.TokenBucketDecision{Allowed: true}, nil
+		},
+	}
+	server, err := wiring.buildServer(httpresponse.NewResponder(httpcontext.NewContextMeta()), appRepositories{tokenBucketRepo: tokenBucket}, appHandlers{}, appUsecases{})
 	if err != nil {
 		t.Fatalf("buildServer() error = %v", err)
 	}

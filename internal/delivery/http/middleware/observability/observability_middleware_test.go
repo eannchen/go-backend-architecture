@@ -1,7 +1,6 @@
 package observabilitymw
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,52 +10,8 @@ import (
 	"github.com/labstack/echo/v5"
 
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
 )
-
-type metricSample struct {
-	value  int64
-	fields observability.Fields
-}
-
-type recordingMeter struct {
-	counters   map[string][]metricSample
-	histograms map[string]int
-}
-
-func newRecordingMeter() *recordingMeter {
-	return &recordingMeter{counters: make(map[string][]metricSample), histograms: make(map[string]int)}
-}
-
-func (m *recordingMeter) Counter(name string, _ ...observability.MetricOption) observability.Counter {
-	return recordingCounter{m: m, name: name}
-}
-
-func (m *recordingMeter) UpDownCounter(string, ...observability.MetricOption) observability.UpDownCounter {
-	return observability.NoopMeter{}.UpDownCounter("")
-}
-
-func (m *recordingMeter) Histogram(name string, _ ...observability.MetricOption) observability.Histogram {
-	return recordingHistogram{m: m, name: name}
-}
-
-type recordingCounter struct {
-	m    *recordingMeter
-	name string
-}
-
-func (c recordingCounter) Add(_ context.Context, value int64, fields ...observability.Fields) {
-	c.m.counters[c.name] = append(c.m.counters[c.name], metricSample{value: value, fields: observability.OptionalFields(fields...)})
-}
-
-type recordingHistogram struct {
-	m    *recordingMeter
-	name string
-}
-
-func (h recordingHistogram) Record(context.Context, float64, ...observability.Fields) {
-	h.m.histograms[h.name]++
-}
 
 func TestContextMetaReadWrite(t *testing.T) {
 	e := echo.New()
@@ -104,7 +59,7 @@ func TestAccessLogMiddlewareAcceptsNilLogger(t *testing.T) {
 }
 
 func TestRequestMetricsMiddlewareRecordsBoundedRouteAndError(t *testing.T) {
-	meter := newRecordingMeter()
+	meter := observabilitytest.NewRecordingMeter()
 	e := echo.New()
 	e.GET("/protected", NewRequestMetricsMiddleware(meter).Handler()(func(c *echo.Context) error {
 		return c.NoContent(http.StatusUnauthorized)
@@ -117,14 +72,14 @@ func TestRequestMetricsMiddlewareRecordsBoundedRouteAndError(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
 	}
-	requests := meter.counters["http_server_requests_total"]
-	if len(requests) != 1 || requests[0].fields["http.route"] != "/protected" || requests[0].fields["http.response.status_code"] != "401" {
+	requests := meter.CounterSamples("http_server_requests_total")
+	if len(requests) != 1 || requests[0].Fields["http.route"] != "/protected" || requests[0].Fields["http.response.status_code"] != "401" {
 		t.Fatalf("request metric = %#v", requests)
 	}
-	if errors := meter.counters["http_server_errors_total"]; len(errors) != 1 {
+	if errors := meter.CounterSamples("http_server_errors_total"); len(errors) != 1 {
 		t.Fatalf("error metric count = %d, want 1", len(errors))
 	}
-	if got := meter.histograms["http_server_request_duration_seconds"]; got != 1 {
-		t.Fatalf("latency metric count = %d, want 1", got)
+	if samples := meter.HistogramSamples("http_server_request_duration_seconds"); len(samples) != 1 {
+		t.Fatalf("latency metric count = %d, want 1", len(samples))
 	}
 }

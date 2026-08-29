@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v5"
 
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/binding"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
+	httpdeliverytest "github.com/eannchen/go-backend-architecture/internal/delivery/http/httptest"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
@@ -23,14 +23,6 @@ import (
 	authotptest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp/otptest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth/session/sessiontest"
 )
-
-type echoValidator struct {
-	v *validator.Validate
-}
-
-func (v *echoValidator) Validate(i any) error {
-	return v.v.Struct(i)
-}
 
 func newHandlerForTest(otp *authotptest.OTPAuthenticator, session *sessiontest.SessionManager) *Handler {
 	return NewHandler(
@@ -73,7 +65,7 @@ func TestHandlerOAuthFlowBindsCallbackToAuthorizeBrowser(t *testing.T) {
 		&loggertest.Logger{}, nil, httpresponse.NewResponder(nil), &authotptest.OTPAuthenticator{}, oauth, session,
 		SessionCookieConfig{Name: "session_id", TTL: 30 * time.Minute}, nil,
 	)
-	e := newEchoForTest()
+	e := newEchoForTest(t)
 
 	authorizeReq := httptest.NewRequest(http.MethodGet, "/auth/oauth/google/authorize", nil)
 	authorizeRec := httptest.NewRecorder()
@@ -111,7 +103,7 @@ func TestHandlerOAuthFlowBindsCallbackToAuthorizeBrowser(t *testing.T) {
 
 func TestHandlerOAuthCallbackRejectsMissingBrowserBinding(t *testing.T) {
 	h := newHandlerForTest(&authotptest.OTPAuthenticator{}, &sessiontest.SessionManager{})
-	e := newEchoForTest()
+	e := newEchoForTest(t)
 	req := httptest.NewRequest(http.MethodGet, "/auth/oauth/google/callback?code=code&state=state", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
@@ -126,10 +118,12 @@ func TestHandlerOAuthCallbackRejectsMissingBrowserBinding(t *testing.T) {
 	}
 }
 
-func newEchoForTest() *echo.Echo {
+func newEchoForTest(t *testing.T) *echo.Echo {
+	t.Helper()
+
 	e := echo.New()
 	e.Binder = binding.NewNormalizeBinder(nil)
-	e.Validator = &echoValidator{v: validator.New()}
+	e.Validator = httpdeliverytest.NewValidator(t)
 	return e
 }
 
@@ -150,7 +144,7 @@ func TestHandlerVerifyOTPSetsCookieAndReturnsAuthResponse(t *testing.T) {
 	}
 	h := newHandlerForTest(otp, session)
 
-	e := newEchoForTest()
+	e := newEchoForTest(t)
 	body := `{"email":" USER@EXAMPLE.COM ","code":" ab12 "}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/otp/verify", bytes.NewBufferString(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -192,7 +186,7 @@ func TestHandlerLogoutClearsCookieWithoutIncomingSession(t *testing.T) {
 	session := &sessiontest.SessionManager{}
 	h := newHandlerForTest(otp, session)
 
-	e := newEchoForTest()
+	e := newEchoForTest(t)
 	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
@@ -221,7 +215,7 @@ func TestHandlerMeReturnsSessionFromContext(t *testing.T) {
 	session := &sessiontest.SessionManager{}
 	h := newHandlerForTest(otp, session)
 
-	e := newEchoForTest()
+	e := newEchoForTest(t)
 	req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
@@ -252,7 +246,7 @@ func TestHandlerOAuthCallbackInvalidQueryReturnsBadRequest(t *testing.T) {
 	session := &sessiontest.SessionManager{}
 	h := newHandlerForTest(otp, session)
 
-	e := newEchoForTest()
+	e := newEchoForTest(t)
 	req := httptest.NewRequest(http.MethodGet, "/auth/oauth/google/callback?code=abc", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)

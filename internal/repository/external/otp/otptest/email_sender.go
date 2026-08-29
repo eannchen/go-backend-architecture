@@ -10,18 +10,18 @@ import (
 type EmailSender struct {
 	SendOTPFunc  func(context.Context, string, string) error
 	SendOTPCalls int
-	Email        string
-	Code         string
+	SendOTPEmail string
+	SendOTPCode  string
 }
 
 func (s *EmailSender) SendOTP(ctx context.Context, email, code string) error {
 	s.SendOTPCalls++
-	s.Email = email
-	s.Code = code
-	if s.SendOTPFunc != nil {
-		return s.SendOTPFunc(ctx, email, code)
+	s.SendOTPEmail = email
+	s.SendOTPCode = code
+	if s.SendOTPFunc == nil {
+		panic("unexpected EmailSender.SendOTP call")
 	}
-	return nil
+	return s.SendOTPFunc(ctx, email, code)
 }
 
 var _ repoexternal.EmailSender = (*EmailSender)(nil)

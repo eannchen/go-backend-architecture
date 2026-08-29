@@ -30,20 +30,20 @@ func (p *OAuthProvider) AuthCodeURL(state, codeVerifier string) string {
 	p.AuthCodeCalls++
 	p.AuthCodeState = state
 	p.AuthCodeVerifier = codeVerifier
-	if p.AuthCodeURLFunc != nil {
-		return p.AuthCodeURLFunc(state, codeVerifier)
+	if p.AuthCodeURLFunc == nil {
+		panic("unexpected OAuthProvider.AuthCodeURL call")
 	}
-	return "https://oauth.test/authorize?state=" + state
+	return p.AuthCodeURLFunc(state, codeVerifier)
 }
 
 func (p *OAuthProvider) Exchange(ctx context.Context, code, codeVerifier string) (repoexternal.OAuthUserInfo, error) {
 	p.ExchangeCalls++
 	p.ExchangeCode = code
 	p.ExchangeVerifier = codeVerifier
-	if p.ExchangeFunc != nil {
-		return p.ExchangeFunc(ctx, code, codeVerifier)
+	if p.ExchangeFunc == nil {
+		panic("unexpected OAuthProvider.Exchange call")
 	}
-	return repoexternal.OAuthUserInfo{}, nil
+	return p.ExchangeFunc(ctx, code, codeVerifier)
 }
 
 var _ repoexternal.OAuthProvider = (*OAuthProvider)(nil)

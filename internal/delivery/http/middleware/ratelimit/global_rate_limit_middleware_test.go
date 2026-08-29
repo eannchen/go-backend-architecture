@@ -8,22 +8,20 @@ import (
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
+	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit/globalratelimittest"
 	"github.com/labstack/echo/v5"
 )
 
-type limiterStub struct {
-	d   globalratelimit.Decision
-	err error
-}
-
-func (s limiterStub) AllowIP(context.Context, string) (globalratelimit.Decision, error) {
-	return s.d, s.err
-}
 func TestGlobalRateLimitMiddlewareRejectsWithRetryAfter(t *testing.T) {
 	e := echo.New()
 	rec := httptest.NewRecorder()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)
-	h := NewGlobalRateLimit(limiterStub{d: globalratelimit.Decision{RetryAfter: 500 * time.Millisecond}}, nil, nil).Handler()(func(*echo.Context) error { t.Fatal("next called"); return nil })
+	limiter := &globalratelimittest.Limiter{
+		AllowIPFunc: func(_ context.Context, _ string) (globalratelimit.Decision, error) {
+			return globalratelimit.Decision{RetryAfter: 500 * time.Millisecond}, nil
+		},
+	}
+	h := NewGlobalRateLimit(limiter, nil, nil).Handler()(func(*echo.Context) error { t.Fatal("next called"); return nil })
 	if err := h(c); err != nil {
 		t.Fatal(err)
 	}
