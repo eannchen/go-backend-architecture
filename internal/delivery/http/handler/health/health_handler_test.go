@@ -14,7 +14,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	httpdeliverytest "github.com/eannchen/go-backend-architecture/internal/delivery/http/httptest"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
@@ -42,7 +42,7 @@ func TestGetHealthSuccess(t *testing.T) {
 			}, nil
 		},
 	}
-	h := NewHandler(&loggertest.Logger{}, nil, nil, uc, streamConfig())
+	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
 
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t, RegisterValidation)
@@ -71,7 +71,7 @@ func TestGetHealthSuccess(t *testing.T) {
 
 func TestGetHealthInvalidQuery(t *testing.T) {
 	uc := &healthtest.Usecase{}
-	h := NewHandler(&loggertest.Logger{}, nil, nil, uc, streamConfig())
+	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
 
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t, RegisterValidation)
@@ -110,7 +110,7 @@ func TestGetHealthUnavailableReturnsPartialResult(t *testing.T) {
 			}, apperr.New(apperr.CodeUnavailable, "database readiness failed")
 		},
 	}
-	h := NewHandler(&loggertest.Logger{}, nil, nil, uc, streamConfig())
+	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
 
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t, RegisterValidation)
@@ -148,7 +148,7 @@ func TestStreamHealthWritesInitialHealthEvent(t *testing.T) {
 			return result, nil
 		},
 	}
-	h := NewHandler(&loggertest.Logger{}, nil, nil, uc, streamConfig())
+	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
 
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t, RegisterValidation)

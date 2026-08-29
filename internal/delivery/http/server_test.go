@@ -10,7 +10,7 @@ import (
 	"github.com/labstack/echo/v5"
 
 	httpdeliverytest "github.com/eannchen/go-backend-architecture/internal/delivery/http/httptest"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
 )
 
 func newRouteRegistrar() *httpdeliverytest.RouteRegistrar {
@@ -24,7 +24,7 @@ func newRouteRegistrar() *httpdeliverytest.RouteRegistrar {
 }
 
 func TestNewServerRegistersRoutes(t *testing.T) {
-	server, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, nil, nil, nil, newRouteRegistrar())
+	server, err := NewServer(ServerConfig{Address: ":0"}, logger.NoopLogger{}, nil, nil, nil, nil, newRouteRegistrar())
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -47,7 +47,7 @@ func TestNewServerSkipsNilMiddleware(t *testing.T) {
 		}
 	}
 
-	server, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, nil, nil, []echo.MiddlewareFunc{nil, mw, nil}, newRouteRegistrar())
+	server, err := NewServer(ServerConfig{Address: ":0"}, logger.NoopLogger{}, nil, nil, nil, []echo.MiddlewareFunc{nil, mw, nil}, newRouteRegistrar())
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -65,7 +65,7 @@ func TestNewServerSkipsNilMiddleware(t *testing.T) {
 }
 
 func TestNewServerSkipsNilRegistrar(t *testing.T) {
-	server, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, nil, nil, nil, newRouteRegistrar(), nil)
+	server, err := NewServer(ServerConfig{Address: ":0"}, logger.NoopLogger{}, nil, nil, nil, nil, newRouteRegistrar(), nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -84,7 +84,7 @@ func TestNewServerValidationRegistrarFailure(t *testing.T) {
 		return errors.New("registration failed")
 	}
 
-	_, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, []ValidationRegistrar{failingRegistrar}, nil, nil)
+	_, err := NewServer(ServerConfig{Address: ":0"}, logger.NoopLogger{}, nil, []ValidationRegistrar{failingRegistrar}, nil, nil)
 	if err == nil {
 		t.Fatal("expected error from failing validator registrar, got nil")
 	}
@@ -96,7 +96,7 @@ func TestNewServerAppliesPreMiddleware(t *testing.T) {
 			return echo.NewHTTPError(http.StatusForbidden, "blocked")
 		}
 	}
-	server, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, nil, []echo.MiddlewareFunc{nil, preMiddleware}, nil, newRouteRegistrar())
+	server, err := NewServer(ServerConfig{Address: ":0"}, logger.NoopLogger{}, nil, nil, []echo.MiddlewareFunc{nil, preMiddleware}, nil, newRouteRegistrar())
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -111,7 +111,7 @@ func TestNewServerAppliesPreMiddleware(t *testing.T) {
 }
 
 func TestNewServerUsesSafeSizeDefaults(t *testing.T) {
-	server, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, nil, nil, nil, newRouteRegistrar())
+	server, err := NewServer(ServerConfig{Address: ":0"}, logger.NoopLogger{}, nil, nil, nil, nil, newRouteRegistrar())
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

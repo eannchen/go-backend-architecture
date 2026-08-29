@@ -13,7 +13,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 	"github.com/eannchen/go-backend-architecture/internal/repository/kvstore/kvstoretest"
@@ -37,7 +37,7 @@ func TestBuildServerAppliesHTTPProtection(t *testing.T) {
 			RequestTimeout:   time.Second,
 			CORSAllowOrigins: []string{"https://app.example.com"},
 		},
-	}, &loggertest.Logger{}, observability.NoopTracer{}, observability.NoopMeter{})
+	}, logger.NoopLogger{}, observability.NoopTracer{}, observability.NoopMeter{})
 
 	tokenBucket := &kvstoretest.TokenBucketRepository{
 		AllowFunc: func(context.Context, string, int, time.Duration) (repokvstore.TokenBucketDecision, error) {

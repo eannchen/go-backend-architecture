@@ -24,7 +24,7 @@ import (
 	composeduser "github.com/eannchen/go-backend-architecture/internal/infra/composed/user"
 	postgresstore "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/store"
 	rediskvstore "github.com/eannchen/go-backend-architecture/internal/infra/kvstore/redis/store"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	emailtest "github.com/eannchen/go-backend-architecture/internal/repository/external/otp/otptest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
@@ -51,7 +51,7 @@ func newAuthFixture(t *testing.T, email string) *authFixture {
 
 	registerAuthCleanup(t, email)
 
-	log := &loggertest.Logger{}
+	log := logger.NoopLogger{}
 	tracer := observability.NoopTracer{}
 	meter := observability.NoopMeter{}
 	dbUsers := postgresstore.NewUserStore(postgresPool, tracer)

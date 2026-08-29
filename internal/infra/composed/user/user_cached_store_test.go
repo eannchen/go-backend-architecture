@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	"github.com/eannchen/go-backend-architecture/internal/repository/cache/cachetest"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
@@ -67,7 +68,9 @@ func TestCachedUserStoreGetByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			log := &loggertest.Logger{}
+			log := &loggertest.Logger{
+				WarnFunc: func(context.Context, string, ...logger.Fields) {},
+			}
 			cache := &cachetest.UserCacheStore{
 				GetByIDFunc: func(context.Context, int64) (repodb.User, bool, error) {
 					return tt.cacheUser, tt.cacheFound, tt.cacheErr
@@ -101,8 +104,8 @@ func TestCachedUserStoreGetByID(t *testing.T) {
 			if cache.SetByIDCalls != tt.wantSetCalls {
 				t.Fatalf("expected cache set calls %d, got %d", tt.wantSetCalls, cache.SetByIDCalls)
 			}
-			if log.WarnCalls != tt.wantWarnCalls {
-				t.Fatalf("expected warn calls %d, got %d", tt.wantWarnCalls, log.WarnCalls)
+			if len(log.WarnCalls) != tt.wantWarnCalls {
+				t.Fatalf("expected warn calls %d, got %d", tt.wantWarnCalls, len(log.WarnCalls))
 			}
 		})
 	}
@@ -118,7 +121,7 @@ func TestCachedUserStoreDelegatesEmailAndCreate(t *testing.T) {
 		},
 	}
 	cache := &cachetest.UserCacheStore{}
-	store := NewCachedUserStore(&loggertest.Logger{}, nil, base, cache)
+	store := NewCachedUserStore(logger.NoopLogger{}, nil, base, cache)
 
 	gotEmail, err := store.GetByEmail(context.Background(), "user@example.com")
 	if err != nil {
@@ -171,7 +174,9 @@ func TestCachedUserStoreUpsertOAuthUser(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			log := &loggertest.Logger{}
+			log := &loggertest.Logger{
+				WarnFunc: func(context.Context, string, ...logger.Fields) {},
+			}
 			base := &dbtest.UserRepository{
 				UpsertOAuthUserFunc: func(context.Context, repodb.OAuthUserUpsert) (repodb.User, error) {
 					return tt.baseUser, tt.baseErr
@@ -201,8 +206,8 @@ func TestCachedUserStoreUpsertOAuthUser(t *testing.T) {
 			if cache.DeleteByIDCalls != tt.wantDeleteCalls {
 				t.Fatalf("expected delete calls %d, got %d", tt.wantDeleteCalls, cache.DeleteByIDCalls)
 			}
-			if log.WarnCalls != tt.wantWarnCalls {
-				t.Fatalf("expected warn calls %d, got %d", tt.wantWarnCalls, log.WarnCalls)
+			if len(log.WarnCalls) != tt.wantWarnCalls {
+				t.Fatalf("expected warn calls %d, got %d", tt.wantWarnCalls, len(log.WarnCalls))
 			}
 		})
 	}
