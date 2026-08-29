@@ -39,35 +39,37 @@ func New(cfg config.LogConfig) (logger.Logger, error) {
 	if err != nil {
 		return nil, err
 	}
-	base = base.WithOptions(uzap.AddCaller(), uzap.AddCallerSkip(1))
+	return newLogger(base, sinkLevel), nil
+}
 
+func newLogger(base *uzap.Logger, sinkLevel zapcore.Level) *impl {
 	return &impl{
-		base:                  base,
+		base:                  base.WithOptions(uzap.AddCaller(), uzap.AddCallerSkip(1)),
 		sinkLevel:             sinkLevel,
 		emitSink:              func(context.Context, logger.Severity, string, ...logger.Fields) {},
 		contextFieldsProvider: func(context.Context) logger.Fields { return nil },
-	}, nil
+	}
 }
 
 func (l *impl) Debug(ctx context.Context, message string, optionalFields ...logger.Fields) {
 	fields := logger.OptionalFields(optionalFields...)
 	contextFields := l.contextFieldsProvider(ctx)
 	l.base.With(buildZapFields(contextFields)...).Debug(message, buildZapFields(fields)...)
-	l.emitSinkLog(ctx, zapcore.DebugLevel, logger.SeverityDebug, message, fields, contextFields)
+	l.emitSinkLog(ctx, zapcore.DebugLevel, logger.SeverityDebug, message, fields, contextFields, 3)
 }
 
 func (l *impl) Info(ctx context.Context, message string, optionalFields ...logger.Fields) {
 	fields := logger.OptionalFields(optionalFields...)
 	contextFields := l.contextFieldsProvider(ctx)
 	l.base.With(buildZapFields(contextFields)...).Info(message, buildZapFields(fields)...)
-	l.emitSinkLog(ctx, zapcore.InfoLevel, logger.SeverityInfo, message, fields, contextFields)
+	l.emitSinkLog(ctx, zapcore.InfoLevel, logger.SeverityInfo, message, fields, contextFields, 3)
 }
 
 func (l *impl) Warn(ctx context.Context, message string, optionalFields ...logger.Fields) {
 	fields := logger.OptionalFields(optionalFields...)
 	contextFields := l.contextFieldsProvider(ctx)
 	l.base.With(buildZapFields(contextFields)...).Warn(message, buildZapFields(fields)...)
-	l.emitSinkLog(ctx, zapcore.WarnLevel, logger.SeverityWarn, message, fields, contextFields)
+	l.emitSinkLog(ctx, zapcore.WarnLevel, logger.SeverityWarn, message, fields, contextFields, 3)
 }
 
 func (l *impl) Error(ctx context.Context, message string, err error, optionalFields ...logger.Fields) {
@@ -86,11 +88,14 @@ func (l *impl) logError(ctx context.Context, message string, err error, stacktra
 	fields["error"] = err
 	contextFields := l.contextFieldsProvider(ctx)
 	base := l.base
+	// Error and ErrorNoStack share this helper, adding one frame beyond the
+	// public logging method. Skip it so caller metadata still names application code.
+	base = base.WithOptions(uzap.AddCallerSkip(1))
 	if !stacktrace {
 		base = base.WithOptions(uzap.AddStacktrace(zapcore.PanicLevel))
 	}
 	base.With(buildZapFields(contextFields)...).Error(message, buildZapFields(fields)...)
-	l.emitSinkLog(ctx, zapcore.ErrorLevel, logger.SeverityError, message, contextFields, fields)
+	l.emitSinkLog(ctx, zapcore.ErrorLevel, logger.SeverityError, message, fields, contextFields, 4)
 }
 
 func (l *impl) SetLogSink(sink logger.LogSinkFunc) {
@@ -113,12 +118,14 @@ func (l *impl) Sync() error {
 	return l.base.Sync()
 }
 
-func (l *impl) emitSinkLog(ctx context.Context, level zapcore.Level, severity logger.Severity, message string, contextFields, fields logger.Fields) {
+func (l *impl) emitSinkLog(ctx context.Context, level zapcore.Level, severity logger.Severity, message string, fields, contextFields logger.Fields, callerSkip int) {
 	if level < l.sinkLevel {
 		return
 	}
-	callerFields := buildCallerSinkFields()
-	out := logger.MergeFields(fields, contextFields, callerFields)
+	callerFields := buildCallerSinkFields(callerSkip)
+	// Explicit fields match Zap's per-call behavior and override context fields
+	// when both sources use the same key.
+	out := logger.MergeFields(contextFields, fields, callerFields)
 	l.emitSink(ctx, severity, message, out)
 }
 
@@ -130,8 +137,8 @@ func buildZapFields(fields logger.Fields) []uzap.Field {
 	return out
 }
 
-func buildCallerSinkFields() logger.Fields {
-	pc, file, line, ok := runtime.Caller(3)
+func buildCallerSinkFields(skip int) logger.Fields {
+	pc, file, line, ok := runtime.Caller(skip)
 	if !ok {
 		return nil
 	}
