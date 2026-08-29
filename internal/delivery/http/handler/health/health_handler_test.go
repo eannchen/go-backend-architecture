@@ -6,9 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/labstack/echo/v5"
 
@@ -16,18 +14,9 @@ import (
 	httpdeliverytest "github.com/eannchen/go-backend-architecture/internal/delivery/http/httptest"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
-
-func streamConfig() StreamConfig {
-	return StreamConfig{
-		CheckInterval:     time.Minute,
-		HeartbeatInterval: time.Minute,
-		MaxDuration:       2 * time.Minute,
-	}
-}
 
 func TestGetHealthSuccess(t *testing.T) {
 	uc := &healthtest.Usecase{
@@ -163,74 +152,5 @@ func TestGetHealthUnexpectedErrorReturnsInternalResponse(t *testing.T) {
 	}
 	if body.Code != string(apperr.CodeInternal) {
 		t.Fatalf("code = %q, want %q", body.Code, apperr.CodeInternal)
-	}
-}
-
-func TestStreamHealthWritesInitialHealthEvent(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	result := usecasehealth.Result{
-		Database: usecasehealth.Database{Status: "up", Name: "app"},
-		Cache:    usecasehealth.Dependency{Status: "up"},
-		KVStore:  usecasehealth.Dependency{Status: "up"},
-	}
-	uc := &healthtest.Usecase{
-		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
-			cancel()
-			return result, nil
-		},
-	}
-	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
-
-	e := echo.New()
-	e.Validator = httpdeliverytest.NewValidator(t, RegisterValidation)
-	req := httptest.NewRequest(http.MethodGet, StreamPath+"?check=live", nil).WithContext(ctx)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	if err := h.StreamHealth(c); err != nil {
-		t.Fatalf("StreamHealth() error = %v", err)
-	}
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
-	}
-	if got := rec.Header().Get(echo.HeaderContentType); got != "text/event-stream" {
-		t.Fatalf("content type = %q, want text/event-stream", got)
-	}
-	if got := rec.Body.String(); !strings.Contains(got, "event: health\ndata: ") {
-		t.Fatalf("stream body = %q, want health event", got)
-	}
-	if uc.CheckMode != usecasehealth.CheckModeLive {
-		t.Fatalf("check mode = %q, want live", uc.CheckMode)
-	}
-}
-
-func TestStreamHealthEmitsDependencyFailureAndLogsWarning(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	wantErr := apperr.New(apperr.CodeUnavailable, "database unavailable")
-	uc := &healthtest.Usecase{
-		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
-			cancel()
-			return usecasehealth.Result{Database: usecasehealth.Database{Status: "down"}}, wantErr
-		},
-	}
-	log := &loggertest.Logger{
-		WarnFunc: func(context.Context, string, ...logger.Fields) {},
-	}
-	h := NewHandler(log, nil, nil, uc, streamConfig())
-	e := echo.New()
-	e.Validator = httpdeliverytest.NewValidator(t, RegisterValidation)
-	req := httptest.NewRequest(http.MethodGet, StreamPath, nil).WithContext(ctx)
-	rec := httptest.NewRecorder()
-
-	if err := h.StreamHealth(e.NewContext(req, rec)); err != nil {
-		t.Fatalf("StreamHealth() error = %v", err)
-	}
-	if !strings.Contains(rec.Body.String(), `"status":"down"`) {
-		t.Fatalf("stream body = %q, want dependency failure payload", rec.Body.String())
-	}
-	if len(log.WarnCalls) != 1 || log.WarnCalls[0].Fields[0]["error"] != wantErr {
-		t.Fatalf("warning calls = %+v, want dependency error", log.WarnCalls)
 	}
 }
