@@ -74,9 +74,9 @@ func normalizeStruct(v reflect.Value) {
 		if !field.CanSet() {
 			continue
 		}
+		sf := t.Field(i)
 		switch field.Kind() {
 		case reflect.String:
-			sf := t.Field(i)
 			s := field.String()
 			if !skipTrim(sf) {
 				s = strings.TrimSpace(s)
@@ -89,12 +89,12 @@ func normalizeStruct(v reflect.Value) {
 				normalizeStruct(field)
 			}
 		case reflect.Slice:
-			normalizeSlice(field)
+			normalizeSlice(field, sf)
 		}
 	}
 }
 
-func normalizeSlice(v reflect.Value) {
+func normalizeSlice(v reflect.Value, sf reflect.StructField) {
 	if v.Kind() != reflect.Slice || v.IsNil() {
 		return
 	}
@@ -104,7 +104,11 @@ func normalizeSlice(v reflect.Value) {
 		switch elemKind {
 		case reflect.String:
 			if el.CanSet() {
-				el.SetString(strings.TrimSpace(el.String()))
+				s := el.String()
+				if !skipTrim(sf) {
+					s = strings.TrimSpace(s)
+				}
+				el.SetString(applyCase(sf, s))
 			}
 		case reflect.Struct:
 			normalizeStruct(el)

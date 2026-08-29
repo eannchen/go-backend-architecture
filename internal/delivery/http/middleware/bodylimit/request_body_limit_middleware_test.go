@@ -48,3 +48,27 @@ func TestMiddlewareBoundsChunkedBody(t *testing.T) {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusRequestEntityTooLarge)
 	}
 }
+
+func TestMiddlewareAllowsBodyAtLimit(t *testing.T) {
+	const maxBytes = 16
+	e := echo.New()
+	e.Pre(New(maxBytes).Handler())
+	e.POST("/read", func(c *echo.Context) error {
+		body, err := io.ReadAll(c.Request().Body)
+		if err != nil {
+			return err
+		}
+		if len(body) != maxBytes {
+			t.Fatalf("body length = %d, want %d", len(body), maxBytes)
+		}
+		return c.NoContent(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/read", strings.NewReader(strings.Repeat("x", maxBytes)))
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+}

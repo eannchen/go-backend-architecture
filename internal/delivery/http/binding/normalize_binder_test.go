@@ -2,203 +2,127 @@ package binding
 
 import (
 	"bytes"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/labstack/echo/v5"
 )
 
-func TestNormalizeBinder_TrimsStringFields(t *testing.T) {
-	e := echo.New()
-	e.Binder = NewNormalizeBinder(e.Binder)
+type nestedValue struct {
+	Value string
+}
 
-	body := []byte(`{"email":"  foo@bar.com  ","code":"  123456  "}`)
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
+func TestNormalizeStrings(t *testing.T) {
+	tests := []struct {
+		name   string
+		target any
+		want   any
+	}{
+		{
+			name: "strings and tags",
+			target: &struct {
+				Trimmed string
+				Raw     string `trim:"false"`
+				Lower   string `case:"lower"`
+				Upper   string `case:"upper"`
+			}{Trimmed: "  value  ", Raw: "  raw  ", Lower: "  Foo  ", Upper: "  bar  "},
+			want: &struct {
+				Trimmed string
+				Raw     string `trim:"false"`
+				Lower   string `case:"lower"`
+				Upper   string `case:"upper"`
+			}{Trimmed: "value", Raw: "  raw  ", Lower: "foo", Upper: "BAR"},
+		},
+		{
+			name: "nested struct and pointer",
+			target: &struct {
+				Nested  nestedValue
+				Pointer *nestedValue
+			}{Nested: nestedValue{Value: "  nested  "}, Pointer: &nestedValue{Value: "  pointer  "}},
+			want: &struct {
+				Nested  nestedValue
+				Pointer *nestedValue
+			}{Nested: nestedValue{Value: "nested"}, Pointer: &nestedValue{Value: "pointer"}},
+		},
+		{
+			name: "string struct and pointer slices",
+			target: &struct {
+				Strings  []string `case:"lower"`
+				Raw      []string `trim:"false"`
+				Structs  []nestedValue
+				Pointers []*nestedValue
+			}{
+				Strings:  []string{"  ONE  ", "  Two  "},
+				Raw:      []string{"  unchanged  "},
+				Structs:  []nestedValue{{Value: "  struct  "}},
+				Pointers: []*nestedValue{{Value: "  pointer  "}, nil},
+			},
+			want: &struct {
+				Strings  []string `case:"lower"`
+				Raw      []string `trim:"false"`
+				Structs  []nestedValue
+				Pointers []*nestedValue
+			}{
+				Strings:  []string{"one", "two"},
+				Raw:      []string{"  unchanged  "},
+				Structs:  []nestedValue{{Value: "struct"}},
+				Pointers: []*nestedValue{{Value: "pointer"}, nil},
+			},
+		},
+		{name: "nil target", target: nil, want: nil},
+		{name: "non-pointer target", target: struct{ Value string }{Value: "  unchanged  "}, want: struct{ Value string }{Value: "  unchanged  "}},
+	}
 
-	var dest struct {
-		Email string `json:"email"`
-		Code  string `json:"code"`
-	}
-	if err := c.Bind(&dest); err != nil {
-		t.Fatalf("Bind: %v", err)
-	}
-	if dest.Email != "foo@bar.com" {
-		t.Errorf("email: got %q", dest.Email)
-	}
-	if dest.Code != "123456" {
-		t.Errorf("code: got %q", dest.Code)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			normalizeStrings(tt.target)
+			if !reflect.DeepEqual(tt.target, tt.want) {
+				t.Fatalf("normalized value = %#v, want %#v", tt.target, tt.want)
+			}
+		})
 	}
 }
 
-func TestNormalizeBinder_RespectsTrimFalseTag(t *testing.T) {
-	e := echo.New()
-	e.Binder = NewNormalizeBinder(e.Binder)
-
-	body := []byte(`{"trimmed":"  a  ","raw":"  b  "}`)
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	var dest struct {
-		Trimmed string `json:"trimmed"`
-		Raw     string `json:"raw" trim:"false"`
-	}
-	if err := c.Bind(&dest); err != nil {
-		t.Fatalf("Bind: %v", err)
-	}
-	if dest.Trimmed != "a" {
-		t.Errorf("trimmed: got %q", dest.Trimmed)
-	}
-	if dest.Raw != "  b  " {
-		t.Errorf("raw (no trim): got %q", dest.Raw)
-	}
-}
-
-func TestNormalizeBinder_TrimsNestedStruct(t *testing.T) {
-	e := echo.New()
-	e.Binder = NewNormalizeBinder(e.Binder)
-
-	body := []byte(`{"inner":{"name":"  nested  "}}`)
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	var dest struct {
-		Inner struct {
-			Name string `json:"name"`
-		} `json:"inner"`
-	}
-	if err := c.Bind(&dest); err != nil {
-		t.Fatalf("Bind: %v", err)
-	}
-	if dest.Inner.Name != "nested" {
-		t.Errorf("inner.name: got %q", dest.Inner.Name)
-	}
-}
-
-func TestNormalizeBinder_TrimsPointerToStruct(t *testing.T) {
-	e := echo.New()
-	e.Binder = NewNormalizeBinder(e.Binder)
-
-	body := []byte(`{"ptr":{"value":"  x  "}}`)
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	var dest struct {
-		Ptr *struct {
-			Value string `json:"value"`
-		} `json:"ptr"`
-	}
-	if err := c.Bind(&dest); err != nil {
-		t.Fatalf("Bind: %v", err)
-	}
-	if dest.Ptr == nil {
-		t.Fatal("ptr is nil")
-	}
-	if dest.Ptr.Value != "x" {
-		t.Errorf("ptr.value: got %q", dest.Ptr.Value)
-	}
-}
-
-func TestNormalizeBinder_TrimsStringSlice(t *testing.T) {
-	e := echo.New()
-	e.Binder = NewNormalizeBinder(e.Binder)
-
-	body := []byte(`{"items":["  a  ","  b  "]}`)
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	var dest struct {
-		Items []string `json:"items"`
-	}
-	if err := c.Bind(&dest); err != nil {
-		t.Fatalf("Bind: %v", err)
-	}
-	if len(dest.Items) != 2 {
-		t.Fatalf("items len: got %d", len(dest.Items))
-	}
-	if dest.Items[0] != "a" || dest.Items[1] != "b" {
-		t.Errorf("items: got %q", dest.Items)
-	}
-}
-
-func TestNormalizeBinder_NilInnerUsesDefaultBinder(t *testing.T) {
+func TestNormalizeBinder_UsesDefaultBinderThenNormalizes(t *testing.T) {
 	e := echo.New()
 	e.Binder = NewNormalizeBinder(nil)
-
-	body := []byte(`{"x":"  y  "}`)
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	var dest struct {
-		X string `json:"x"`
-	}
-	if err := c.Bind(&dest); err != nil {
-		t.Fatalf("Bind: %v", err)
-	}
-	if dest.X != "y" {
-		t.Errorf("x: got %q", dest.X)
-	}
-}
-
-func TestNormalizeBinder_CaseLowerTag(t *testing.T) {
-	e := echo.New()
-	e.Binder = NewNormalizeBinder(e.Binder)
-
-	body := []byte(`{"email":"  Foo@Bar.COM  ","other":"  As-Is  "}`)
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	var dest struct {
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(`{"email":"  Foo@Bar.COM  "}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	c := e.NewContext(req, httptest.NewRecorder())
+	var target struct {
 		Email string `json:"email" case:"lower"`
-		Other string `json:"other"`
 	}
-	if err := c.Bind(&dest); err != nil {
-		t.Fatalf("Bind: %v", err)
+
+	if err := c.Bind(&target); err != nil {
+		t.Fatalf("bind request: %v", err)
 	}
-	if dest.Email != "foo@bar.com" {
-		t.Errorf("email: got %q", dest.Email)
-	}
-	if dest.Other != "As-Is" {
-		t.Errorf("other: got %q", dest.Other)
+	if target.Email != "foo@bar.com" {
+		t.Fatalf("email = %q, want normalized email", target.Email)
 	}
 }
 
-func TestNormalizeBinder_CaseUpperTag(t *testing.T) {
+func TestNormalizeBinder_DoesNotNormalizeAfterBindingFailure(t *testing.T) {
+	wantErr := errors.New("bind failed")
+	binder := NewNormalizeBinder(binderFunc(func(*echo.Context, any) error { return wantErr }))
 	e := echo.New()
-	e.Binder = NewNormalizeBinder(e.Binder)
+	c := e.NewContext(httptest.NewRequest(http.MethodPost, "/", nil), httptest.NewRecorder())
+	target := struct{ Value string }{Value: "  unchanged  "}
 
-	body := []byte(`{"code":"  abc123  ","other":"  As-Is  "}`)
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
+	err := binder.Bind(c, &target)
 
-	var dest struct {
-		Code  string `json:"code" case:"upper"`
-		Other string `json:"other"`
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("bind error = %v, want %v", err, wantErr)
 	}
-	if err := c.Bind(&dest); err != nil {
-		t.Fatalf("Bind: %v", err)
+	if target.Value != "  unchanged  " {
+		t.Fatalf("value = %q, want unchanged value", target.Value)
 	}
-	if dest.Code != "ABC123" {
-		t.Errorf("code: got %q", dest.Code)
-	}
-	if dest.Other != "As-Is" {
-		t.Errorf("other: got %q", dest.Other)
-	}
+}
+
+type binderFunc func(*echo.Context, any) error
+
+func (f binderFunc) Bind(c *echo.Context, target any) error {
+	return f(c, target)
 }

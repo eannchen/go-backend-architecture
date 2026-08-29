@@ -134,3 +134,83 @@ func TestResponderInvalidQueryStoresInternalDetailsOnly(t *testing.T) {
 		t.Fatalf("expected internal error details, got %#v", details)
 	}
 }
+
+func TestCodeToHTTPStatus(t *testing.T) {
+	tests := []struct {
+		code Code
+		want int
+	}{
+		{code: CodeInvalidQuery, want: http.StatusBadRequest},
+		{code: CodeInvalidRequestID, want: http.StatusBadRequest},
+		{code: Code(apperr.CodeInvalidArgument), want: http.StatusBadRequest},
+		{code: Code(apperr.CodeUnauthorized), want: http.StatusUnauthorized},
+		{code: Code(apperr.CodeForbidden), want: http.StatusForbidden},
+		{code: Code(apperr.CodeNotFound), want: http.StatusNotFound},
+		{code: Code(apperr.CodeConflict), want: http.StatusConflict},
+		{code: Code(apperr.CodeTooManyRequests), want: http.StatusTooManyRequests},
+		{code: Code(apperr.CodeUnavailable), want: http.StatusServiceUnavailable},
+		{code: Code(apperr.CodeTimeout), want: http.StatusGatewayTimeout},
+		{code: Code(apperr.CodeInternal), want: http.StatusInternalServerError},
+		{code: Code("UNKNOWN"), want: http.StatusInternalServerError},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.code), func(t *testing.T) {
+			if got := tt.code.toHTTPStatus(); got != tt.want {
+				t.Fatalf("status = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResponderAppErrorWithPayload_UsesErrorStatusAndMetadata(t *testing.T) {
+	tests := []struct {
+		name        string
+		err         error
+		wantStatus  int
+		wantCode    string
+		wantMessage string
+	}{
+		{
+			name:        "application error",
+			err:         apperr.New(apperr.CodeUnavailable, "database unavailable", apperr.Fields("dependency", "postgres")),
+			wantStatus:  http.StatusServiceUnavailable,
+			wantCode:    string(apperr.CodeUnavailable),
+			wantMessage: "database unavailable",
+		},
+		{
+			name:        "unknown error",
+			err:         errors.New("database failed"),
+			wantStatus:  http.StatusInternalServerError,
+			wantCode:    string(apperr.CodeInternal),
+			wantMessage: "internal server error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := echo.New()
+			rec := httptest.NewRecorder()
+			c := e.NewContext(httptest.NewRequest(http.MethodGet, "/health", nil), rec)
+			payload := map[string]string{"status": "down"}
+
+			if err := NewResponder(nil).AppErrorWithPayload(c, tt.err, payload); err != nil {
+				t.Fatalf("write payload response: %v", err)
+			}
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", rec.Code, tt.wantStatus)
+			}
+			var body map[string]string
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode payload: %v", err)
+			}
+			if body["status"] != "down" {
+				t.Fatalf("payload = %#v, want status down", body)
+			}
+			code, message := httpcontext.ContextMeta{}.GetTransportError(c)
+			if code != tt.wantCode || message != tt.wantMessage {
+				t.Fatalf("transport error = %q %q, want %q %q", code, message, tt.wantCode, tt.wantMessage)
+			}
+		})
+	}
+}

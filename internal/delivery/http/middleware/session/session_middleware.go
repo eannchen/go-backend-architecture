@@ -3,8 +3,8 @@ package sessionmw
 import (
 	"github.com/labstack/echo/v5"
 
-	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
+	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	authsession "github.com/eannchen/go-backend-architecture/internal/usecase/auth/session"
 )
 
