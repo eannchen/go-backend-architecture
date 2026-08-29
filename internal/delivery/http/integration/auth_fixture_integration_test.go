@@ -3,7 +3,6 @@
 package integration
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,10 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/labstack/echo/v5"
-
-	httpdelivery "github.com/eannchen/go-backend-architecture/internal/delivery/http"
-	"github.com/eannchen/go-backend-architecture/internal/delivery/http/binding"
 	authhttp "github.com/eannchen/go-backend-architecture/internal/delivery/http/handler/auth"
 	sessionmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/session"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
@@ -42,7 +37,7 @@ const (
 var errUnexpectedOAuth = errors.New("OAuth is outside this test flow")
 
 type authFixture struct {
-	server      http.Handler
+	*serverFixture
 	emailSender *emailtest.EmailSender
 }
 
@@ -87,19 +82,10 @@ func newAuthFixture(t *testing.T, email string) *authFixture {
 		sessionMiddleware,
 	)
 
-	server, err := httpdelivery.NewServer(
-		httpdelivery.ServerConfig{},
-		log,
-		binding.NewNormalizeBinder(nil),
-		nil,
-		nil,
-		nil,
-		handler,
-	)
-	if err != nil {
-		t.Fatalf("build HTTP integration server: %v", err)
+	return &authFixture{
+		serverFixture: newServerFixture(t, nil, handler),
+		emailSender:   emailSender,
 	}
-	return &authFixture{server: server, emailSender: emailSender}
 }
 
 func (f *authFixture) sendOTP(t *testing.T, inputEmail, deliveredTo string) string {
@@ -146,40 +132,6 @@ func (f *authFixture) requireUnauthenticated(t *testing.T, sessionCookie *http.C
 	t.Helper()
 
 	f.sendJSON(t, http.MethodGet, "/auth/me", nil, sessionCookie, http.StatusUnauthorized)
-}
-
-func (f *authFixture) sendJSON(
-	t *testing.T,
-	method string,
-	path string,
-	body any,
-	cookie *http.Cookie,
-	wantStatus int,
-) *httptest.ResponseRecorder {
-	t.Helper()
-
-	var requestBody []byte
-	if body != nil {
-		var err error
-		requestBody, err = json.Marshal(body)
-		if err != nil {
-			t.Fatalf("encode %s %s request: %v", method, path, err)
-		}
-	}
-
-	request := httptest.NewRequest(method, path, bytes.NewReader(requestBody))
-	if body != nil {
-		request.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	}
-	if cookie != nil {
-		request.AddCookie(cookie)
-	}
-	response := httptest.NewRecorder()
-	f.server.ServeHTTP(response, request)
-	if response.Code != wantStatus {
-		t.Fatalf("%s %s status = %d, want %d; body=%s", method, path, response.Code, wantStatus, response.Body.String())
-	}
-	return response
 }
 
 func decodeAuthResponse(t *testing.T, response *httptest.ResponseRecorder) openapi.AuthResponse {
