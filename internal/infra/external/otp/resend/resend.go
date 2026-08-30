@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"html"
 
-	"github.com/resend/resend-go/v3"
 	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external/otp"
+	"github.com/resend/resend-go/v3"
 )
 
 // ResendSender sends OTP emails via Resend API.

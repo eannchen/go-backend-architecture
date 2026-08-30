@@ -9,19 +9,22 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v5"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	httpdeliverytest "github.com/eannchen/go-backend-architecture/internal/delivery/http/httptest"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
 )
 
-type stubRegistrar struct{}
-
-func (stubRegistrar) RegisterRoutes(e *echo.Echo) {
-	e.GET("/ping", func(c *echo.Context) error {
-		return c.NoContent(http.StatusNoContent)
-	})
+func newRouteRegistrar() *httpdeliverytest.RouteRegistrar {
+	return &httpdeliverytest.RouteRegistrar{
+		RegisterRoutesFunc: func(e *echo.Echo) {
+			e.GET("/ping", func(c *echo.Context) error {
+				return c.NoContent(http.StatusNoContent)
+			})
+		},
+	}
 }
 
 func TestNewServerRegistersRoutes(t *testing.T) {
-	server, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, nil, nil, nil, stubRegistrar{})
+	server, err := NewServer(ServerConfig{Address: ":0"}, logger.NoopLogger{}, nil, nil, nil, nil, newRouteRegistrar())
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -44,7 +47,7 @@ func TestNewServerSkipsNilMiddleware(t *testing.T) {
 		}
 	}
 
-	server, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, nil, nil, []echo.MiddlewareFunc{nil, mw, nil}, stubRegistrar{})
+	server, err := NewServer(ServerConfig{Address: ":0"}, logger.NoopLogger{}, nil, nil, nil, []echo.MiddlewareFunc{nil, mw, nil}, newRouteRegistrar())
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -62,7 +65,7 @@ func TestNewServerSkipsNilMiddleware(t *testing.T) {
 }
 
 func TestNewServerSkipsNilRegistrar(t *testing.T) {
-	server, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, nil, nil, nil, stubRegistrar{}, nil)
+	server, err := NewServer(ServerConfig{Address: ":0"}, logger.NoopLogger{}, nil, nil, nil, nil, newRouteRegistrar(), nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -81,7 +84,7 @@ func TestNewServerValidationRegistrarFailure(t *testing.T) {
 		return errors.New("registration failed")
 	}
 
-	_, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, []ValidationRegistrar{failingRegistrar}, nil, nil)
+	_, err := NewServer(ServerConfig{Address: ":0"}, logger.NoopLogger{}, nil, []ValidationRegistrar{failingRegistrar}, nil, nil)
 	if err == nil {
 		t.Fatal("expected error from failing validator registrar, got nil")
 	}
@@ -93,7 +96,7 @@ func TestNewServerAppliesPreMiddleware(t *testing.T) {
 			return echo.NewHTTPError(http.StatusForbidden, "blocked")
 		}
 	}
-	server, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, nil, []echo.MiddlewareFunc{nil, preMiddleware}, nil, stubRegistrar{})
+	server, err := NewServer(ServerConfig{Address: ":0"}, logger.NoopLogger{}, nil, nil, []echo.MiddlewareFunc{nil, preMiddleware}, nil, newRouteRegistrar())
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -108,7 +111,7 @@ func TestNewServerAppliesPreMiddleware(t *testing.T) {
 }
 
 func TestNewServerUsesSafeSizeDefaults(t *testing.T) {
-	server, err := NewServer(ServerConfig{Address: ":0"}, &loggertest.Logger{}, nil, nil, nil, nil, stubRegistrar{})
+	server, err := NewServer(ServerConfig{Address: ":0"}, logger.NoopLogger{}, nil, nil, nil, nil, newRouteRegistrar())
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

@@ -4,8 +4,10 @@
 
 - Each store owns its Redis key layout, serialization, TTL, and command coordination.
 - One store method per business operation. Redis primitives (Lua, pipelines) stay inside store methods.
+- Integration tests share one disposable Redis container per package and fail if a test leaks keys.
 
 ## How to extend
 
 - Add/update a contract in `internal/repository/cache/` first, then implement here.
 - Use Lua scripts for atomic multi-key flows; pipelines for batching independent commands.
+- Register `t.Cleanup` for every integration-test key and assert Redis-owned behavior such as TTL.

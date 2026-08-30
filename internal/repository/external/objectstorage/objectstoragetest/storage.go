@@ -19,7 +19,7 @@ type SignGetObjectURLCall struct {
 	TTL time.Duration
 }
 
-type Storage struct {
+type ObjectStorage struct {
 	T testing.TB
 
 	PutObjectFunc        func(context.Context, string, []byte, string) (repoobjectstorage.PutObjectResult, error)
@@ -31,9 +31,9 @@ type Storage struct {
 	SignGetObjectURLCalls []SignGetObjectURLCall
 }
 
-var _ repoobjectstorage.ObjectStorage = (*Storage)(nil)
+var _ repoobjectstorage.ObjectStorage = (*ObjectStorage)(nil)
 
-func (s *Storage) PutObject(ctx context.Context, key string, body []byte, contentType string) (repoobjectstorage.PutObjectResult, error) {
+func (s *ObjectStorage) PutObject(ctx context.Context, key string, body []byte, contentType string) (repoobjectstorage.PutObjectResult, error) {
 	s.PutObjectCalls = append(s.PutObjectCalls, PutObjectCall{
 		Key:         key,
 		Body:        append([]byte(nil), body...),
@@ -46,15 +46,16 @@ func (s *Storage) PutObject(ctx context.Context, key string, body []byte, conten
 	return s.PutObjectFunc(ctx, key, body, contentType)
 }
 
-func (s *Storage) ObjectExists(ctx context.Context, key string) (bool, error) {
+func (s *ObjectStorage) ObjectExists(ctx context.Context, key string) (bool, error) {
 	s.ObjectExistsCalls = append(s.ObjectExistsCalls, key)
 	if s.ObjectExistsFunc == nil {
+		s.unexpected("ObjectExists")
 		return false, nil
 	}
 	return s.ObjectExistsFunc(ctx, key)
 }
 
-func (s *Storage) SignGetObjectURL(ctx context.Context, key string, ttl time.Duration) (string, error) {
+func (s *ObjectStorage) SignGetObjectURL(ctx context.Context, key string, ttl time.Duration) (string, error) {
 	s.SignGetObjectURLCalls = append(s.SignGetObjectURLCalls, SignGetObjectURLCall{Key: key, TTL: ttl})
 	if s.SignGetObjectURLFunc == nil {
 		s.unexpected("SignGetObjectURL")
@@ -63,16 +64,16 @@ func (s *Storage) SignGetObjectURL(ctx context.Context, key string, ttl time.Dur
 	return s.SignGetObjectURLFunc(ctx, key, ttl)
 }
 
-type Signer struct {
+type ObjectURLSigner struct {
 	T testing.TB
 
 	SignGetObjectURLFunc  func(context.Context, string, time.Duration) (string, error)
 	SignGetObjectURLCalls []SignGetObjectURLCall
 }
 
-var _ repoobjectstorage.ObjectURLSigner = (*Signer)(nil)
+var _ repoobjectstorage.ObjectURLSigner = (*ObjectURLSigner)(nil)
 
-func (s *Signer) SignGetObjectURL(ctx context.Context, key string, ttl time.Duration) (string, error) {
+func (s *ObjectURLSigner) SignGetObjectURL(ctx context.Context, key string, ttl time.Duration) (string, error) {
 	s.SignGetObjectURLCalls = append(s.SignGetObjectURLCalls, SignGetObjectURLCall{Key: key, TTL: ttl})
 	if s.SignGetObjectURLFunc == nil {
 		s.unexpected("SignGetObjectURL")
@@ -81,16 +82,20 @@ func (s *Signer) SignGetObjectURL(ctx context.Context, key string, ttl time.Dura
 	return s.SignGetObjectURLFunc(ctx, key, ttl)
 }
 
-func (s *Storage) unexpected(method string) {
+func (s *ObjectStorage) unexpected(method string) {
 	if s.T != nil {
 		s.T.Helper()
 		s.T.Fatalf("unexpected ObjectStorage.%s call", method)
+		return
 	}
+	panic("unexpected ObjectStorage." + method + " call")
 }
 
-func (s *Signer) unexpected(method string) {
+func (s *ObjectURLSigner) unexpected(method string) {
 	if s.T != nil {
 		s.T.Helper()
 		s.T.Fatalf("unexpected ObjectURLSigner.%s call", method)
+		return
 	}
+	panic("unexpected ObjectURLSigner." + method + " call")
 }

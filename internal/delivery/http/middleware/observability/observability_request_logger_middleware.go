@@ -57,6 +57,9 @@ func (m *AccessLogMiddleware) Handler() echo.MiddlewareFunc {
 			)
 
 			originalErr := m.meta.GetError(c)
+			if originalErr == nil {
+				originalErr = handlerErr
+			}
 			errorDetails := m.meta.GetErrorDetails(c)
 			transportCode, transportMsg := m.meta.GetTransportError(c)
 			if originalErr != nil {

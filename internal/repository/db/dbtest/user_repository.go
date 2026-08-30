@@ -25,37 +25,37 @@ type UserRepository struct {
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (repodb.User, error) {
 	r.GetByEmailCalls++
 	r.GetByEmailEmail = email
-	if r.GetByEmailFunc != nil {
-		return r.GetByEmailFunc(ctx, email)
+	if r.GetByEmailFunc == nil {
+		panic("unexpected UserRepository.GetByEmail call")
 	}
-	return repodb.User{}, nil
+	return r.GetByEmailFunc(ctx, email)
 }
 
 func (r *UserRepository) GetByID(ctx context.Context, id int64) (repodb.User, error) {
 	r.GetByIDCalls++
 	r.GetByIDID = id
-	if r.GetByIDFunc != nil {
-		return r.GetByIDFunc(ctx, id)
+	if r.GetByIDFunc == nil {
+		panic("unexpected UserRepository.GetByID call")
 	}
-	return repodb.User{}, nil
+	return r.GetByIDFunc(ctx, id)
 }
 
 func (r *UserRepository) CreateByEmail(ctx context.Context, email string) (repodb.User, error) {
 	r.CreateByEmailCalls++
 	r.CreateByEmailEmail = email
-	if r.CreateByEmailFunc != nil {
-		return r.CreateByEmailFunc(ctx, email)
+	if r.CreateByEmailFunc == nil {
+		panic("unexpected UserRepository.CreateByEmail call")
 	}
-	return repodb.User{}, nil
+	return r.CreateByEmailFunc(ctx, email)
 }
 
 func (r *UserRepository) UpsertOAuthUser(ctx context.Context, info repodb.OAuthUserUpsert) (repodb.User, error) {
 	r.UpsertOAuthUserCalls++
 	r.UpsertOAuthUserInfo = info
-	if r.UpsertOAuthUserFunc != nil {
-		return r.UpsertOAuthUserFunc(ctx, info)
+	if r.UpsertOAuthUserFunc == nil {
+		panic("unexpected UserRepository.UpsertOAuthUser call")
 	}
-	return repodb.User{}, nil
+	return r.UpsertOAuthUserFunc(ctx, info)
 }
 
 var _ repodb.UserRepository = (*UserRepository)(nil)

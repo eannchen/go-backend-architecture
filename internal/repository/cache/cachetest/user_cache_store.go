@@ -24,29 +24,29 @@ type UserCacheStore struct {
 func (s *UserCacheStore) GetByID(ctx context.Context, id int64) (repodb.User, bool, error) {
 	s.GetByIDCalls++
 	s.GetByIDID = id
-	if s.GetByIDFunc != nil {
-		return s.GetByIDFunc(ctx, id)
+	if s.GetByIDFunc == nil {
+		panic("unexpected UserCacheStore.GetByID call")
 	}
-	return repodb.User{}, false, nil
+	return s.GetByIDFunc(ctx, id)
 }
 
 func (s *UserCacheStore) SetByID(ctx context.Context, id int64, user repodb.User) error {
 	s.SetByIDCalls++
 	s.SetByIDID = id
 	s.SetByIDUser = user
-	if s.SetByIDFunc != nil {
-		return s.SetByIDFunc(ctx, id, user)
+	if s.SetByIDFunc == nil {
+		panic("unexpected UserCacheStore.SetByID call")
 	}
-	return nil
+	return s.SetByIDFunc(ctx, id, user)
 }
 
 func (s *UserCacheStore) DeleteByID(ctx context.Context, id int64) error {
 	s.DeleteByIDCalls++
 	s.DeleteByIDID = id
-	if s.DeleteByIDFunc != nil {
-		return s.DeleteByIDFunc(ctx, id)
+	if s.DeleteByIDFunc == nil {
+		panic("unexpected UserCacheStore.DeleteByID call")
 	}
-	return nil
+	return s.DeleteByIDFunc(ctx, id)
 }
 
 var _ repocache.UserCacheStore = (*UserCacheStore)(nil)

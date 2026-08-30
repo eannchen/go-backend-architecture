@@ -63,6 +63,9 @@ func (m *TraceMiddleware) Handler() echo.MiddlewareFunc {
 			span.SetAttributes(observability.FromPairs(keyHTTPResponseStatus, statusCode))
 
 			originalError := m.meta.GetError(c)
+			if originalError == nil {
+				originalError = handlerErr
+			}
 			errorDetails := m.meta.GetErrorDetails(c)
 			transportCode, transportMsg := m.meta.GetTransportError(c)
 			if originalError != nil {

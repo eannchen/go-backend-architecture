@@ -8,18 +8,22 @@ import (
 )
 
 type TokenBucketRepository struct {
-	AllowFunc  func(context.Context, string, int, time.Duration) (repokvstore.TokenBucketDecision, error)
-	AllowCalls int
-	Key        string
+	AllowFunc     func(context.Context, string, int, time.Duration) (repokvstore.TokenBucketDecision, error)
+	AllowCalls    int
+	AllowKey      string
+	AllowCapacity int
+	AllowRefill   time.Duration
 }
 
 func (r *TokenBucketRepository) Allow(ctx context.Context, key string, capacity int, refill time.Duration) (repokvstore.TokenBucketDecision, error) {
 	r.AllowCalls++
-	r.Key = key
-	if r.AllowFunc != nil {
-		return r.AllowFunc(ctx, key, capacity, refill)
+	r.AllowKey = key
+	r.AllowCapacity = capacity
+	r.AllowRefill = refill
+	if r.AllowFunc == nil {
+		panic("unexpected TokenBucketRepository.Allow call")
 	}
-	return repokvstore.TokenBucketDecision{}, nil
+	return r.AllowFunc(ctx, key, capacity, refill)
 }
 
 var _ repokvstore.TokenBucketRepository = (*TokenBucketRepository)(nil)

@@ -119,7 +119,9 @@ func (r *responder) AppErrorWithPayload(c *echo.Context, err error, payload any)
 	r.meta.SetError(c, err)
 	appErr, ok := apperr.As(err)
 	if !ok {
-		return c.JSON(Code(apperr.CodeInternal).toHTTPStatus(), payload)
+		code := Code(apperr.CodeInternal)
+		r.meta.SetTransportError(c, string(code), "internal server error")
+		return c.JSON(code.toHTTPStatus(), payload)
 	}
 	r.meta.SetErrorDetails(c, Details(appErr.Details))
 	r.meta.SetTransportError(c, string(appErr.Code), appErr.Message)

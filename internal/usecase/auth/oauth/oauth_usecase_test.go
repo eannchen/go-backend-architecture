@@ -57,7 +57,12 @@ func TestOAuthAuthenticatorAuthorize(t *testing.T) {
 					return tt.storeErr
 				},
 			}
-			provider := &oauthtest.OAuthProvider{ProviderName: "google"}
+			provider := &oauthtest.OAuthProvider{
+				ProviderName: "google",
+				AuthCodeURLFunc: func(state, _ string) string {
+					return "https://oauth.test/authorize?state=" + state
+				},
+			}
 			uc := NewOAuthAuthenticator(nil, nil, stateRepo, &dbtest.UserRepository{}, provider)
 
 			got, err := uc.Authorize(context.Background(), tt.provider)
@@ -74,11 +79,11 @@ func TestOAuthAuthenticatorAuthorize(t *testing.T) {
 				t.Fatalf("expected auth url calls %d, got %d", tt.wantAuthCalls, provider.AuthCodeCalls)
 			}
 			if tt.wantAuthCalls == 1 {
-				if !strings.Contains(got.RedirectURL, stateRepo.StoredState) {
-					t.Fatalf("expected redirect URL %q to contain stored state %q", got.RedirectURL, stateRepo.StoredState)
+				if !strings.Contains(got.RedirectURL, stateRepo.StoreState) {
+					t.Fatalf("expected redirect URL %q to contain stored state %q", got.RedirectURL, stateRepo.StoreState)
 				}
-				if got.BrowserBinding == "" || stateRepo.StoredData.BrowserBindingHash != hashBrowserBinding(got.BrowserBinding) {
-					t.Fatalf("expected stored browser-binding hash, got %+v", stateRepo.StoredData)
+				if got.BrowserBinding == "" || stateRepo.StoreData.BrowserBindingHash != hashBrowserBinding(got.BrowserBinding) {
+					t.Fatalf("expected stored browser-binding hash, got %+v", stateRepo.StoreData)
 				}
 			}
 		})

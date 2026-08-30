@@ -2,6 +2,7 @@ package response
 
 import (
 	"bytes"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -55,6 +56,47 @@ func TestStartSSERejectsNonFlushingWriter(t *testing.T) {
 	}
 }
 
+func TestStartSSESupportsWrappedFlusher(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/stream", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, &wrappedWriter{ResponseWriter: rec})
+
+	stream, err := NewResponder(nil).StartSSE(c)
+
+	if err != nil || stream == nil {
+		t.Fatalf("StartSSE() = %v, %v; want stream", stream, err)
+	}
+}
+
+func TestSSEStreamEvent_ReturnsMarshalError(t *testing.T) {
+	stream := &SSEStream{w: httptest.NewRecorder(), flusher: httptest.NewRecorder()}
+
+	err := stream.Event("invalid", make(chan int))
+
+	if err == nil {
+		t.Fatal("expected unsupported payload to return a marshal error")
+	}
+}
+
+func TestSSEStreamWrite_ReturnsWriterError(t *testing.T) {
+	wantErr := errors.New("write failed")
+	w := &failingFlushingWriter{header: make(http.Header), err: wantErr}
+	stream := &SSEStream{w: w, flusher: w}
+
+	if err := stream.Comment("keep-alive"); !errors.Is(err, wantErr) {
+		t.Fatalf("Comment() error = %v, want %v", err, wantErr)
+	}
+}
+
+type wrappedWriter struct {
+	http.ResponseWriter
+}
+
+func (w *wrappedWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 type nonFlushingWriter struct {
 	header http.Header
 	body   bytes.Buffer
@@ -69,3 +111,13 @@ func (w *nonFlushingWriter) Write(p []byte) (int, error) {
 }
 
 func (w *nonFlushingWriter) WriteHeader(int) {}
+
+type failingFlushingWriter struct {
+	header http.Header
+	err    error
+}
+
+func (w *failingFlushingWriter) Header() http.Header       { return w.header }
+func (w *failingFlushingWriter) Write([]byte) (int, error) { return 0, w.err }
+func (w *failingFlushingWriter) WriteHeader(int)           {}
+func (w *failingFlushingWriter) Flush()                    {}

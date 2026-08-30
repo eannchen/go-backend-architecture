@@ -1,6 +1,7 @@
 package ratelimitmw
 
 import (
+	"math"
 	"strconv"
 	"time"
 
@@ -53,7 +54,8 @@ func (m *GlobalRateLimitMiddleware) Handler() echo.MiddlewareFunc {
 }
 
 func retryAfterSeconds(d time.Duration) int {
-	n := int(d.Round(time.Second).Seconds())
+	// Retry-After must not tell a client to retry before the limiter allows it.
+	n := int(math.Ceil(d.Seconds()))
 	if n < 1 {
 		return 1
 	}

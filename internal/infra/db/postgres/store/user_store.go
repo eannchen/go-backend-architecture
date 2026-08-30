@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"fmt"
 
 	dbsqlc "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/sqlc/gen"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
@@ -30,7 +29,7 @@ func (s *UserStore) GetByEmail(ctx context.Context, email string) (user repodb.U
 
 	row, err := s.queries.GetUserByEmail(ctx, email)
 	if err != nil {
-		return repodb.User{}, fmt.Errorf("get user by email: %w", err)
+		return repodb.User{}, wrapSelectErr(err, "get user by email")
 	}
 	return repodb.User{ID: row.ID, Email: row.Email}, nil
 }
@@ -43,7 +42,7 @@ func (s *UserStore) GetByID(ctx context.Context, id int64) (user repodb.User, er
 
 	row, err := s.queries.GetUserByID(ctx, id)
 	if err != nil {
-		return repodb.User{}, fmt.Errorf("get user by id: %w", err)
+		return repodb.User{}, wrapSelectErr(err, "get user by id")
 	}
 	return repodb.User{ID: row.ID, Email: row.Email}, nil
 }

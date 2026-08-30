@@ -60,14 +60,14 @@ func TestServerSessionManagerCreate(t *testing.T) {
 				if got.Token == "" {
 					t.Fatal("expected generated token to be non-empty")
 				}
-				if repo.CreatedTTL != ttl {
-					t.Fatalf("expected ttl %v, got %v", ttl, repo.CreatedTTL)
+				if repo.CreateTTL != ttl {
+					t.Fatalf("expected ttl %v, got %v", ttl, repo.CreateTTL)
 				}
-				if repo.Created.Token != got.Token {
-					t.Fatalf("expected repository token %q to match returned token %q", repo.Created.Token, got.Token)
+				if repo.CreateSession.Token != got.Token {
+					t.Fatalf("expected repository token %q to match returned token %q", repo.CreateSession.Token, got.Token)
 				}
-				if repo.Created.UserID != identity.UserID || repo.Created.Email != identity.Email || repo.Created.Method != string(identity.Method) {
-					t.Fatalf("unexpected session data persisted: %+v", repo.Created)
+				if repo.CreateSession.UserID != identity.UserID || repo.CreateSession.Email != identity.Email || repo.CreateSession.Method != string(identity.Method) {
+					t.Fatalf("unexpected session data persisted: %+v", repo.CreateSession)
 				}
 				if got.UserID != identity.UserID || got.Email != identity.Email || got.Method != identity.Method {
 					t.Fatalf("unexpected returned session: %+v", got)
@@ -134,6 +134,7 @@ func TestServerSessionManagerValidate(t *testing.T) {
 				GetByTokenFunc: func(context.Context, string) (repokvstore.SessionData, error) {
 					return tt.getResult, tt.getErr
 				},
+				DeleteFunc: func(context.Context, string) error { return nil },
 			}
 			mgr := NewServerSessionManager(nil, nil, repo, 15*time.Minute)
 
