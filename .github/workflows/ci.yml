@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A newer commit makes an older run for the same branch or pull request obsolete.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Jobs without a `needs` dependency run in parallel. Each job receives a fresh
+# runner, so both must check out the repository and set up Go independently.
+jobs:
+  unit:
+    name: Unit and quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Check formatting, vet, and build
+        run: make check
+
+      - name: Run unit tests with race detector
+        run: make test-race
+
+  integration:
+    name: Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Download dependencies
+        run: go mod download
+
+      # GitHub-hosted Ubuntu runners provide Docker. Testcontainers owns the
+      # PostgreSQL and Redis lifecycle, so CI needs no duplicated service setup.
+      - name: Run integration tests
+        run: make test-integration

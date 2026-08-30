@@ -18,7 +18,7 @@ INTEGRATION_PACKAGES := \
 	./internal/infra/kvstore/redis/store \
 	./internal/delivery/http/integration
 
-.PHONY: install run run-stop test test-cover test-integration test-all openapi-generate sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring openapi sqlc mup mdown mstatus
+.PHONY: install run run-stop fmt-check vet build check test test-cover test-race test-integration test-all ci openapi-generate sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring openapi sqlc mup mdown mstatus
 
 run:
 	$(AIR_CMD)
@@ -38,17 +38,38 @@ install:
 	go install github.com/pressly/goose/v3/cmd/goose@latest
 	go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 
+fmt-check:
+	@unformatted="$$(gofmt -l .)"; \
+	if [ -n "$$unformatted" ]; then \
+		echo "The following Go files need gofmt:"; \
+		echo "$$unformatted"; \
+		exit 1; \
+	fi
+
+vet:
+	go vet ./...
+
+build:
+	go build ./...
+
+check: fmt-check vet build
+
 test:
 	$(GO_TEST) ./...
 
 test-cover:
 	$(GO_TEST) -coverprofile=coverage.out ./...
 
+test-race:
+	$(GO_TEST) -race ./...
+
 test-integration:
 	# Disabling the cache proves container startup, migrations, and cleanup on every run.
 	$(GO_TEST) -count=1 -tags=integration $(INTEGRATION_PACKAGES)
 
 test-all: test test-integration
+
+ci: check test-race test-integration
 
 openapi-generate:
 	go run $(OAPI_CODEGEN_CMD) -config oapi-codegen.yaml docs/openapi.yaml
