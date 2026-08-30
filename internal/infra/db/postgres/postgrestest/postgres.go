@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -76,6 +77,26 @@ func Start(ctx context.Context) (*Instance, error) {
 // Pool returns the package-shared pool; individual tests must not close it.
 func (i *Instance) Pool() *pgxpool.Pool {
 	return i.pool
+}
+
+// WriteLogs copies container output for failure diagnostics before cleanup.
+func (i *Instance) WriteLogs(writer io.Writer) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	logs, err := i.container.Logs(ctx)
+	if err != nil {
+		return fmt.Errorf("read PostgreSQL container logs: %w", err)
+	}
+	_, copyErr := io.Copy(writer, logs)
+	closeErr := logs.Close()
+	if copyErr != nil {
+		copyErr = fmt.Errorf("copy PostgreSQL container logs: %w", copyErr)
+	}
+	if closeErr != nil {
+		closeErr = fmt.Errorf("close PostgreSQL container logs: %w", closeErr)
+	}
+	return errors.Join(copyErr, closeErr)
 }
 
 // Close closes the pool and explicitly removes the package container.

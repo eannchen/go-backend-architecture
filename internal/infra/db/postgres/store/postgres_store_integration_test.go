@@ -36,6 +36,12 @@ func runPostgresStoreIntegrationTests(m *testing.M) int {
 	postgresTestPool = testPostgres.Pool()
 
 	exitCode := m.Run()
+	if exitCode != 0 {
+		fmt.Fprintln(os.Stderr, "--- PostgreSQL store container logs ---")
+		if err := testPostgres.WriteLogs(os.Stderr); err != nil {
+			fmt.Fprintf(os.Stderr, "write PostgreSQL store container logs: %v\n", err)
+		}
+	}
 	if err := testPostgres.Close(); err != nil {
 		fmt.Fprintf(os.Stderr, "close PostgreSQL store integration dependency: %v\n", err)
 		if exitCode == 0 {

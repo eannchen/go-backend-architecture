@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -42,6 +43,12 @@ func RunPackage(m *testing.M, packageName string, setClient func(*goredis.Client
 
 	exitCode := m.Run()
 	exitCode = verifyEmpty(testRedis.Client(), packageName, exitCode)
+	if exitCode != 0 {
+		fmt.Fprintf(os.Stderr, "--- %s Redis container logs ---\n", packageName)
+		if err := testRedis.WriteLogs(os.Stderr); err != nil {
+			fmt.Fprintf(os.Stderr, "write %s Redis container logs: %v\n", packageName, err)
+		}
+	}
 	if err := testRedis.Close(); err != nil {
 		fmt.Fprintf(os.Stderr, "close %s Redis integration dependency: %v\n", packageName, err)
 		if exitCode == 0 {
@@ -90,6 +97,26 @@ func Start(ctx context.Context) (*Instance, error) {
 // Client returns the package-shared client; individual tests must not close it.
 func (r *Instance) Client() *goredis.Client {
 	return r.client
+}
+
+// WriteLogs copies container output for failure diagnostics before cleanup.
+func (r *Instance) WriteLogs(writer io.Writer) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	logs, err := r.container.Logs(ctx)
+	if err != nil {
+		return fmt.Errorf("read Redis container logs: %w", err)
+	}
+	_, copyErr := io.Copy(writer, logs)
+	closeErr := logs.Close()
+	if copyErr != nil {
+		copyErr = fmt.Errorf("copy Redis container logs: %w", copyErr)
+	}
+	if closeErr != nil {
+		closeErr = fmt.Errorf("close Redis container logs: %w", closeErr)
+	}
+	return errors.Join(copyErr, closeErr)
 }
 
 // Close closes the client and explicitly removes the package container.

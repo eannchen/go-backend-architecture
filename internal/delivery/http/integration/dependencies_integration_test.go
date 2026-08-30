@@ -49,6 +49,16 @@ func runIntegrationTests(m *testing.M) int {
 	redisClient = testRedis.Client()
 	exitCode := m.Run()
 	exitCode = verifyTestDataCleanup(exitCode)
+	if exitCode != 0 {
+		fmt.Fprintln(os.Stderr, "--- HTTP-test PostgreSQL container logs ---")
+		if err := testPostgres.WriteLogs(os.Stderr); err != nil {
+			fmt.Fprintf(os.Stderr, "write HTTP-test PostgreSQL container logs: %v\n", err)
+		}
+		fmt.Fprintln(os.Stderr, "--- HTTP-test Redis container logs ---")
+		if err := testRedis.WriteLogs(os.Stderr); err != nil {
+			fmt.Fprintf(os.Stderr, "write HTTP-test Redis container logs: %v\n", err)
+		}
+	}
 
 	if err := testRedis.Close(); err != nil {
 		fmt.Fprintf(os.Stderr, "close HTTP-test Redis dependency: %v\n", err)
