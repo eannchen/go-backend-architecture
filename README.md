@@ -1,6 +1,7 @@
 # Go Backend Architecture
 
 ![Go Version](https://img.shields.io/github/go-mod/go-version/eannchen/go-backend-architecture)
+[![CI](https://github.com/eannchen/go-backend-architecture/actions/workflows/ci.yml/badge.svg)](https://github.com/eannchen/go-backend-architecture/actions/workflows/ci.yml)
 
 Go modular-monolith backend template with Clean Architecture — clear layer boundaries, production-ready API foundations, and agent rules that keep AI-assisted changes consistent.
 
@@ -12,7 +13,7 @@ Go modular-monolith backend template with Clean Architecture — clear layer bou
 - **Rate limiting** — app-level Redis token-bucket per-IP limiting at the origin, useful without a CDN and as defense in depth behind one.
 - **Data stores** — SQL-first PostgreSQL, Redis cache-aside store composition, and a ready-to-wire object-storage adapter — with vendor types kept inside infra.
 - **Observability** — OpenTelemetry tracing and metrics, plus structured logging — kept behind app-owned interfaces.
-- **Testing** — reusable repository fakes for unit tests, plus HTTP integration suites with optional real Postgres/Redis.
+- **Testing** — layered unit, adapter integration, and HTTP feature tests, with disposable PostgreSQL and Redis containers managed by Testcontainers.
 - **Local development** — local hot reload and Docker Compose for Postgres, Redis, and observability services.
 - **Agent rules** — AI coding guidance that encodes the template's layer boundaries and patterns.
 
@@ -46,6 +47,22 @@ These keep framework and infrastructure details at the edges so business logic s
 - [Middleware pattern](https://www.alexedwards.net/blog/making-and-using-middleware)
 
 See package-level `README.md` files and [`AGENTS.md`](AGENTS.md) for implementation guidance and shared architecture rules for both engineers and AI agents.
+
+## Testing and CI
+
+Tests protect behavior at the layer that owns it: keep the subject real, replace dependencies outside the scope, and avoid repeating lower-layer assertions in higher-level tests.
+
+| Scope | Protects | Dependencies |
+| --- | --- | --- |
+| Unit | Business rules, transport mapping, edge cases, and orchestration | Collaborators replaced with configurable test doubles |
+| Adapter integration | PostgreSQL queries and Redis persistence, serialization, TTL, and atomicity | Real backend managed by Testcontainers |
+| HTTP feature integration | Client-visible workflows across delivery, usecases, repositories, and infra | Real PostgreSQL/Redis; external providers replaced |
+
+### Why Testcontainers
+
+Versioned, disposable PostgreSQL and Redis instances keep integration tests reproducible across local development and CI without developer-managed services. Each package shares its containers for speed, isolates data per test, emits logs on failure, and terminates resources explicitly.
+
+GitHub Actions runs quality/unit checks and container-backed integration tests in parallel, with dependency caching, job timeouts, failure diagnostics, and cancellation of superseded runs. Both jobs can be required by branch protection.
 
 ## Third-Party Tools
 
@@ -89,11 +106,16 @@ Why SQL-first data access (no ORM)
 - [`OpenTelemetry`](https://opentelemetry.io/) SDK + [`OTLP`](https://opentelemetry.io/docs/specs/otlp/) exporters - tracing, logs, and metrics
 - [`HyperDX`](https://www.hyperdx.io/) + [`OpenTelemetry Collector`](https://opentelemetry.io/docs/collector/) - local observability integration
 
+
+**Testing & CI**
+
+- [`Testcontainers for Go`](https://golang.testcontainers.org/) - disposable PostgreSQL and Redis dependencies for integration tests
+- [`GitHub Actions`](https://docs.github.com/actions) - automated quality, unit, and integration checks
+
 **Development & infra**
 
 - [`air`](https://github.com/air-verse/air) - local hot reload
 - [`Docker Compose`](https://docs.docker.com/compose/) - local infrastructure orchestration
-
 
 ## Requirements
 
@@ -131,17 +153,21 @@ Default local ports: Postgres `5432`, Redis `6379`, OTel `4317/4318`, HyperDX `8
 
 ## Verify
 
-Run the unit and standard HTTP integration suites:
+Run the checks most relevant to your change:
 
 ```bash
+make check
 make test
+make test-race
 make test-integration
 ```
 
-With Postgres and Redis running, run the real-adapter integration suite. It loads a repository-root `.env` when present; explicitly exported environment variables take precedence.
+Docker must be running for `make test-integration`; the test suites create and remove their own PostgreSQL and Redis containers. No database or Redis environment variables are required.
+
+Run the same complete sequence used by CI:
 
 ```bash
-make test-integration-real
+make ci
 ```
 
 To observe the bounded SSE demo while the API is running:
