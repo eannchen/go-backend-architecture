@@ -22,6 +22,10 @@ type serverComponents struct {
 }
 
 func (d wiring) buildServer(healthUsecase usecasehealth.Usecase) (serverComponents, error) {
+	transportCredentials, err := d.buildTransportCredentials()
+	if err != nil {
+		return serverComponents{}, err
+	}
 	responder := grpcresponse.NewResponder()
 	diagnostics := diagnosticsservice.NewService(healthUsecase, responder)
 	standardHealth := grpcstandardhealth.NewServer()
@@ -43,10 +47,11 @@ func (d wiring) buildServer(healthUsecase usecasehealth.Usecase) (serverComponen
 
 	server, err := grpcdelivery.NewServer(
 		grpcdelivery.ServerConfig{
-			Address:             d.cfg.GRPC.Address,
-			ReflectionEnabled:   d.cfg.GRPC.ReflectionEnabled,
-			MaxRecvMessageBytes: d.cfg.GRPC.MaxRecvMessageBytes,
-			MaxSendMessageBytes: d.cfg.GRPC.MaxSendMessageBytes,
+			Address:              d.cfg.GRPC.Address,
+			ReflectionEnabled:    d.cfg.GRPC.ReflectionEnabled,
+			MaxRecvMessageBytes:  d.cfg.GRPC.MaxRecvMessageBytes,
+			MaxSendMessageBytes:  d.cfg.GRPC.MaxSendMessageBytes,
+			TransportCredentials: transportCredentials,
 		},
 		d.log,
 		[]googlegrpc.UnaryServerInterceptor{

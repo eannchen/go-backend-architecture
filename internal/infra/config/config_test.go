@@ -28,6 +28,11 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("GRPC_REQUEST_TIMEOUT", "10s")
 	t.Setenv("GRPC_MAX_RECV_MESSAGE_BYTES", "4194304")
 	t.Setenv("GRPC_MAX_SEND_MESSAGE_BYTES", "4194304")
+	t.Setenv("GRPC_TLS_ENABLED", "false")
+	t.Setenv("GRPC_TLS_CERT_FILE", "")
+	t.Setenv("GRPC_TLS_KEY_FILE", "")
+	t.Setenv("GRPC_TLS_CLIENT_CA_FILE", "")
+	t.Setenv("GRPC_TLS_REQUIRE_CLIENT_CERT", "false")
 	t.Setenv("DB_URL", "postgres://postgres:postgres@localhost:5432/app?sslmode=disable")
 	t.Setenv("DB_MAX_CONNS", "10")
 	t.Setenv("DB_MIN_CONNS", "2")
@@ -89,6 +94,80 @@ func TestLoad_GRPCRequestLimits(t *testing.T) {
 	}
 	if cfg.GRPC.MaxRecvMessageBytes != 2<<20 || cfg.GRPC.MaxSendMessageBytes != 1<<20 {
 		t.Fatalf("gRPC message limits = (%d, %d)", cfg.GRPC.MaxRecvMessageBytes, cfg.GRPC.MaxSendMessageBytes)
+	}
+}
+
+func TestLoad_GRPCTLS(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("GRPC_TLS_ENABLED", "true")
+	t.Setenv("GRPC_TLS_CERT_FILE", "  /certs/server.pem  ")
+	t.Setenv("GRPC_TLS_KEY_FILE", "  /certs/server-key.pem  ")
+	t.Setenv("GRPC_TLS_CLIENT_CA_FILE", "  /certs/client-ca.pem  ")
+	t.Setenv("GRPC_TLS_REQUIRE_CLIENT_CERT", "true")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !cfg.GRPC.TLS.Enabled || !cfg.GRPC.TLS.RequireClientCertificate {
+		t.Fatalf("gRPC TLS flags = %+v", cfg.GRPC.TLS)
+	}
+	if cfg.GRPC.TLS.CertificateFile != "/certs/server.pem" || cfg.GRPC.TLS.PrivateKeyFile != "/certs/server-key.pem" || cfg.GRPC.TLS.ClientCAFile != "/certs/client-ca.pem" {
+		t.Fatalf("gRPC TLS paths = %+v", cfg.GRPC.TLS)
+	}
+}
+
+func TestLoad_RejectsInvalidGRPCTLS(t *testing.T) {
+	tests := []struct {
+		name    string
+		setEnv  func(*testing.T)
+		wantErr string
+	}{
+		{
+			name: "client certificate without TLS",
+			setEnv: func(t *testing.T) {
+				t.Setenv("GRPC_TLS_REQUIRE_CLIENT_CERT", "true")
+			},
+			wantErr: "GRPC_TLS_REQUIRE_CLIENT_CERT requires GRPC_TLS_ENABLED",
+		},
+		{
+			name: "missing server certificate",
+			setEnv: func(t *testing.T) {
+				t.Setenv("GRPC_TLS_ENABLED", "true")
+				t.Setenv("GRPC_TLS_KEY_FILE", "/certs/server-key.pem")
+			},
+			wantErr: "GRPC_TLS_CERT_FILE and GRPC_TLS_KEY_FILE are required",
+		},
+		{
+			name: "missing server key",
+			setEnv: func(t *testing.T) {
+				t.Setenv("GRPC_TLS_ENABLED", "true")
+				t.Setenv("GRPC_TLS_CERT_FILE", "/certs/server.pem")
+			},
+			wantErr: "GRPC_TLS_CERT_FILE and GRPC_TLS_KEY_FILE are required",
+		},
+		{
+			name: "missing client CA",
+			setEnv: func(t *testing.T) {
+				t.Setenv("GRPC_TLS_ENABLED", "true")
+				t.Setenv("GRPC_TLS_CERT_FILE", "/certs/server.pem")
+				t.Setenv("GRPC_TLS_KEY_FILE", "/certs/server-key.pem")
+				t.Setenv("GRPC_TLS_REQUIRE_CLIENT_CERT", "true")
+			},
+			wantErr: "GRPC_TLS_CLIENT_CA_FILE is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setValidEnv(t)
+			tt.setEnv(t)
+
+			_, err := Load()
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Load() error = %v, want %q", err, tt.wantErr)
+			}
+		})
 	}
 }
 

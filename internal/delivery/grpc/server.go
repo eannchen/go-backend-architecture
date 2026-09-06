@@ -8,6 +8,7 @@ import (
 	"time"
 
 	googlegrpc "google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 
 	"github.com/eannchen/go-backend-architecture/internal/logger"
@@ -28,10 +29,11 @@ func (f ServiceRegistrarFunc) RegisterGRPC(registrar googlegrpc.ServiceRegistrar
 }
 
 type ServerConfig struct {
-	Address             string
-	ReflectionEnabled   bool
-	MaxRecvMessageBytes int
-	MaxSendMessageBytes int
+	Address              string
+	ReflectionEnabled    bool
+	MaxRecvMessageBytes  int
+	MaxSendMessageBytes  int
+	TransportCredentials credentials.TransportCredentials
 }
 
 type Server struct {
@@ -72,7 +74,10 @@ func newServer(
 		log = logger.NoopLogger{}
 	}
 
-	options := make([]googlegrpc.ServerOption, 0, 4)
+	options := make([]googlegrpc.ServerOption, 0, 5)
+	if cfg.TransportCredentials != nil {
+		options = append(options, googlegrpc.Creds(cfg.TransportCredentials))
+	}
 	if cfg.MaxRecvMessageBytes > 0 {
 		options = append(options, googlegrpc.MaxRecvMsgSize(cfg.MaxRecvMessageBytes))
 	}

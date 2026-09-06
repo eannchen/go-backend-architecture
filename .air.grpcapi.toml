@@ -4,7 +4,7 @@ tmp_dir = "tmp/grpcapi"
 [build]
 cmd = "go build -o ./tmp/grpcapi/grpcapi ./cmd/grpcapi"
 entrypoint = ["./tmp/grpcapi/grpcapi"]
-include_ext = ["go", "sql", "proto", "yaml", "yml", "env"]
+include_ext = ["go", "sql", "proto", "yaml", "yml", "env", "pem", "crt", "key"]
 exclude_dir = ["tmp", ".git", "vendor", "volumes"]
 delay = 1000
 send_interrupt = true
