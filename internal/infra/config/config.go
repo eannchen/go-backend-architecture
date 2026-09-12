@@ -15,6 +15,7 @@ type Config struct {
 	ServiceName string
 	HTTP        HTTPConfig
 	GRPC        GRPCConfig
+	GRPCClient  GRPCClientConfig
 	DB          DBConfig
 	Redis       RedisConfig
 	Auth        AuthConfig
@@ -76,6 +77,7 @@ type HTTPConfig struct {
 	RequestTimeout      time.Duration
 	CORSAllowOrigins    []string
 	TrustedProxyCIDRs   []string
+	RequestID           RequestIDConfig
 	HealthStream        HealthStreamConfig
 }
 
@@ -86,16 +88,61 @@ type GRPCConfig struct {
 	RequestTimeout        time.Duration
 	MaxRecvMessageBytes   int
 	MaxSendMessageBytes   int
-	TLS                   GRPCTLSConfig
+	RequestID             RequestIDConfig
+	TLS                   GRPCServerTLSConfig
 }
 
-// GRPCTLSConfig controls server identity and optional client-certificate verification.
-type GRPCTLSConfig struct {
-	Enabled                  bool
-	CertificateFile          string
-	PrivateKeyFile           string
-	ClientCAFile             string
-	RequireClientCertificate bool
+// RequestIDConfig controls optional request-ID interoperability for an inbound transport.
+type RequestIDConfig struct {
+	IncomingKey   string
+	ResponseKey   string
+	RejectInvalid bool
+}
+
+// GRPCServerTLSConfig controls server identity and optional client-certificate verification.
+type GRPCServerTLSConfig struct {
+	Enabled bool
+	// ServerCertFile is the certificate chain the gRPC server presents to clients.
+	ServerCertFile string
+	// ServerKeyFile is the secret private key matching ServerCertFile.
+	ServerKeyFile string
+	// ClientCAFile identifies which client certificates the server trusts for mTLS.
+	ClientCAFile string
+	// RequireClientCert rejects clients that do not present a trusted certificate.
+	RequireClientCert bool
+}
+
+// GRPCClientConfig controls the standalone trusted-internal-service demonstration.
+type GRPCClientConfig struct {
+	// ServiceName identifies this client process in logs, metrics, and traces.
+	ServiceName string
+	Target      string
+	// DependencyName is the stable local name used to group telemetry for the
+	// remote server independently of its deploy-time network address.
+	DependencyName       string
+	RequestTimeout       time.Duration
+	MaxRecvMessageBytes  int
+	MaxSendMessageBytes  int
+	RequestIDMetadataKey string
+	// TracePropagation is enabled only when the remote server participates in
+	// the same distributed-tracing trust boundary.
+	TracePropagation bool
+	TLS              GRPCClientTLSConfig
+}
+
+// GRPCClientTLSConfig controls server verification and optional client identity.
+type GRPCClientTLSConfig struct {
+	Enabled bool
+	// ServerName is the identity expected in the server certificate, which can
+	// differ from the address used to reach the server.
+	ServerName string
+	// ServerCAFile adds CA certificates trusted when verifying the server. When
+	// empty, the operating system's trusted roots are used.
+	ServerCAFile string
+	// ClientCertFile is the optional certificate chain presented during mTLS.
+	ClientCertFile string
+	// ClientKeyFile is the secret private key matching ClientCertFile.
+	ClientKeyFile string
 }
 
 // HealthStreamConfig bounds the health SSE demonstration endpoint.
@@ -132,7 +179,8 @@ type LogConfig struct {
 }
 
 type OTelConfig struct {
-	Enabled            bool
+	// ExportEnabled controls collector traffic; local instrumentation and trace propagation remain active.
+	ExportEnabled      bool
 	ExporterEndpoint   string
 	TracesEndpoint     string
 	LogsEndpoint       string
@@ -160,6 +208,11 @@ func Load() (Config, error) {
 			RequestTimeout:      getDuration("HTTP_REQUEST_TIMEOUT", 10*time.Second),
 			CORSAllowOrigins:    getCSV("HTTP_CORS_ALLOW_ORIGINS", []string{"http://localhost:3000"}),
 			TrustedProxyCIDRs:   getCSV("HTTP_TRUSTED_PROXY_CIDRS", nil),
+			RequestID: RequestIDConfig{
+				IncomingKey:   getEnv("HTTP_REQUEST_ID_INCOMING_HEADER", "X-Request-ID"),
+				ResponseKey:   getEnv("HTTP_REQUEST_ID_RESPONSE_HEADER", "X-Request-ID"),
+				RejectInvalid: getBool("HTTP_REQUEST_ID_REJECT_INVALID", false),
+			},
 			HealthStream: HealthStreamConfig{
 				CheckInterval:     getDuration("HEALTH_STREAM_CHECK_INTERVAL", 15*time.Second),
 				HeartbeatInterval: getDuration("HEALTH_STREAM_HEARTBEAT_INTERVAL", 5*time.Second),
@@ -173,12 +226,34 @@ func Load() (Config, error) {
 			RequestTimeout:        getDuration("GRPC_REQUEST_TIMEOUT", 10*time.Second),
 			MaxRecvMessageBytes:   getInt("GRPC_MAX_RECV_MESSAGE_BYTES", 4<<20),
 			MaxSendMessageBytes:   getInt("GRPC_MAX_SEND_MESSAGE_BYTES", 4<<20),
-			TLS: GRPCTLSConfig{
-				Enabled:                  getBool("GRPC_TLS_ENABLED", false),
-				CertificateFile:          getEnv("GRPC_TLS_CERT_FILE", ""),
-				PrivateKeyFile:           getEnv("GRPC_TLS_KEY_FILE", ""),
-				ClientCAFile:             getEnv("GRPC_TLS_CLIENT_CA_FILE", ""),
-				RequireClientCertificate: getBool("GRPC_TLS_REQUIRE_CLIENT_CERT", false),
+			RequestID: RequestIDConfig{
+				IncomingKey:   getEnv("GRPC_REQUEST_ID_INCOMING_METADATA_KEY", "x-request-id"),
+				ResponseKey:   getEnv("GRPC_REQUEST_ID_RESPONSE_METADATA_KEY", "x-request-id"),
+				RejectInvalid: getBool("GRPC_REQUEST_ID_REJECT_INVALID", false),
+			},
+			TLS: GRPCServerTLSConfig{
+				Enabled:           getBool("GRPC_SERVER_TLS_ENABLED", false),
+				ServerCertFile:    getEnv("GRPC_SERVER_TLS_CERT_FILE", ""),
+				ServerKeyFile:     getEnv("GRPC_SERVER_TLS_KEY_FILE", ""),
+				ClientCAFile:      getEnv("GRPC_SERVER_TLS_CLIENT_CA_FILE", ""),
+				RequireClientCert: getBool("GRPC_SERVER_TLS_REQUIRE_CLIENT_CERT", false),
+			},
+		},
+		GRPCClient: GRPCClientConfig{
+			ServiceName:          getEnv("GRPC_CLIENT_SERVICE_NAME", "grpcclient-demo"),
+			Target:               getEnv("GRPC_CLIENT_TARGET", "localhost:9090"),
+			DependencyName:       getEnv("GRPC_CLIENT_DEPENDENCY_NAME", "grpcapi-demo"),
+			RequestTimeout:       getDuration("GRPC_CLIENT_REQUEST_TIMEOUT", 3*time.Second),
+			MaxRecvMessageBytes:  getInt("GRPC_CLIENT_MAX_RECV_MESSAGE_BYTES", 4<<20),
+			MaxSendMessageBytes:  getInt("GRPC_CLIENT_MAX_SEND_MESSAGE_BYTES", 4<<20),
+			RequestIDMetadataKey: getEnv("GRPC_CLIENT_REQUEST_ID_METADATA_KEY", "x-request-id"),
+			TracePropagation:     getBool("GRPC_CLIENT_TRACE_PROPAGATION_ENABLED", true),
+			TLS: GRPCClientTLSConfig{
+				Enabled:        getBool("GRPC_CLIENT_TLS_ENABLED", false),
+				ServerName:     getEnv("GRPC_CLIENT_TLS_SERVER_NAME", ""),
+				ServerCAFile:   getEnv("GRPC_CLIENT_TLS_SERVER_CA_FILE", ""),
+				ClientCertFile: getEnv("GRPC_CLIENT_TLS_CERT_FILE", ""),
+				ClientKeyFile:  getEnv("GRPC_CLIENT_TLS_KEY_FILE", ""),
 			},
 		},
 		DB: DBConfig{
@@ -200,7 +275,7 @@ func Load() (Config, error) {
 			CacheTTL:     getDuration("REDIS_CACHE_TTL", 2*time.Minute),
 		},
 		OTel: OTelConfig{
-			Enabled:            getBool("OTEL_ENABLED", true),
+			ExportEnabled:      getBool("OTEL_EXPORT_ENABLED", true),
 			ExporterEndpoint:   getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"),
 			Insecure:           getBool("OTEL_INSECURE", true),
 			TraceSamplingRatio: getFloat("OTEL_TRACES_SAMPLER_RATIO", 1.0),
@@ -244,10 +319,22 @@ func Load() (Config, error) {
 	cfg.AppEnv = strings.TrimSpace(cfg.AppEnv)
 	cfg.ServiceName = strings.TrimSpace(cfg.ServiceName)
 	cfg.HTTP.Address = strings.TrimSpace(cfg.HTTP.Address)
+	cfg.HTTP.RequestID.IncomingKey = strings.TrimSpace(cfg.HTTP.RequestID.IncomingKey)
+	cfg.HTTP.RequestID.ResponseKey = strings.TrimSpace(cfg.HTTP.RequestID.ResponseKey)
 	cfg.GRPC.Address = strings.TrimSpace(cfg.GRPC.Address)
-	cfg.GRPC.TLS.CertificateFile = strings.TrimSpace(cfg.GRPC.TLS.CertificateFile)
-	cfg.GRPC.TLS.PrivateKeyFile = strings.TrimSpace(cfg.GRPC.TLS.PrivateKeyFile)
+	cfg.GRPC.RequestID.IncomingKey = strings.TrimSpace(cfg.GRPC.RequestID.IncomingKey)
+	cfg.GRPC.RequestID.ResponseKey = strings.TrimSpace(cfg.GRPC.RequestID.ResponseKey)
+	cfg.GRPC.TLS.ServerCertFile = strings.TrimSpace(cfg.GRPC.TLS.ServerCertFile)
+	cfg.GRPC.TLS.ServerKeyFile = strings.TrimSpace(cfg.GRPC.TLS.ServerKeyFile)
 	cfg.GRPC.TLS.ClientCAFile = strings.TrimSpace(cfg.GRPC.TLS.ClientCAFile)
+	cfg.GRPCClient.Target = strings.TrimSpace(cfg.GRPCClient.Target)
+	cfg.GRPCClient.ServiceName = strings.TrimSpace(cfg.GRPCClient.ServiceName)
+	cfg.GRPCClient.DependencyName = strings.TrimSpace(cfg.GRPCClient.DependencyName)
+	cfg.GRPCClient.RequestIDMetadataKey = strings.TrimSpace(cfg.GRPCClient.RequestIDMetadataKey)
+	cfg.GRPCClient.TLS.ServerName = strings.TrimSpace(cfg.GRPCClient.TLS.ServerName)
+	cfg.GRPCClient.TLS.ServerCAFile = strings.TrimSpace(cfg.GRPCClient.TLS.ServerCAFile)
+	cfg.GRPCClient.TLS.ClientCertFile = strings.TrimSpace(cfg.GRPCClient.TLS.ClientCertFile)
+	cfg.GRPCClient.TLS.ClientKeyFile = strings.TrimSpace(cfg.GRPCClient.TLS.ClientKeyFile)
 	cfg.DB.URL = strings.TrimSpace(cfg.DB.URL)
 	cfg.Redis.Addr = strings.TrimSpace(cfg.Redis.Addr)
 	cfg.OTel.ExporterEndpoint = strings.TrimSpace(cfg.OTel.ExporterEndpoint)
@@ -309,6 +396,21 @@ func Load() (Config, error) {
 	if err := validateGRPCTLS(cfg.GRPC.TLS); err != nil {
 		return Config{}, err
 	}
+	if cfg.GRPCClient.Target == "" {
+		return Config{}, fmt.Errorf("GRPC_CLIENT_TARGET must not be empty")
+	}
+	if cfg.GRPCClient.ServiceName == "" {
+		return Config{}, fmt.Errorf("GRPC_CLIENT_SERVICE_NAME must not be empty")
+	}
+	if cfg.GRPCClient.RequestTimeout <= 0 {
+		return Config{}, fmt.Errorf("GRPC_CLIENT_REQUEST_TIMEOUT must be > 0")
+	}
+	if cfg.GRPCClient.MaxRecvMessageBytes <= 0 || cfg.GRPCClient.MaxSendMessageBytes <= 0 {
+		return Config{}, fmt.Errorf("GRPC_CLIENT_MAX_RECV_MESSAGE_BYTES and GRPC_CLIENT_MAX_SEND_MESSAGE_BYTES must be > 0")
+	}
+	if err := validateGRPCClientTLS(cfg.GRPCClient.TLS); err != nil {
+		return Config{}, err
+	}
 	if cfg.Shutdown.GracePeriod <= 0 {
 		return Config{}, fmt.Errorf("SHUTDOWN_GRACE_PERIOD must be > 0")
 	}
@@ -341,18 +443,28 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
-func validateGRPCTLS(cfg GRPCTLSConfig) error {
+func validateGRPCTLS(cfg GRPCServerTLSConfig) error {
 	if !cfg.Enabled {
-		if cfg.RequireClientCertificate {
-			return fmt.Errorf("GRPC_TLS_REQUIRE_CLIENT_CERT requires GRPC_TLS_ENABLED")
+		if cfg.RequireClientCert {
+			return fmt.Errorf("GRPC_SERVER_TLS_REQUIRE_CLIENT_CERT requires GRPC_SERVER_TLS_ENABLED")
 		}
 		return nil
 	}
-	if cfg.CertificateFile == "" || cfg.PrivateKeyFile == "" {
-		return fmt.Errorf("GRPC_TLS_CERT_FILE and GRPC_TLS_KEY_FILE are required when GRPC_TLS_ENABLED is true")
+	if cfg.ServerCertFile == "" || cfg.ServerKeyFile == "" {
+		return fmt.Errorf("GRPC_SERVER_TLS_CERT_FILE and GRPC_SERVER_TLS_KEY_FILE are required when GRPC_SERVER_TLS_ENABLED is true")
 	}
-	if cfg.RequireClientCertificate && cfg.ClientCAFile == "" {
-		return fmt.Errorf("GRPC_TLS_CLIENT_CA_FILE is required when GRPC_TLS_REQUIRE_CLIENT_CERT is true")
+	if cfg.RequireClientCert && cfg.ClientCAFile == "" {
+		return fmt.Errorf("GRPC_SERVER_TLS_CLIENT_CA_FILE is required when GRPC_SERVER_TLS_REQUIRE_CLIENT_CERT is true")
+	}
+	return nil
+}
+
+func validateGRPCClientTLS(cfg GRPCClientTLSConfig) error {
+	if !cfg.Enabled {
+		return nil
+	}
+	if (cfg.ClientCertFile == "") != (cfg.ClientKeyFile == "") {
+		return fmt.Errorf("GRPC_CLIENT_TLS_CERT_FILE and GRPC_CLIENT_TLS_KEY_FILE must be configured together")
 	}
 	return nil
 }

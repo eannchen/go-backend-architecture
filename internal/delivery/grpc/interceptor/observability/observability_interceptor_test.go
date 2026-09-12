@@ -17,16 +17,12 @@ import (
 )
 
 func TestUnaryRecordsTraceLogAndMetrics(t *testing.T) {
-	tracer := &recordingTracer{span: &recordingSpan{traceID: "trace-01", spanID: "span-01"}}
+	tracer := &recordingTracer{span: &recordingSpan{}}
 	meter := newRecordingMeter()
 	log := &loggertest.Logger{InfoFunc: func(context.Context, string, ...logger.Fields) {}}
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01"))
 
 	_, err := New(tracer, log, meter).Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{FullMethod: "/diagnostics.v1.DiagnosticsService/GetHealth"}, func(ctx context.Context, _ any) (any, error) {
-		traceID, spanID := appobservability.TraceFromContext(ctx)
-		if traceID != "trace-01" || spanID != "span-01" {
-			t.Fatalf("trace context = (%q, %q)", traceID, spanID)
-		}
 		return nil, nil
 	})
 	if err != nil {
@@ -158,7 +154,7 @@ func TestUnaryRecordsApplicationErrorDetailsWithoutAddingThemToMetrics(t *testin
 }
 
 func TestStreamWrapsContextAndTracksActiveStream(t *testing.T) {
-	tracer := &recordingTracer{span: &recordingSpan{traceID: "trace-02", spanID: "span-02"}}
+	tracer := &recordingTracer{span: &recordingSpan{}}
 	meter := newRecordingMeter()
 	base := observabilityServerStream{ctx: context.Background()}
 
@@ -166,10 +162,6 @@ func TestStreamWrapsContextAndTracksActiveStream(t *testing.T) {
 		FullMethod:     "/grpc.health.v1.Health/Watch",
 		IsServerStream: true,
 	}, func(_ any, stream googlegrpc.ServerStream) error {
-		traceID, spanID := appobservability.TraceFromContext(stream.Context())
-		if traceID != "trace-02" || spanID != "span-02" {
-			t.Fatalf("trace context = (%q, %q)", traceID, spanID)
-		}
 		return nil
 	})
 	if err != nil {
@@ -193,14 +185,19 @@ func (t *recordingTracer) StartServer(ctx context.Context, _, name string, _ ...
 	t.startName = name
 	return ctx, t.span
 }
+func (t *recordingTracer) StartClient(ctx context.Context, _, _ string, _ ...appobservability.Fields) (context.Context, appobservability.Span) {
+	return ctx, t.span
+}
 func (t *recordingTracer) Extract(ctx context.Context, carrier appobservability.TextMapCarrier) context.Context {
 	t.extractCalled = carrier.Get("traceparent") != ""
 	return ctx
 }
+func (*recordingTracer) Inject(context.Context, appobservability.TextMapCarrier) {}
+func (*recordingTracer) TraceContext(context.Context) (appobservability.TraceContext, bool) {
+	return appobservability.TraceContext{}, false
+}
 
 type recordingSpan struct {
-	traceID    string
-	spanID     string
 	attributes appobservability.Fields
 	finishErr  error
 }
@@ -209,9 +206,6 @@ func (s *recordingSpan) SetAttributes(fields ...appobservability.Fields) {
 	s.attributes = appobservability.MergeFields(s.attributes, appobservability.OptionalFields(fields...))
 }
 func (s *recordingSpan) Finish(err error, _ ...string) { s.finishErr = err }
-func (s *recordingSpan) IDs() (string, string, bool) {
-	return s.traceID, s.spanID, s.traceID != "" && s.spanID != ""
-}
 
 type metricSample struct {
 	value  int64

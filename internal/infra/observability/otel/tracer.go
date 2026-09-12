@@ -37,13 +37,26 @@ func (t *tracer) Start(ctx context.Context, scope, spanName string, optionalFiel
 }
 
 func (t *tracer) StartServer(ctx context.Context, scope, spanName string, optionalFields ...observability.Fields) (context.Context, observability.Span) {
+	return t.startWithKind(ctx, scope, spanName, trace.SpanKindServer, optionalFields...)
+}
+
+func (t *tracer) StartClient(ctx context.Context, scope, spanName string, optionalFields ...observability.Fields) (context.Context, observability.Span) {
+	return t.startWithKind(ctx, scope, spanName, trace.SpanKindClient, optionalFields...)
+}
+
+func (t *tracer) startWithKind(ctx context.Context, scope, spanName string, kind trace.SpanKind, optionalFields ...observability.Fields) (context.Context, observability.Span) {
 	fields := observability.OptionalFields(optionalFields...)
 	opts := []trace.SpanStartOption{
-		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithSpanKind(kind),
 	}
 	if len(fields) > 0 {
 		opts = append(opts, trace.WithAttributes(toTraceAttributes(fields)...))
 	}
+	// Start always creates a new span. When ctx contains a SpanContext extracted
+	// from an upstream trace, the new span keeps its trace ID and uses the
+	// upstream span ID as its parent. Otherwise, OTel starts a new root trace.
+	// The returned context stores the active span in OTel's structured form; it
+	// does not yet contain literal traceparent or tracestate transport fields.
 	ctx, s := otel.Tracer(t.tracerName(scope)).Start(ctx, spanName, opts...)
 	return ctx, &span{span: s}
 }
@@ -52,7 +65,37 @@ func (t *tracer) Extract(ctx context.Context, carrier observability.TextMapCarri
 	if carrier == nil {
 		return ctx
 	}
+	// A server transport adapter exposes incoming headers or gRPC metadata
+	// through carrier. TraceContext decodes traceparent and tracestate into a
+	// remote SpanContext stored in the returned context. Extract does not start
+	// a span; the following StartServer call uses that remote span as its parent.
+	// Missing or invalid trace metadata leaves no usable remote parent, so
+	// StartServer naturally begins a new trace instead of rejecting the request.
 	return propagation.TraceContext{}.Extract(ctx, textMapCarrier{carrier})
+}
+
+func (t *tracer) Inject(ctx context.Context, carrier observability.TextMapCarrier) {
+	if carrier == nil {
+		return
+	}
+	// A client span is already stored in ctx. This is where its structured
+	// SpanContext becomes literal wire fields: TraceContext encodes traceparent,
+	// plus tracestate when present, into the carrier. The transport adapter then
+	// sends those fields as HTTP headers or gRPC metadata.
+	propagation.TraceContext{}.Inject(ctx, textMapCarrier{carrier})
+}
+
+func (*tracer) TraceContext(ctx context.Context) (observability.TraceContext, bool) {
+	// Read the native span context at log time so stdout uses the same IDs as
+	// propagation and OTLP export, without mirroring them into custom context keys.
+	sc := trace.SpanContextFromContext(ctx)
+	if !sc.IsValid() {
+		return observability.TraceContext{}, false
+	}
+	return observability.TraceContext{
+		TraceID: sc.TraceID().String(),
+		SpanID:  sc.SpanID().String(),
+	}, true
 }
 
 type textMapCarrier struct{ observability.TextMapCarrier }
@@ -100,17 +143,6 @@ func (s *span) Finish(err error, description ...string) {
 func isClientError(err error) bool {
 	var reporter clientErrorReporter
 	return errors.As(err, &reporter) && reporter.IsClientError()
-}
-
-func (s *span) IDs() (traceID, spanID string, ok bool) {
-	if s == nil || s.span == nil {
-		return "", "", false
-	}
-	sc := s.span.SpanContext()
-	if !sc.IsValid() {
-		return "", "", false
-	}
-	return sc.TraceID().String(), sc.SpanID().String(), true
 }
 
 func toTraceAttributes(fields observability.Fields) []attribute.KeyValue {

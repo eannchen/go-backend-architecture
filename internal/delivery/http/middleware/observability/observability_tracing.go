@@ -24,7 +24,7 @@ func NewTracing(tracer observability.Tracer) *Tracing {
 // Start extracts parent trace context and starts an HTTP server span.
 func (t *Tracing) Start(ctx context.Context, request requestInfo) (context.Context, observability.Span) {
 	ctx = t.tracer.Extract(ctx, headerCarrier{Header: request.header})
-	ctx, span := t.tracer.StartServer(
+	return t.tracer.StartServer(
 		ctx,
 		instrumentationScope,
 		fmt.Sprintf("%s %s", request.method, request.route),
@@ -33,10 +33,6 @@ func (t *Tracing) Start(ctx context.Context, request requestInfo) (context.Conte
 			observability.FromPairs(keyURLPath, request.path),
 		),
 	)
-	if traceID, spanID, ok := span.IDs(); ok {
-		ctx = observability.WithTrace(ctx, traceID, spanID)
-	}
-	return ctx, span
 }
 
 // Finish records the normalized outcome and ends the span.

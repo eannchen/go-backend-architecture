@@ -32,18 +32,18 @@ func toObservabilitySeverity(s logger.Severity) observability.Severity {
 	}
 }
 
-func contextFieldsProvider() logger.ContextFieldsProviderFunc {
+func contextFieldsProvider(tracer observability.Tracer) logger.ContextFieldsProviderFunc {
+	if tracer == nil {
+		tracer = observability.NoopTracer{}
+	}
 	return func(ctx context.Context) logger.Fields {
 		fields := make(logger.Fields)
 		if id := observability.RequestIDFromContext(ctx); id != "" {
 			fields["request.id"] = id
 		}
-		traceID, spanID := observability.TraceFromContext(ctx)
-		if traceID != "" {
-			fields["trace.id"] = traceID
-		}
-		if spanID != "" {
-			fields["span.id"] = spanID
+		if traceContext, ok := tracer.TraceContext(ctx); ok {
+			fields["trace.id"] = traceContext.TraceID
+			fields["span.id"] = traceContext.SpanID
 		}
 		if len(fields) == 0 {
 			return nil

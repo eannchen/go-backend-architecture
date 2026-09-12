@@ -20,7 +20,7 @@ INTEGRATION_PACKAGES := \
 	./internal/infra/kvstore/redis/store \
 	./internal/delivery/http/integration
 
-.PHONY: install run run-httpapi run-httpapi-stop run-grpcapi run-grpcapi-stop fmt-check vet build check test test-cover test-race test-grpc test-integration test-all ci openapi-generate proto-generate proto-lint sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring openapi proto proto-check sqlc mup mdown mstatus
+.PHONY: install run run-httpapi run-httpapi-stop run-grpcapi run-grpcapi-stop run-grpcclient fmt-check vet build check test test-cover test-race test-grpc test-integration test-all ci openapi-generate proto-generate proto-lint sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring openapi proto proto-check sqlc mup mdown mstatus
 
 run: run-httpapi
 
@@ -38,6 +38,9 @@ run-httpapi-stop:
 
 run-grpcapi:
 	$(AIR_GRPCAPI_CMD)
+
+run-grpcclient:
+	go run ./cmd/grpcclient
 
 run-grpcapi-stop:
 	@pids=$$(lsof -tiTCP:9090 -sTCP:LISTEN); \

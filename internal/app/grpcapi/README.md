@@ -4,6 +4,7 @@
 
 - Composes the standalone gRPC process from shared runtime dependencies.
 - Builds health repositories and usecase, custom diagnostics, standard health, optional TLS/mTLS credentials, transport interceptors, and the server.
+- Maps configured incoming and response request-ID metadata keys into the transport interceptor.
 - Starts and shuts down the standard health reporter around the transport server lifecycle.
 
 ## How to extend

@@ -43,6 +43,30 @@ func (d wiring) buildServer(responder httpresponse.Responder, repos appRepositor
 	preMiddlewares := []echo.MiddlewareFunc{
 		bodylimitmw.New(d.cfg.HTTP.MaxRequestBodyBytes).Handler(),
 	}
+	requestContext, err := contextmw.NewRequestContextMiddleware(
+		contextmw.Config{
+			Timeout: d.cfg.HTTP.RequestTimeout,
+			RequestID: contextmw.RequestIDConfig{
+				IncomingHeaderKey: d.cfg.HTTP.RequestID.IncomingKey,
+				ResponseHeaderKey: d.cfg.HTTP.RequestID.ResponseKey,
+				RejectInvalid:     d.cfg.HTTP.RequestID.RejectInvalid,
+			},
+		},
+		responder,
+		contextmw.WithTimeoutSkipper(func(c *echo.Context) bool {
+			return c.Request().URL.Path == healthhttp.StreamPath
+		}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create HTTP request-context middleware: %w", err)
+	}
+	allowHeaders := appendUniqueHeader([]string{
+		echo.HeaderOrigin,
+		echo.HeaderContentType,
+		echo.HeaderAccept,
+		echo.HeaderAuthorization,
+	}, d.cfg.HTTP.RequestID.IncomingKey)
+	exposeHeaders := appendUniqueHeader(nil, d.cfg.HTTP.RequestID.ResponseKey)
 
 	middlewares := []echo.MiddlewareFunc{
 		observabilitymw.New(d.tracer, d.log, d.meter).Handler(),
@@ -59,21 +83,11 @@ func (d wiring) buildServer(responder httpresponse.Responder, repos appRepositor
 				http.MethodDelete,
 				http.MethodOptions,
 			},
-			AllowHeaders: []string{
-				echo.HeaderOrigin,
-				echo.HeaderContentType,
-				echo.HeaderAccept,
-				echo.HeaderAuthorization,
-			},
+			AllowHeaders:     allowHeaders,
+			ExposeHeaders:    exposeHeaders,
 			AllowCredentials: true,
 		}),
-		contextmw.NewRequestContextMiddleware(
-			d.cfg.HTTP.RequestTimeout,
-			responder,
-			contextmw.WithTimeoutSkipper(func(c *echo.Context) bool {
-				return c.Request().URL.Path == healthhttp.StreamPath
-			}),
-		).Handler(),
+		requestContext.Handler(),
 	}
 	ipExtractor, err := buildIPExtractor(d.cfg.HTTP.TrustedProxyCIDRs)
 	if err != nil {
@@ -89,6 +103,19 @@ func (d wiring) buildServer(responder httpresponse.Responder, repos appRepositor
 	}
 	binder := binding.NewNormalizeBinder(nil)
 	return httpdelivery.NewServer(serverCfg, d.log, binder, validatorRegistrars, preMiddlewares, middlewares, handlers.health, handlers.auth)
+}
+
+func appendUniqueHeader(headers []string, header string) []string {
+	header = strings.TrimSpace(header)
+	if header == "" {
+		return headers
+	}
+	for _, existing := range headers {
+		if strings.EqualFold(existing, header) {
+			return headers
+		}
+	}
+	return append(headers, header)
 }
 
 func isLocalAppEnv(env string) bool {

@@ -14,9 +14,14 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
+const (
+	testRequestIDMetadataKey         = "correlation-id"
+	testResponseRequestIDMetadataKey = "response-id"
+)
+
 func TestUnaryPropagatesRequestIDAndDeadline(t *testing.T) {
-	interceptor := New(time.Minute, nil).Unary()
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(RequestIDMetadataKey, "request-01"))
+	interceptor := newTestInterceptor(t, conventionalConfig(time.Minute)).Unary()
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(testRequestIDMetadataKey, "request-01"))
 	transport := &recordingServerTransportStream{}
 	ctx = googlegrpc.NewContextWithServerTransportStream(ctx, transport)
 
@@ -32,7 +37,7 @@ func TestUnaryPropagatesRequestIDAndDeadline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("interceptor error = %v", err)
 	}
-	if got := transport.header.Get(RequestIDMetadataKey); len(got) != 1 || got[0] != "request-01" {
+	if got := transport.header.Get(testResponseRequestIDMetadataKey); len(got) != 1 || got[0] != "request-01" {
 		t.Fatalf("response request ID = %v, want request-01", got)
 	}
 }
@@ -43,7 +48,7 @@ func TestUnaryPreservesEarlierClientDeadline(t *testing.T) {
 	defer cancel()
 	ctx = googlegrpc.NewContextWithServerTransportStream(ctx, &recordingServerTransportStream{})
 
-	_, err := New(time.Minute, nil).Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(ctx context.Context, _ any) (any, error) {
+	_, err := newTestInterceptor(t, Config{Timeout: time.Minute}).Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(ctx context.Context, _ any) (any, error) {
 		deadline, ok := ctx.Deadline()
 		if !ok || time.Until(deadline) > clientDeadline {
 			t.Fatalf("deadline = %v, want no later than client deadline", deadline)
@@ -55,24 +60,24 @@ func TestUnaryPreservesEarlierClientDeadline(t *testing.T) {
 	}
 }
 
-func TestUnaryGeneratesRequestID(t *testing.T) {
+func TestUnaryDoesNotGenerateRequestIDWhenMissing(t *testing.T) {
 	transport := &recordingServerTransportStream{}
 	ctx := googlegrpc.NewContextWithServerTransportStream(context.Background(), transport)
-	_, err := New(0, nil).Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(ctx context.Context, _ any) (any, error) {
-		if !observability.IsValidRequestID(observability.RequestIDFromContext(ctx)) {
-			t.Fatal("expected generated request ID in context")
+	_, err := newTestInterceptor(t, Config{}).Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(ctx context.Context, _ any) (any, error) {
+		if got := observability.RequestIDFromContext(ctx); got != "" {
+			t.Fatalf("request ID = %q, want none", got)
 		}
 		return nil, nil
 	})
 	if err != nil {
 		t.Fatalf("interceptor error = %v", err)
 	}
-	if got := transport.header.Get(RequestIDMetadataKey); len(got) != 1 || !observability.IsValidRequestID(got[0]) {
-		t.Fatalf("generated response request ID = %v", got)
+	if len(transport.header) != 0 {
+		t.Fatalf("response metadata = %v, want none", transport.header)
 	}
 }
 
-func TestUnaryRejectsInvalidOrRepeatedRequestID(t *testing.T) {
+func TestUnaryIgnoresInvalidOrRepeatedRequestIDByDefault(t *testing.T) {
 	tests := []struct {
 		name   string
 		values []string
@@ -83,26 +88,54 @@ func TestUnaryRejectsInvalidOrRepeatedRequestID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := metadata.NewIncomingContext(context.Background(), metadata.MD{RequestIDMetadataKey: tt.values})
-			called := false
-			_, err := New(0, nil).Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(context.Context, any) (any, error) {
-				called = true
+			transport := &recordingServerTransportStream{}
+			ctx := metadata.NewIncomingContext(context.Background(), metadata.MD{testRequestIDMetadataKey: tt.values})
+			ctx = googlegrpc.NewContextWithServerTransportStream(ctx, transport)
+			_, err := newTestInterceptor(t, conventionalConfig(0)).Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(ctx context.Context, _ any) (any, error) {
+				if got := observability.RequestIDFromContext(ctx); got != "" {
+					t.Fatalf("request ID = %q, want ignored", got)
+				}
 				return nil, nil
 			})
-			if status.Code(err) != codes.InvalidArgument {
-				t.Fatalf("status = %v, want InvalidArgument", status.Code(err))
+			if err != nil {
+				t.Fatalf("interceptor error = %v", err)
 			}
-			if called {
-				t.Fatal("handler called for invalid request ID")
+			if len(transport.header) != 0 {
+				t.Fatalf("response metadata = %v, want none", transport.header)
 			}
 		})
+	}
+}
+
+func TestUnaryRejectsInvalidRequestIDWhenConfigured(t *testing.T) {
+	config := conventionalConfig(0)
+	config.RequestID.RejectInvalid = true
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(testRequestIDMetadataKey, "not valid"))
+	called := false
+
+	_, err := newTestInterceptor(t, config).Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(context.Context, any) (any, error) {
+		called = true
+		return nil, nil
+	})
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("status = %v, want InvalidArgument", status.Code(err))
+	}
+	if called {
+		t.Fatal("handler called for invalid request ID")
+	}
+}
+
+func TestNewRejectsInvalidMetadataKey(t *testing.T) {
+	_, err := New(Config{RequestID: RequestIDConfig{IncomingMetadataKey: "request id"}}, nil)
+	if err == nil {
+		t.Fatal("New() error = nil, want invalid metadata key error")
 	}
 }
 
 func TestUnaryReturnsHandlerErrorUnchanged(t *testing.T) {
 	handlerErr := errors.Join(errors.New("operation timed out"), context.DeadlineExceeded)
 	ctx := googlegrpc.NewContextWithServerTransportStream(context.Background(), &recordingServerTransportStream{})
-	_, err := New(0, nil).Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(context.Context, any) (any, error) {
+	_, err := newTestInterceptor(t, Config{}).Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(context.Context, any) (any, error) {
 		return nil, handlerErr
 	})
 	if err != handlerErr {
@@ -112,7 +145,7 @@ func TestUnaryReturnsHandlerErrorUnchanged(t *testing.T) {
 
 func TestUnaryTimeoutCancelsHandlerAndReturnsItsError(t *testing.T) {
 	ctx := googlegrpc.NewContextWithServerTransportStream(context.Background(), &recordingServerTransportStream{})
-	_, err := New(time.Millisecond, nil).Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(ctx context.Context, _ any) (any, error) {
+	_, err := newTestInterceptor(t, Config{Timeout: time.Millisecond}).Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(ctx context.Context, _ any) (any, error) {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	})
@@ -122,8 +155,8 @@ func TestUnaryTimeoutCancelsHandlerAndReturnsItsError(t *testing.T) {
 }
 
 func TestStreamPropagatesRequestIDWithoutAddingDeadline(t *testing.T) {
-	base := &testServerStream{ctx: metadata.NewIncomingContext(context.Background(), metadata.Pairs(RequestIDMetadataKey, "stream-01"))}
-	err := New(time.Millisecond, nil).Stream()(nil, base, &googlegrpc.StreamServerInfo{}, func(_ any, stream googlegrpc.ServerStream) error {
+	base := &testServerStream{ctx: metadata.NewIncomingContext(context.Background(), metadata.Pairs(testRequestIDMetadataKey, "stream-01"))}
+	err := newTestInterceptor(t, conventionalConfig(time.Millisecond)).Stream()(nil, base, &googlegrpc.StreamServerInfo{}, func(_ any, stream googlegrpc.ServerStream) error {
 		if got := observability.RequestIDFromContext(stream.Context()); got != "stream-01" {
 			t.Fatalf("request ID = %q, want stream-01", got)
 		}
@@ -135,7 +168,7 @@ func TestStreamPropagatesRequestIDWithoutAddingDeadline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("interceptor error = %v", err)
 	}
-	if got := base.header.Get(RequestIDMetadataKey); len(got) != 1 || got[0] != "stream-01" {
+	if got := base.header.Get(testResponseRequestIDMetadataKey); len(got) != 1 || got[0] != "stream-01" {
 		t.Fatalf("response request ID = %v, want stream-01", got)
 	}
 }
@@ -144,12 +177,31 @@ func TestStreamReturnsHandlerErrorUnchanged(t *testing.T) {
 	handlerErr := errors.New("service mapped error")
 	base := &testServerStream{ctx: context.Background()}
 
-	err := New(0, nil).Stream()(nil, base, &googlegrpc.StreamServerInfo{}, func(any, googlegrpc.ServerStream) error {
+	err := newTestInterceptor(t, Config{}).Stream()(nil, base, &googlegrpc.StreamServerInfo{}, func(any, googlegrpc.ServerStream) error {
 		return handlerErr
 	})
 	if err != handlerErr {
 		t.Fatalf("error = %v, want unchanged handler error", err)
 	}
+}
+
+func conventionalConfig(timeout time.Duration) Config {
+	return Config{
+		Timeout: timeout,
+		RequestID: RequestIDConfig{
+			IncomingMetadataKey: testRequestIDMetadataKey,
+			ResponseMetadataKey: testResponseRequestIDMetadataKey,
+		},
+	}
+}
+
+func newTestInterceptor(t *testing.T, config Config) *Interceptor {
+	t.Helper()
+	interceptor, err := New(config, nil)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	return interceptor
 }
 
 type recordingServerTransportStream struct {

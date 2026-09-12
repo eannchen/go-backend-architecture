@@ -5,23 +5,6 @@ import (
 	"testing"
 )
 
-func TestGenerateRequestID(t *testing.T) {
-	first, err := GenerateRequestID()
-	if err != nil {
-		t.Fatalf("GenerateRequestID() error = %v", err)
-	}
-	second, err := GenerateRequestID()
-	if err != nil {
-		t.Fatalf("GenerateRequestID() second error = %v", err)
-	}
-	if !IsValidRequestID(first) || !IsValidRequestID(second) {
-		t.Fatalf("generated IDs are invalid: %q, %q", first, second)
-	}
-	if first == second {
-		t.Fatalf("generated duplicate request ID %q", first)
-	}
-}
-
 func TestIsValidRequestID(t *testing.T) {
 	tests := []struct {
 		name  string

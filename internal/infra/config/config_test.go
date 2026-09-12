@@ -19,6 +19,9 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("HTTP_REQUEST_TIMEOUT", "10s")
 	t.Setenv("HTTP_CORS_ALLOW_ORIGINS", "http://localhost:3000")
 	t.Setenv("HTTP_TRUSTED_PROXY_CIDRS", "")
+	t.Setenv("HTTP_REQUEST_ID_INCOMING_HEADER", "X-Request-ID")
+	t.Setenv("HTTP_REQUEST_ID_RESPONSE_HEADER", "X-Request-ID")
+	t.Setenv("HTTP_REQUEST_ID_REJECT_INVALID", "false")
 	t.Setenv("HEALTH_STREAM_CHECK_INTERVAL", "15s")
 	t.Setenv("HEALTH_STREAM_HEARTBEAT_INTERVAL", "5s")
 	t.Setenv("HEALTH_STREAM_MAX_DURATION", "1m")
@@ -28,11 +31,27 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("GRPC_REQUEST_TIMEOUT", "10s")
 	t.Setenv("GRPC_MAX_RECV_MESSAGE_BYTES", "4194304")
 	t.Setenv("GRPC_MAX_SEND_MESSAGE_BYTES", "4194304")
-	t.Setenv("GRPC_TLS_ENABLED", "false")
-	t.Setenv("GRPC_TLS_CERT_FILE", "")
-	t.Setenv("GRPC_TLS_KEY_FILE", "")
-	t.Setenv("GRPC_TLS_CLIENT_CA_FILE", "")
-	t.Setenv("GRPC_TLS_REQUIRE_CLIENT_CERT", "false")
+	t.Setenv("GRPC_REQUEST_ID_INCOMING_METADATA_KEY", "x-request-id")
+	t.Setenv("GRPC_REQUEST_ID_RESPONSE_METADATA_KEY", "x-request-id")
+	t.Setenv("GRPC_REQUEST_ID_REJECT_INVALID", "false")
+	t.Setenv("GRPC_SERVER_TLS_ENABLED", "false")
+	t.Setenv("GRPC_SERVER_TLS_CERT_FILE", "")
+	t.Setenv("GRPC_SERVER_TLS_KEY_FILE", "")
+	t.Setenv("GRPC_SERVER_TLS_CLIENT_CA_FILE", "")
+	t.Setenv("GRPC_SERVER_TLS_REQUIRE_CLIENT_CERT", "false")
+	t.Setenv("GRPC_CLIENT_TARGET", "localhost:9090")
+	t.Setenv("GRPC_CLIENT_SERVICE_NAME", "grpcclient-demo")
+	t.Setenv("GRPC_CLIENT_DEPENDENCY_NAME", "grpcapi-demo")
+	t.Setenv("GRPC_CLIENT_REQUEST_TIMEOUT", "3s")
+	t.Setenv("GRPC_CLIENT_MAX_RECV_MESSAGE_BYTES", "4194304")
+	t.Setenv("GRPC_CLIENT_MAX_SEND_MESSAGE_BYTES", "4194304")
+	t.Setenv("GRPC_CLIENT_REQUEST_ID_METADATA_KEY", "x-request-id")
+	t.Setenv("GRPC_CLIENT_TRACE_PROPAGATION_ENABLED", "true")
+	t.Setenv("GRPC_CLIENT_TLS_ENABLED", "false")
+	t.Setenv("GRPC_CLIENT_TLS_SERVER_NAME", "")
+	t.Setenv("GRPC_CLIENT_TLS_SERVER_CA_FILE", "")
+	t.Setenv("GRPC_CLIENT_TLS_CERT_FILE", "")
+	t.Setenv("GRPC_CLIENT_TLS_KEY_FILE", "")
 	t.Setenv("DB_URL", "postgres://postgres:postgres@localhost:5432/app?sslmode=disable")
 	t.Setenv("DB_MAX_CONNS", "10")
 	t.Setenv("DB_MIN_CONNS", "2")
@@ -47,7 +66,7 @@ func setValidEnv(t *testing.T) {
 	t.Setenv("REDIS_READ_TIMEOUT", "2s")
 	t.Setenv("REDIS_WRITE_TIMEOUT", "2s")
 	t.Setenv("REDIS_CACHE_TTL", "2m")
-	t.Setenv("OTEL_ENABLED", "true")
+	t.Setenv("OTEL_EXPORT_ENABLED", "true")
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
 	t.Setenv("OTEL_INSECURE", "true")
 	t.Setenv("OTEL_TRACES_SAMPLER_RATIO", "1")
@@ -79,6 +98,50 @@ func TestLoad_HTTPSizeLimits(t *testing.T) {
 	}
 }
 
+func TestLoad_OTelExportDisabled(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("OTEL_EXPORT_ENABLED", "false")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.OTel.ExportEnabled {
+		t.Fatal("ExportEnabled = true, want false")
+	}
+}
+
+func TestLoad_RequestIDPolicies(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("HTTP_REQUEST_ID_INCOMING_HEADER", "  X-Correlation-ID  ")
+	t.Setenv("HTTP_REQUEST_ID_RESPONSE_HEADER", "  X-Response-ID  ")
+	t.Setenv("HTTP_REQUEST_ID_REJECT_INVALID", "true")
+	t.Setenv("GRPC_REQUEST_ID_INCOMING_METADATA_KEY", "  correlation-id  ")
+	t.Setenv("GRPC_REQUEST_ID_RESPONSE_METADATA_KEY", "  response-id  ")
+	t.Setenv("GRPC_REQUEST_ID_REJECT_INVALID", "true")
+	t.Setenv("GRPC_CLIENT_REQUEST_ID_METADATA_KEY", "  downstream-id  ")
+	t.Setenv("GRPC_CLIENT_DEPENDENCY_NAME", "  diagnostics-service  ")
+	t.Setenv("GRPC_CLIENT_SERVICE_NAME", "  diagnostics-cli  ")
+	t.Setenv("GRPC_CLIENT_TRACE_PROPAGATION_ENABLED", "false")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.HTTP.RequestID.IncomingKey != "X-Correlation-ID" || cfg.HTTP.RequestID.ResponseKey != "X-Response-ID" || !cfg.HTTP.RequestID.RejectInvalid {
+		t.Fatalf("HTTP request ID config = %+v", cfg.HTTP.RequestID)
+	}
+	if cfg.GRPC.RequestID.IncomingKey != "correlation-id" || cfg.GRPC.RequestID.ResponseKey != "response-id" || !cfg.GRPC.RequestID.RejectInvalid {
+		t.Fatalf("gRPC request ID config = %+v", cfg.GRPC.RequestID)
+	}
+	if cfg.GRPCClient.RequestIDMetadataKey != "downstream-id" {
+		t.Fatalf("gRPC client request ID key = %q", cfg.GRPCClient.RequestIDMetadataKey)
+	}
+	if cfg.GRPCClient.ServiceName != "diagnostics-cli" || cfg.GRPCClient.DependencyName != "diagnostics-service" || cfg.GRPCClient.TracePropagation {
+		t.Fatalf("gRPC client observability config = %+v", cfg.GRPCClient)
+	}
+}
+
 func TestLoad_GRPCRequestLimits(t *testing.T) {
 	setValidEnv(t)
 	t.Setenv("GRPC_REQUEST_TIMEOUT", "3s")
@@ -99,21 +162,79 @@ func TestLoad_GRPCRequestLimits(t *testing.T) {
 
 func TestLoad_GRPCTLS(t *testing.T) {
 	setValidEnv(t)
-	t.Setenv("GRPC_TLS_ENABLED", "true")
-	t.Setenv("GRPC_TLS_CERT_FILE", "  /certs/server.pem  ")
-	t.Setenv("GRPC_TLS_KEY_FILE", "  /certs/server-key.pem  ")
-	t.Setenv("GRPC_TLS_CLIENT_CA_FILE", "  /certs/client-ca.pem  ")
-	t.Setenv("GRPC_TLS_REQUIRE_CLIENT_CERT", "true")
+	t.Setenv("GRPC_SERVER_TLS_ENABLED", "true")
+	t.Setenv("GRPC_SERVER_TLS_CERT_FILE", "  /certs/server.pem  ")
+	t.Setenv("GRPC_SERVER_TLS_KEY_FILE", "  /certs/server-key.pem  ")
+	t.Setenv("GRPC_SERVER_TLS_CLIENT_CA_FILE", "  /certs/client-ca.pem  ")
+	t.Setenv("GRPC_SERVER_TLS_REQUIRE_CLIENT_CERT", "true")
 
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if !cfg.GRPC.TLS.Enabled || !cfg.GRPC.TLS.RequireClientCertificate {
+	if !cfg.GRPC.TLS.Enabled || !cfg.GRPC.TLS.RequireClientCert {
 		t.Fatalf("gRPC TLS flags = %+v", cfg.GRPC.TLS)
 	}
-	if cfg.GRPC.TLS.CertificateFile != "/certs/server.pem" || cfg.GRPC.TLS.PrivateKeyFile != "/certs/server-key.pem" || cfg.GRPC.TLS.ClientCAFile != "/certs/client-ca.pem" {
+	if cfg.GRPC.TLS.ServerCertFile != "/certs/server.pem" || cfg.GRPC.TLS.ServerKeyFile != "/certs/server-key.pem" || cfg.GRPC.TLS.ClientCAFile != "/certs/client-ca.pem" {
 		t.Fatalf("gRPC TLS paths = %+v", cfg.GRPC.TLS)
+	}
+}
+
+func TestLoad_GRPCClient(t *testing.T) {
+	setValidEnv(t)
+	t.Setenv("GRPC_CLIENT_TARGET", "  dns:///diagnostics.internal:443  ")
+	t.Setenv("GRPC_CLIENT_REQUEST_TIMEOUT", "5s")
+	t.Setenv("GRPC_CLIENT_MAX_RECV_MESSAGE_BYTES", "2097152")
+	t.Setenv("GRPC_CLIENT_MAX_SEND_MESSAGE_BYTES", "1048576")
+	t.Setenv("GRPC_CLIENT_TLS_ENABLED", "true")
+	t.Setenv("GRPC_CLIENT_TLS_SERVER_NAME", "  diagnostics.internal  ")
+	t.Setenv("GRPC_CLIENT_TLS_SERVER_CA_FILE", "  /certs/root.pem  ")
+	t.Setenv("GRPC_CLIENT_TLS_CERT_FILE", "  /certs/client.pem  ")
+	t.Setenv("GRPC_CLIENT_TLS_KEY_FILE", "  /certs/client-key.pem  ")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.GRPCClient.Target != "dns:///diagnostics.internal:443" || cfg.GRPCClient.RequestTimeout != 5*time.Second {
+		t.Fatalf("gRPC client config = %+v", cfg.GRPCClient)
+	}
+	if cfg.GRPCClient.MaxRecvMessageBytes != 2<<20 || cfg.GRPCClient.MaxSendMessageBytes != 1<<20 {
+		t.Fatalf("gRPC client message limits = (%d, %d)", cfg.GRPCClient.MaxRecvMessageBytes, cfg.GRPCClient.MaxSendMessageBytes)
+	}
+	if cfg.GRPCClient.TLS.ServerName != "diagnostics.internal" || cfg.GRPCClient.TLS.ServerCAFile != "/certs/root.pem" {
+		t.Fatalf("gRPC client TLS config = %+v", cfg.GRPCClient.TLS)
+	}
+}
+
+func TestLoad_RejectsInvalidGRPCClient(t *testing.T) {
+	tests := []struct {
+		name    string
+		setEnv  func(*testing.T)
+		wantErr string
+	}{
+		{name: "empty target", setEnv: func(t *testing.T) { t.Setenv("GRPC_CLIENT_TARGET", "   ") }, wantErr: "GRPC_CLIENT_TARGET must not be empty"},
+		{name: "non-positive timeout", setEnv: func(t *testing.T) { t.Setenv("GRPC_CLIENT_REQUEST_TIMEOUT", "0s") }, wantErr: "GRPC_CLIENT_REQUEST_TIMEOUT must be > 0"},
+		{name: "non-positive receive limit", setEnv: func(t *testing.T) { t.Setenv("GRPC_CLIENT_MAX_RECV_MESSAGE_BYTES", "0") }, wantErr: "GRPC_CLIENT_MAX_RECV_MESSAGE_BYTES"},
+		{
+			name: "incomplete mTLS identity",
+			setEnv: func(t *testing.T) {
+				t.Setenv("GRPC_CLIENT_TLS_ENABLED", "true")
+				t.Setenv("GRPC_CLIENT_TLS_CERT_FILE", "/certs/client.pem")
+			},
+			wantErr: "GRPC_CLIENT_TLS_CERT_FILE and GRPC_CLIENT_TLS_KEY_FILE must be configured together",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setValidEnv(t)
+			tt.setEnv(t)
+			_, err := Load()
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Load() error = %v, want %q", err, tt.wantErr)
+			}
+		})
 	}
 }
 
@@ -126,35 +247,35 @@ func TestLoad_RejectsInvalidGRPCTLS(t *testing.T) {
 		{
 			name: "client certificate without TLS",
 			setEnv: func(t *testing.T) {
-				t.Setenv("GRPC_TLS_REQUIRE_CLIENT_CERT", "true")
+				t.Setenv("GRPC_SERVER_TLS_REQUIRE_CLIENT_CERT", "true")
 			},
-			wantErr: "GRPC_TLS_REQUIRE_CLIENT_CERT requires GRPC_TLS_ENABLED",
+			wantErr: "GRPC_SERVER_TLS_REQUIRE_CLIENT_CERT requires GRPC_SERVER_TLS_ENABLED",
 		},
 		{
 			name: "missing server certificate",
 			setEnv: func(t *testing.T) {
-				t.Setenv("GRPC_TLS_ENABLED", "true")
-				t.Setenv("GRPC_TLS_KEY_FILE", "/certs/server-key.pem")
+				t.Setenv("GRPC_SERVER_TLS_ENABLED", "true")
+				t.Setenv("GRPC_SERVER_TLS_KEY_FILE", "/certs/server-key.pem")
 			},
-			wantErr: "GRPC_TLS_CERT_FILE and GRPC_TLS_KEY_FILE are required",
+			wantErr: "GRPC_SERVER_TLS_CERT_FILE and GRPC_SERVER_TLS_KEY_FILE are required",
 		},
 		{
 			name: "missing server key",
 			setEnv: func(t *testing.T) {
-				t.Setenv("GRPC_TLS_ENABLED", "true")
-				t.Setenv("GRPC_TLS_CERT_FILE", "/certs/server.pem")
+				t.Setenv("GRPC_SERVER_TLS_ENABLED", "true")
+				t.Setenv("GRPC_SERVER_TLS_CERT_FILE", "/certs/server.pem")
 			},
-			wantErr: "GRPC_TLS_CERT_FILE and GRPC_TLS_KEY_FILE are required",
+			wantErr: "GRPC_SERVER_TLS_CERT_FILE and GRPC_SERVER_TLS_KEY_FILE are required",
 		},
 		{
 			name: "missing client CA",
 			setEnv: func(t *testing.T) {
-				t.Setenv("GRPC_TLS_ENABLED", "true")
-				t.Setenv("GRPC_TLS_CERT_FILE", "/certs/server.pem")
-				t.Setenv("GRPC_TLS_KEY_FILE", "/certs/server-key.pem")
-				t.Setenv("GRPC_TLS_REQUIRE_CLIENT_CERT", "true")
+				t.Setenv("GRPC_SERVER_TLS_ENABLED", "true")
+				t.Setenv("GRPC_SERVER_TLS_CERT_FILE", "/certs/server.pem")
+				t.Setenv("GRPC_SERVER_TLS_KEY_FILE", "/certs/server-key.pem")
+				t.Setenv("GRPC_SERVER_TLS_REQUIRE_CLIENT_CERT", "true")
 			},
-			wantErr: "GRPC_TLS_CLIENT_CA_FILE is required",
+			wantErr: "GRPC_SERVER_TLS_CLIENT_CA_FILE is required",
 		},
 	}
 
@@ -214,6 +335,11 @@ func TestLoad_RejectsWhitespaceOnlyRequiredStringFields(t *testing.T) {
 			name:    "grpc address",
 			key:     "GRPC_ADDRESS",
 			wantErr: "GRPC_ADDRESS must not be empty",
+		},
+		{
+			name:    "grpc client service name",
+			key:     "GRPC_CLIENT_SERVICE_NAME",
+			wantErr: "GRPC_CLIENT_SERVICE_NAME must not be empty",
 		},
 		{
 			name:    "database url",

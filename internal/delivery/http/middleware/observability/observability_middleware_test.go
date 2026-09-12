@@ -61,7 +61,6 @@ func TestMiddlewareUsesOneOutcomeForTracingMetricsAndAccessLog(t *testing.T) {
 	span := &observabilitytest.Span{
 		SetAttributesFunc: func(...observability.Fields) {},
 		FinishFunc:        func(error, ...string) {},
-		IDsFunc:           func() (string, string, bool) { return "trace-01", "span-01", true },
 	}
 	tracer := &observabilitytest.Tracer{
 		ExtractFunc: func(ctx context.Context, _ observability.TextMapCarrier) context.Context { return ctx },
@@ -76,10 +75,6 @@ func TestMiddlewareUsesOneOutcomeForTracingMetricsAndAccessLog(t *testing.T) {
 	e := echo.New()
 	e.GET("/protected", New(tracer, log, meter).Handler()(func(c *echo.Context) error {
 		handlerCalls++
-		traceID, spanID := observability.TraceFromContext(c.Request().Context())
-		if traceID != "trace-01" || spanID != "span-01" {
-			t.Fatalf("trace context = (%q, %q)", traceID, spanID)
-		}
 		return httpresponse.NewResponder().AppError(c, appErr)
 	}))
 

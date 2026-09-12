@@ -2,7 +2,8 @@
 
 ## Pattern used
 
-- Owns dependencies shared by every deployable process: configuration, logging, database and Redis connections, and observability.
+- `Telemetry` owns the process logger and observability providers for processes that do not need data services.
+- `Runtime` extends that foundation with configuration, database, and Redis connections for backend servers.
 - Provides one shutdown boundary for those shared resources.
 - Provides the common start, signal, and graceful-shutdown lifecycle used by process entrypoints.
 

@@ -25,13 +25,13 @@ func NewTracing(tracer appobservability.Tracer) *Tracing {
 // Start extracts parent trace context and starts a gRPC server span.
 func (t *Tracing) Start(ctx context.Context, rpc rpcInfo) (context.Context, appobservability.Span) {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		// Extract converts wire-level traceparent/tracestate metadata into an OTel
+		// remote parent stored in ctx; it does not create the server span itself.
 		ctx = t.tracer.Extract(ctx, metadataCarrier{MD: md})
 	}
-	ctx, span := t.tracer.StartServer(ctx, instrumentationScope, rpc.fullMethod, rpc.fields())
-	if traceID, spanID, ok := span.IDs(); ok {
-		ctx = appobservability.WithTrace(ctx, traceID, spanID)
-	}
-	return ctx, span
+	// StartServer always creates this service's own span. A valid extracted
+	// parent joins it to the upstream trace; no parent starts a new root trace.
+	return t.tracer.StartServer(ctx, instrumentationScope, rpc.fullMethod, rpc.fields())
 }
 
 // Finish records the normalized outcome and ends the span.

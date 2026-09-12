@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,6 +40,10 @@ func TestBuildServerAppliesEnvironmentHTTPProtection(t *testing.T) {
 					IdleTimeout:      time.Second,
 					RequestTimeout:   time.Second,
 					CORSAllowOrigins: []string{"https://app.example.com"},
+					RequestID: config.RequestIDConfig{
+						IncomingKey: "X-Correlation-ID",
+						ResponseKey: "X-Response-ID",
+					},
 				},
 			}, logger.NoopLogger{}, observability.NoopTracer{}, observability.NoopMeter{})
 
@@ -63,6 +68,19 @@ func TestBuildServerAppliesEnvironmentHTTPProtection(t *testing.T) {
 			}
 			if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://app.example.com" {
 				t.Fatalf("CORS origin = %q, want configured origin", got)
+			}
+			if got := rec.Header().Get("Access-Control-Expose-Headers"); !strings.EqualFold(got, "X-Response-ID") {
+				t.Fatalf("CORS exposed headers = %q, want X-Response-ID", got)
+			}
+
+			preflight := httptest.NewRequest(http.MethodOptions, "/missing", nil)
+			preflight.Header.Set(echo.HeaderOrigin, "https://app.example.com")
+			preflight.Header.Set(echo.HeaderAccessControlRequestMethod, http.MethodGet)
+			preflight.Header.Set(echo.HeaderAccessControlRequestHeaders, "X-Correlation-ID")
+			preflightRecorder := httptest.NewRecorder()
+			server.ServeHTTP(preflightRecorder, preflight)
+			if got := strings.ToLower(preflightRecorder.Header().Get("Access-Control-Allow-Headers")); !strings.Contains(got, "x-correlation-id") {
+				t.Fatalf("CORS allowed headers = %q, want X-Correlation-ID", got)
 			}
 		})
 	}

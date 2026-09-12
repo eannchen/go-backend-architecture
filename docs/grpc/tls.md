@@ -1,17 +1,17 @@
 # gRPC TLS and mTLS
 
-Local development uses plaintext unless `GRPC_TLS_ENABLED` is set to `true`.
+Local development uses plaintext unless `GRPC_SERVER_TLS_ENABLED` is set to `true`.
 
 ## TLS server
 
 Configure a PEM certificate chain and matching private key:
 
 ```dotenv
-GRPC_TLS_ENABLED=true
-GRPC_TLS_CERT_FILE=certs/server.pem
-GRPC_TLS_KEY_FILE=certs/server-key.pem
-GRPC_TLS_CLIENT_CA_FILE=
-GRPC_TLS_REQUIRE_CLIENT_CERT=false
+GRPC_SERVER_TLS_ENABLED=true
+GRPC_SERVER_TLS_CERT_FILE=certs/server.pem
+GRPC_SERVER_TLS_KEY_FILE=certs/server-key.pem
+GRPC_SERVER_TLS_CLIENT_CA_FILE=
+GRPC_SERVER_TLS_REQUIRE_CLIENT_CERT=false
 ```
 
 Call the server with a trusted root certificate:
@@ -28,11 +28,11 @@ For local plaintext mode, use `grpcurl -plaintext` instead of `-cacert`.
 Configure the CA allowed to issue client certificates:
 
 ```dotenv
-GRPC_TLS_ENABLED=true
-GRPC_TLS_CERT_FILE=certs/server.pem
-GRPC_TLS_KEY_FILE=certs/server-key.pem
-GRPC_TLS_CLIENT_CA_FILE=certs/client-ca.pem
-GRPC_TLS_REQUIRE_CLIENT_CERT=true
+GRPC_SERVER_TLS_ENABLED=true
+GRPC_SERVER_TLS_CERT_FILE=certs/server.pem
+GRPC_SERVER_TLS_KEY_FILE=certs/server-key.pem
+GRPC_SERVER_TLS_CLIENT_CA_FILE=certs/client-ca.pem
+GRPC_SERVER_TLS_REQUIRE_CLIENT_CERT=true
 ```
 
 The client must trust the server CA and present its own certificate and key:

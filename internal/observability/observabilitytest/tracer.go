@@ -18,9 +18,19 @@ type Tracer struct {
 	StartServerScope    string
 	StartServerSpanName string
 	StartServerFields   []observability.Fields
+	StartClientFunc     func(context.Context, string, string, ...observability.Fields) (context.Context, observability.Span)
+	StartClientCalls    int
+	StartClientScope    string
+	StartClientSpanName string
+	StartClientFields   []observability.Fields
 	ExtractFunc         func(context.Context, observability.TextMapCarrier) context.Context
 	ExtractCalls        int
 	ExtractCarrier      observability.TextMapCarrier
+	InjectFunc          func(context.Context, observability.TextMapCarrier)
+	InjectCalls         int
+	InjectCarrier       observability.TextMapCarrier
+	TraceContextFunc    func(context.Context) (observability.TraceContext, bool)
+	TraceContextCalls   int
 }
 
 func (t *Tracer) Start(ctx context.Context, scope, spanName string, fields ...observability.Fields) (context.Context, observability.Span) {
@@ -45,6 +55,17 @@ func (t *Tracer) StartServer(ctx context.Context, scope, spanName string, fields
 	return t.StartServerFunc(ctx, scope, spanName, fields...)
 }
 
+func (t *Tracer) StartClient(ctx context.Context, scope, spanName string, fields ...observability.Fields) (context.Context, observability.Span) {
+	t.StartClientCalls++
+	t.StartClientScope = scope
+	t.StartClientSpanName = spanName
+	t.StartClientFields = fields
+	if t.StartClientFunc == nil {
+		panic("unexpected Tracer.StartClient call")
+	}
+	return t.StartClientFunc(ctx, scope, spanName, fields...)
+}
+
 func (t *Tracer) Extract(ctx context.Context, carrier observability.TextMapCarrier) context.Context {
 	t.ExtractCalls++
 	t.ExtractCarrier = carrier
@@ -54,14 +75,29 @@ func (t *Tracer) Extract(ctx context.Context, carrier observability.TextMapCarri
 	return t.ExtractFunc(ctx, carrier)
 }
 
+func (t *Tracer) Inject(ctx context.Context, carrier observability.TextMapCarrier) {
+	t.InjectCalls++
+	t.InjectCarrier = carrier
+	if t.InjectFunc == nil {
+		panic("unexpected Tracer.Inject call")
+	}
+	t.InjectFunc(ctx, carrier)
+}
+
+func (t *Tracer) TraceContext(ctx context.Context) (observability.TraceContext, bool) {
+	t.TraceContextCalls++
+	if t.TraceContextFunc == nil {
+		panic("unexpected Tracer.TraceContext call")
+	}
+	return t.TraceContextFunc(ctx)
+}
+
 // Span is the canonical configurable double for observability.Span.
 type Span struct {
 	SetAttributesFunc  func(...observability.Fields)
 	SetAttributesCalls []SetAttributesCall
 	FinishFunc         func(error, ...string)
 	FinishCalls        []FinishCall
-	IDsFunc            func() (string, string, bool)
-	IDsCalls           int
 }
 
 // SetAttributesCall records one Span.SetAttributes invocation.
@@ -89,14 +125,6 @@ func (s *Span) Finish(err error, description ...string) {
 		panic("unexpected Span.Finish call")
 	}
 	s.FinishFunc(err, description...)
-}
-
-func (s *Span) IDs() (string, string, bool) {
-	s.IDsCalls++
-	if s.IDsFunc == nil {
-		panic("unexpected Span.IDs call")
-	}
-	return s.IDsFunc()
 }
 
 var _ observability.Tracer = (*Tracer)(nil)

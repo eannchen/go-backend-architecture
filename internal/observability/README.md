@@ -3,7 +3,8 @@
 ## Pattern used
 
 - Framework-agnostic interfaces (Tracer, Span, Meter, LogEmitter) so app layers do not import OpenTelemetry.
-- Context helpers carry correlation IDs across layers.
+- Tracing supports server extraction and client injection without exposing transport or OTel carrier types.
+- Context helpers carry request IDs across layers; trace identity remains in the active native span context.
 - Shared error-chain formatting keeps transport tracing and logging consistent.
 
 ## How to extend

@@ -51,8 +51,30 @@ func (r *otelRuntime) Shutdown(ctx context.Context) error {
 }
 
 func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv string) (observability.Runtime, error) {
-	if !cfg.Enabled {
-		return observability.NoopRuntime{}, nil
+	res, err := resource.New(
+		ctx,
+		resource.WithAttributes(
+			attribute.String("service.name", serviceName),
+			attribute.String("deployment.environment", appEnv),
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if !cfg.ExportEnabled {
+		// Keep the SDK and propagator active even when this process must not contact
+		// a collector. Spans still carry native IDs for stdout correlation and
+		// distributed context can continue through this service.
+		return newRuntime(
+			sdktrace.NewTracerProvider(
+				sdktrace.WithResource(res),
+				sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.TraceSamplingRatio))),
+			),
+			sdklog.NewLoggerProvider(sdklog.WithResource(res)),
+			sdkmetric.NewMeterProvider(sdkmetric.WithResource(res)),
+			serviceName,
+		), nil
 	}
 
 	traceOptions := []otlptracehttp.Option{
@@ -70,21 +92,13 @@ func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv strin
 		metricOptions = append(metricOptions, otlpmetrichttp.WithInsecure())
 	}
 
-	res, err := resource.New(
-		ctx,
-		resource.WithAttributes(
-			attribute.String("service.name", serviceName),
-			attribute.String("deployment.environment", appEnv),
-		),
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	traceExporter, err := otlptracehttp.New(ctx, traceOptions...)
 	if err != nil {
 		return nil, err
 	}
+	// Completed spans are exported as structured OTLP records containing trace,
+	// span, and parent IDs. A backend such as HyperDX rebuilds the distributed
+	// trace from those relationships; it does not need the raw traceparent header.
 	tracerProvider := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(traceExporter),
 		sdktrace.WithResource(res),
@@ -107,7 +121,6 @@ func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv strin
 		sdklog.WithResource(res),
 		sdklog.WithProcessor(sdklog.NewBatchProcessor(logExporter)),
 	)
-	logEmitter := NewOtelLogEmitter(loggerProvider, serviceName)
 
 	metricExporter, err := otlpmetrichttp.New(ctx, metricOptions...)
 	if err != nil {
@@ -122,6 +135,15 @@ func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv strin
 		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter)),
 	)
 
+	return newRuntime(tracerProvider, loggerProvider, meterProvider, serviceName), nil
+}
+
+func newRuntime(
+	tracerProvider *sdktrace.TracerProvider,
+	loggerProvider *sdklog.LoggerProvider,
+	meterProvider *sdkmetric.MeterProvider,
+	serviceName string,
+) observability.Runtime {
 	otel.SetTracerProvider(tracerProvider)
 	otel.SetMeterProvider(meterProvider)
 	// Propagator is the "format adapter" used to read/write trace context in
@@ -134,13 +156,12 @@ func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv strin
 		propagation.Baggage{},
 	))
 
-	runtime := &otelRuntime{
+	return &otelRuntime{
 		traceProvider:  tracerProvider,
 		loggerProvider: loggerProvider,
 		meterProvider:  meterProvider,
-		logEmitter:     logEmitter,
+		logEmitter:     NewOtelLogEmitter(loggerProvider, serviceName),
 		tracer:         NewTracer(serviceName),
 		meter:          NewMeter(meterProvider, serviceName),
 	}
-	return runtime, nil
 }

@@ -13,10 +13,10 @@ func (d wiring) buildTransportCredentials() (credentials.TransportCredentials, e
 		return nil, nil
 	}
 	tlsCfg, err := tlsconfig.LoadServer(tlsconfig.ServerConfig{
-		CertificateFile:          d.cfg.GRPC.TLS.CertificateFile,
-		PrivateKeyFile:           d.cfg.GRPC.TLS.PrivateKeyFile,
-		ClientCAFile:             d.cfg.GRPC.TLS.ClientCAFile,
-		RequireClientCertificate: d.cfg.GRPC.TLS.RequireClientCertificate,
+		ServerCertFile:    d.cfg.GRPC.TLS.ServerCertFile,
+		ServerKeyFile:     d.cfg.GRPC.TLS.ServerKeyFile,
+		ClientCAFile:      d.cfg.GRPC.TLS.ClientCAFile,
+		RequireClientCert: d.cfg.GRPC.TLS.RequireClientCert,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("load gRPC server TLS configuration: %w", err)

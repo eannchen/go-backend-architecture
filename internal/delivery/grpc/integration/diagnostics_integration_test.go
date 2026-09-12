@@ -28,7 +28,10 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
 
-const bufferSize = 1 << 20
+const (
+	bufferSize           = 1 << 20
+	requestIDMetadataKey = "x-request-id"
+)
 
 func TestDetailedAndStandardHealthServicesCoexist(t *testing.T) {
 	result := healthyReadyResult()
@@ -41,7 +44,16 @@ func TestDetailedAndStandardHealthServicesCoexist(t *testing.T) {
 
 	listener := bufconn.Listen(bufferSize)
 	responder := grpcresponse.NewResponder()
-	requestContext := requestcontextinterceptor.New(time.Second, responder)
+	requestContext, err := requestcontextinterceptor.New(requestcontextinterceptor.Config{
+		Timeout: time.Second,
+		RequestID: requestcontextinterceptor.RequestIDConfig{
+			IncomingMetadataKey: requestIDMetadataKey,
+			ResponseMetadataKey: requestIDMetadataKey,
+		},
+	}, responder)
+	if err != nil {
+		t.Fatalf("create request-context interceptor: %v", err)
+	}
 	requestObservability := observabilityinterceptor.New(observability.NoopTracer{}, logger.NoopLogger{}, observability.NoopMeter{})
 	recovery := recoveryinterceptor.New(logger.NoopLogger{}, responder)
 	server := grpc.NewServer(
@@ -95,7 +107,7 @@ func TestDetailedAndStandardHealthServicesCoexist(t *testing.T) {
 	defer cancel()
 
 	diagnosticsClient := diagnosticsv1.NewDiagnosticsServiceClient(conn)
-	requestCtx := metadata.AppendToOutgoingContext(ctx, requestcontextinterceptor.RequestIDMetadataKey, "integration-01")
+	requestCtx := metadata.AppendToOutgoingContext(ctx, requestIDMetadataKey, "integration-01")
 	var responseHeader metadata.MD
 	detailed, err := diagnosticsClient.GetHealth(requestCtx, &diagnosticsv1.GetHealthRequest{}, grpc.Header(&responseHeader))
 	if err != nil {
@@ -104,7 +116,7 @@ func TestDetailedAndStandardHealthServicesCoexist(t *testing.T) {
 	if !detailed.GetHealthy() || detailed.GetDatabase().GetName() != "app" {
 		t.Fatalf("unexpected detailed health response: %v", detailed)
 	}
-	if got := responseHeader.Get(requestcontextinterceptor.RequestIDMetadataKey); len(got) != 1 || got[0] != "integration-01" {
+	if got := responseHeader.Get(requestIDMetadataKey); len(got) != 1 || got[0] != "integration-01" {
 		t.Fatalf("response request ID = %v, want integration-01", got)
 	}
 

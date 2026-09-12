@@ -16,10 +16,10 @@ func TestLoadServerConfiguresTLSAndRequiredClientCertificates(t *testing.T) {
 	certificateFile, privateKeyFile := tlsconfigtest.WriteCertificateFiles(t, "server", serverCertificate)
 
 	tlsCfg, err := LoadServer(ServerConfig{
-		CertificateFile:          certificateFile,
-		PrivateKeyFile:           privateKeyFile,
-		ClientCAFile:             authority.WriteCAFile(t),
-		RequireClientCertificate: true,
+		ServerCertFile:    certificateFile,
+		ServerKeyFile:     privateKeyFile,
+		ClientCAFile:      authority.WriteCAFile(t),
+		RequireClientCert: true,
 	})
 	if err != nil {
 		t.Fatalf("LoadServer() error = %v", err)
@@ -40,9 +40,9 @@ func TestLoadServerVerifiesOptionalClientCertificates(t *testing.T) {
 	certificateFile, privateKeyFile := tlsconfigtest.WriteCertificateFiles(t, "server", authority.IssueServerCertificate(t, "localhost"))
 
 	tlsCfg, err := LoadServer(ServerConfig{
-		CertificateFile: certificateFile,
-		PrivateKeyFile:  privateKeyFile,
-		ClientCAFile:    authority.WriteCAFile(t),
+		ServerCertFile: certificateFile,
+		ServerKeyFile:  privateKeyFile,
+		ClientCAFile:   authority.WriteCAFile(t),
 	})
 	if err != nil {
 		t.Fatalf("LoadServer() error = %v", err)
@@ -73,26 +73,26 @@ func TestLoadServerRejectsInvalidFiles(t *testing.T) {
 		{
 			name: "missing server identity",
 			cfg: ServerConfig{
-				CertificateFile: "missing.pem",
-				PrivateKeyFile:  "missing-key.pem",
+				ServerCertFile: "missing.pem",
+				ServerKeyFile:  "missing-key.pem",
 			},
 			wantErr: "load server certificate and private key",
 		},
 		{
 			name: "required client certificate without CA",
 			cfg: ServerConfig{
-				CertificateFile:          certificateFile,
-				PrivateKeyFile:           privateKeyFile,
-				RequireClientCertificate: true,
+				ServerCertFile:    certificateFile,
+				ServerKeyFile:     privateKeyFile,
+				RequireClientCert: true,
 			},
 			wantErr: "client CA file is required",
 		},
 		{
 			name: "invalid client CA",
 			cfg: ServerConfig{
-				CertificateFile: certificateFile,
-				PrivateKeyFile:  privateKeyFile,
-				ClientCAFile:    invalidCAFile,
+				ServerCertFile: certificateFile,
+				ServerKeyFile:  privateKeyFile,
+				ClientCAFile:   invalidCAFile,
 			},
 			wantErr: "no certificates found",
 		},

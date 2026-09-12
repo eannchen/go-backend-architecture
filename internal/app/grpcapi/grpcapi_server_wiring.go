@@ -1,6 +1,8 @@
 package grpcapi
 
 import (
+	"fmt"
+
 	googlegrpc "google.golang.org/grpc"
 	grpcstandardhealth "google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -41,7 +43,17 @@ func (d wiring) buildServer(healthUsecase usecasehealth.Usecase) (serverComponen
 	if err != nil {
 		return serverComponents{}, err
 	}
-	requestContext := requestcontextinterceptor.New(d.cfg.GRPC.RequestTimeout, responder)
+	requestContext, err := requestcontextinterceptor.New(requestcontextinterceptor.Config{
+		Timeout: d.cfg.GRPC.RequestTimeout,
+		RequestID: requestcontextinterceptor.RequestIDConfig{
+			IncomingMetadataKey: d.cfg.GRPC.RequestID.IncomingKey,
+			ResponseMetadataKey: d.cfg.GRPC.RequestID.ResponseKey,
+			RejectInvalid:       d.cfg.GRPC.RequestID.RejectInvalid,
+		},
+	}, responder)
+	if err != nil {
+		return serverComponents{}, fmt.Errorf("create gRPC request-context interceptor: %w", err)
+	}
 	requestObservability := observabilityinterceptor.New(d.tracer, d.log, d.meter)
 	recovery := recoveryinterceptor.New(d.log, responder)
 

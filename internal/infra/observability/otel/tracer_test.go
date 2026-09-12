@@ -60,18 +60,19 @@ func TestSpanFinish_SetsStatusAndRecordsErrors(t *testing.T) {
 	}
 }
 
-func TestTracerStartServer_RecordsKindAttributesAndIDs(t *testing.T) {
+func TestTracerStartServer_RecordsKindAttributesAndExposesContext(t *testing.T) {
 	recorder := installSpanRecorder(t)
-	_, span := NewTracer("accounts-api").StartServer(
+	tracer := NewTracer("accounts-api")
+	ctx, span := tracer.StartServer(
 		context.Background(),
 		"http",
 		"GET /users",
 		observability.FromPairs("http.request.method", "GET", "http.response.status_code", 200),
 	)
 
-	traceID, spanID, ok := span.IDs()
-	if !ok || traceID == "" || spanID == "" {
-		t.Fatalf("span IDs = %q, %q, %v; want valid IDs", traceID, spanID, ok)
+	traceContext, ok := tracer.TraceContext(ctx)
+	if !ok || traceContext.TraceID == "" || traceContext.SpanID == "" {
+		t.Fatalf("trace context = %+v, %v; want valid IDs", traceContext, ok)
 	}
 	span.Finish(nil)
 
@@ -87,6 +88,17 @@ func TestTracerStartServer_RecordsKindAttributesAndIDs(t *testing.T) {
 	}
 	if got := traceAttribute(ended[0], "http.response.status_code"); got.AsInt64() != 200 {
 		t.Fatalf("status code attribute = %v, want 200", got)
+	}
+}
+
+func TestTracerStartClientRecordsClientKind(t *testing.T) {
+	recorder := installSpanRecorder(t)
+	_, span := NewTracer("accounts-api").StartClient(context.Background(), "grpc-client", "/test.Service/Check")
+	span.Finish(nil)
+
+	ended := recorder.Ended()
+	if len(ended) != 1 || ended[0].SpanKind() != apitrace.SpanKindClient {
+		t.Fatalf("ended spans = %#v, want one client span", ended)
 	}
 }
 
@@ -122,6 +134,22 @@ func TestTracerExtractsRemoteParentFromTextCarrier(t *testing.T) {
 	}
 	if got := ended[0].Parent().TraceID().String(); got != "0123456789abcdef0123456789abcdef" {
 		t.Fatalf("parent trace ID = %q", got)
+	}
+}
+
+func TestTracerInjectsCurrentSpanIntoTextCarrier(t *testing.T) {
+	recorder := installSpanRecorder(t)
+	ctx, span := NewTracer("test").StartClient(context.Background(), "grpc-client", "/test.Service/Check")
+	carrier := propagation.MapCarrier{}
+
+	NewTracer("test").Inject(ctx, carrier)
+	span.Finish(nil)
+
+	if carrier.Get("traceparent") == "" {
+		t.Fatalf("carrier = %#v, want traceparent", carrier)
+	}
+	if len(recorder.Ended()) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(recorder.Ended()))
 	}
 }
 
