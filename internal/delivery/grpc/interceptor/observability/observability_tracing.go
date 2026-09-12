@@ -31,27 +31,29 @@ func (t *Tracing) Start(ctx context.Context, rpc rpcInfo) (context.Context, appo
 	}
 	// StartServer always creates this service's own span. A valid extracted
 	// parent joins it to the upstream trace; no parent starts a new root trace.
-	return t.tracer.StartServer(ctx, instrumentationScope, rpc.fullMethod, rpc.fields())
+	return t.tracer.StartServer(ctx, instrumentationScope, rpc.method, rpc.spanStartFields())
 }
 
 // Finish records the normalized outcome and ends the span.
 func (*Tracing) Finish(span appobservability.Span, outcome rpcOutcome) {
-	fields := appobservability.FromPairs(keyGRPCStatusCode, int(outcome.status))
-	if outcome.errorInfo.original != nil {
-		fields[keyError] = outcome.errorInfo.original.Error()
-		fields[keyErrorChain] = outcome.errorInfo.chain
+	fields := appobservability.FromPairs(keyRPCResponseStatusCode, outcome.responseStatusName())
+	if errorType := outcome.errorType(); errorType != "" {
+		fields[keyErrorType] = errorType
 	}
-	if outcome.errorInfo.details != "" {
-		fields[keyErrorDetails] = outcome.errorInfo.details
+	if outcome.applicationError.causeChain != "" {
+		fields[keyApplicationErrorCauseChain] = outcome.applicationError.causeChain
 	}
-	if outcome.errorInfo.code != "" {
-		fields[keyErrorCode] = outcome.errorInfo.code
+	if outcome.applicationError.diagnosticDetails != "" {
+		fields[keyApplicationErrorDetails] = outcome.applicationError.diagnosticDetails
 	}
-	if outcome.errorInfo.message != "" {
-		fields[keyErrorMessage] = outcome.errorInfo.message
+	if outcome.applicationError.applicationErrorCode != "" {
+		fields[keyApplicationErrorCode] = outcome.applicationError.applicationErrorCode
+	}
+	if outcome.applicationError.applicationErrorMessage != "" {
+		fields[keyApplicationErrorMessage] = outcome.applicationError.applicationErrorMessage
 	}
 	span.SetAttributes(fields)
-	span.Finish(outcome.handlerErr)
+	span.Finish(outcome.handlerError)
 }
 
 // metadataCarrier adapts multi-value gRPC metadata to the tracing carrier's

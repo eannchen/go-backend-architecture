@@ -25,26 +25,26 @@ func TestAccessLogAcceptsNilLogger(t *testing.T) {
 func TestRequestMetricsRecordsBoundedRouteAndError(t *testing.T) {
 	meter := observabilitytest.NewRecordingMeter()
 	NewRequestMetrics(meter).Record(context.Background(), requestOutcome{
-		request:  requestInfo{method: http.MethodGet, route: "/protected", path: "/protected/secret"},
-		duration: time.Second,
-		status:   http.StatusUnauthorized,
-		errorInfo: requestErrorInfo{
-			original: errors.New("private error"),
-			details:  `{"secret":"value"}`,
+		request:            requestInfo{requestMethod: http.MethodGet, routeTemplate: "/protected", urlPath: "/protected/secret"},
+		duration:           time.Second,
+		responseStatusCode: http.StatusUnauthorized,
+		applicationError: applicationErrorInfo{
+			originalError:     errors.New("private error"),
+			diagnosticDetails: `{"secret":"value"}`,
 		},
 	})
 
 	requests := meter.CounterSamples("http_server_requests_total")
-	if len(requests) != 1 || requests[0].Fields[keyHTTPRoute] != "/protected" || requests[0].Fields[keyHTTPResponseStatus] != http.StatusUnauthorized {
+	if len(requests) != 1 || requests[0].Fields[keyHTTPRoute] != "/protected" || requests[0].Fields[keyHTTPResponseStatusCode] != http.StatusUnauthorized {
 		t.Fatalf("request metric = %#v", requests)
 	}
 	if _, exists := requests[0].Fields[keyURLPath]; exists {
 		t.Fatalf("request metric contains unbounded URL path: %#v", requests[0].Fields)
 	}
-	if _, exists := requests[0].Fields[keyErrorDetails]; exists {
+	if _, exists := requests[0].Fields[keyApplicationErrorDetails]; exists {
 		t.Fatalf("request metric contains unbounded error details: %#v", requests[0].Fields)
 	}
-	if _, exists := requests[0].Fields[keyErrorCode]; exists {
+	if _, exists := requests[0].Fields[keyApplicationErrorCode]; exists {
 		t.Fatalf("request metric contains application error code: %#v", requests[0].Fields)
 	}
 	if errorSamples := meter.CounterSamples("http_server_errors_total"); len(errorSamples) != 1 {
@@ -94,21 +94,21 @@ func TestMiddlewareUsesOneOutcomeForTracingMetricsAndAccessLog(t *testing.T) {
 		t.Fatalf("span finish calls = %#v, want application cause", span.FinishCalls)
 	}
 	attributes := mergeSpanAttributes(span.SetAttributesCalls)
-	if attributes[keyHTTPResponseStatus] != http.StatusBadRequest || attributes[keyErrorDetails] != `{"field":"name"}` {
+	if attributes[keyHTTPResponseStatusCode] != http.StatusBadRequest || attributes[keyApplicationErrorDetails] != `{"field":"name"}` {
 		t.Fatalf("span completion fields = %#v", attributes)
 	}
-	if attributes[keyErrorCode] != string(apperr.CodeInvalidArgument) || attributes[keyErrorMessage] != "invalid request" {
+	if attributes[keyApplicationErrorCode] != string(apperr.CodeInvalidArgument) || attributes[keyApplicationErrorMessage] != "invalid request" {
 		t.Fatalf("span application error fields = %#v", attributes)
 	}
 	if len(log.InfoCalls) != 1 || len(log.ErrorNoStackCalls) != 0 {
 		t.Fatalf("info logs = %d, error logs = %d", len(log.InfoCalls), len(log.ErrorNoStackCalls))
 	}
 	logFields := log.InfoCalls[0].Fields[0]
-	if logFields[keyHTTPRoute] != "/protected" || logFields[keyHTTPResponseStatus] != http.StatusBadRequest || logFields[keyErrorDetails] != `{"field":"name"}` {
+	if logFields[keyHTTPRoute] != "/protected" || logFields[keyHTTPResponseStatusCode] != http.StatusBadRequest || logFields[keyApplicationErrorDetails] != `{"field":"name"}` {
 		t.Fatalf("access-log fields = %#v", logFields)
 	}
 	requestSamples := meter.CounterSamples("http_server_requests_total")
-	if len(requestSamples) != 1 || requestSamples[0].Fields[keyHTTPRoute] != "/protected" || requestSamples[0].Fields[keyHTTPResponseStatus] != http.StatusBadRequest {
+	if len(requestSamples) != 1 || requestSamples[0].Fields[keyHTTPRoute] != "/protected" || requestSamples[0].Fields[keyHTTPResponseStatusCode] != http.StatusBadRequest {
 		t.Fatalf("request metrics = %#v", requestSamples)
 	}
 }

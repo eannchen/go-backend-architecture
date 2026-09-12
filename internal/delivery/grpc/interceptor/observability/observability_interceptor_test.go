@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	googlegrpc "google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
@@ -28,7 +27,7 @@ func TestUnaryRecordsTraceLogAndMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("interceptor error = %v", err)
 	}
-	if !tracer.extractCalled || tracer.startName != "/diagnostics.v1.DiagnosticsService/GetHealth" {
+	if !tracer.extractCalled || tracer.startName != "diagnostics.v1.DiagnosticsService/GetHealth" {
 		t.Fatalf("tracer state = %#v", tracer)
 	}
 	if tracer.span.finishErr != nil {
@@ -68,23 +67,23 @@ func TestUnaryRecordsOriginalServerFailure(t *testing.T) {
 	if got := meter.counterValues("grpc_server_errors_total"); len(got) != 1 || got[0] != 1 {
 		t.Fatalf("error samples = %v", got)
 	}
-	if got := tracer.span.attributes[keyError]; got != cause.Error() {
-		t.Fatalf("span error = %v, want %q", got, cause.Error())
-	}
-	if got := tracer.span.attributes[keyErrorChain]; got != cause.Error() {
+	if got := tracer.span.attributes[keyApplicationErrorCauseChain]; got != cause.Error() {
 		t.Fatalf("span error chain = %v, want %q", got, cause.Error())
 	}
-	if got := tracer.span.attributes[keyGRPCStatusCode]; got != int(codes.Internal) {
-		t.Fatalf("span gRPC status = %v, want %d", got, codes.Internal)
+	if got := tracer.span.attributes[keyRPCResponseStatusCode]; got != "INTERNAL" {
+		t.Fatalf("span gRPC status = %v, want INTERNAL", got)
 	}
-	if _, exists := tracer.span.attributes[keyErrorCode]; exists {
+	if got := tracer.span.attributes[keyErrorType]; got != "INTERNAL" {
+		t.Fatalf("span error type = %v, want INTERNAL", got)
+	}
+	if _, exists := tracer.span.attributes[keyApplicationErrorCode]; exists {
 		t.Fatalf("span has application code for non-application error: %#v", tracer.span.attributes)
 	}
-	if got := tracer.span.attributes[keyErrorMessage]; got != "internal server error" {
+	if got := tracer.span.attributes[keyApplicationErrorMessage]; got != "internal server error" {
 		t.Fatalf("span error message = %v, want internal server error", got)
 	}
 	fields := log.ErrorNoStackCalls[0].Fields[0]
-	if fields[keyErrorChain] != cause.Error() || fields[keyGRPCStatusCode] != int(codes.Internal) {
+	if fields[keyApplicationErrorCauseChain] != cause.Error() || fields[keyRPCResponseStatusCode] != "INTERNAL" {
 		t.Fatalf("access-log error fields = %#v", fields)
 	}
 }
@@ -112,42 +111,39 @@ func TestUnaryRecordsApplicationErrorDetailsWithoutAddingThemToMetrics(t *testin
 	if tracer.span.finishErr != wireErr {
 		t.Fatalf("span finish error = %v, want wire error", tracer.span.finishErr)
 	}
-	if got := tracer.span.attributes[keyError]; got != appErr.Error() {
-		t.Fatalf("span error = %v, want %q", got, appErr.Error())
-	}
-	if got := tracer.span.attributes[keyErrorChain]; got != appErr.Error()+"; "+cause.Error() {
+	if got := tracer.span.attributes[keyApplicationErrorCauseChain]; got != appErr.Error()+"; "+cause.Error() {
 		t.Fatalf("span error chain = %v", got)
 	}
-	if got := tracer.span.attributes[keyErrorDetails]; got != `{"field":"name"}` {
+	if got := tracer.span.attributes[keyApplicationErrorDetails]; got != `{"field":"name"}` {
 		t.Fatalf("span error details = %v", got)
 	}
-	if got := tracer.span.attributes[keyGRPCStatusCode]; got != int(codes.InvalidArgument) {
+	if got := tracer.span.attributes[keyRPCResponseStatusCode]; got != "INVALID_ARGUMENT" {
 		t.Fatalf("span gRPC status = %v", got)
 	}
-	if got := tracer.span.attributes[keyErrorCode]; got != string(apperr.CodeInvalidArgument) {
+	if got := tracer.span.attributes[keyApplicationErrorCode]; got != string(apperr.CodeInvalidArgument) {
 		t.Fatalf("span application error code = %v", got)
 	}
-	if got := tracer.span.attributes[keyErrorMessage]; got != "invalid request" {
+	if got := tracer.span.attributes[keyApplicationErrorMessage]; got != "invalid request" {
 		t.Fatalf("span error message = %v", got)
+	}
+	if _, exists := tracer.span.attributes[keyErrorType]; exists {
+		t.Fatalf("span treats a client-caused server status as a server failure: %#v", tracer.span.attributes)
 	}
 	if len(log.InfoCalls) != 1 || len(log.ErrorNoStackCalls) != 0 {
 		t.Fatalf("info logs = %d, error logs = %d", len(log.InfoCalls), len(log.ErrorNoStackCalls))
 	}
 	fields := log.InfoCalls[0].Fields[0]
-	if fields[keyErrorDetails] != `{"field":"name"}` || fields[keyErrorCode] != string(apperr.CodeInvalidArgument) || fields[keyGRPCStatusCode] != int(codes.InvalidArgument) {
+	if fields[keyApplicationErrorDetails] != `{"field":"name"}` || fields[keyApplicationErrorCode] != string(apperr.CodeInvalidArgument) || fields[keyRPCResponseStatusCode] != "INVALID_ARGUMENT" {
 		t.Fatalf("access-log error fields = %#v", fields)
 	}
 	for _, sample := range meter.counters["grpc_server_errors_total"] {
-		if sample.fields[keyGRPCStatusCode] != int(codes.InvalidArgument) {
+		if sample.fields[keyRPCResponseStatusCode] != "INVALID_ARGUMENT" {
 			t.Fatalf("error metric gRPC status = %#v", sample.fields)
 		}
-		if _, exists := sample.fields[keyError]; exists {
-			t.Fatalf("error metric contains unbounded error field: %#v", sample.fields)
-		}
-		if _, exists := sample.fields[keyErrorDetails]; exists {
+		if _, exists := sample.fields[keyApplicationErrorDetails]; exists {
 			t.Fatalf("error metric contains unbounded details field: %#v", sample.fields)
 		}
-		if _, exists := sample.fields[keyErrorCode]; exists {
+		if _, exists := sample.fields[keyApplicationErrorCode]; exists {
 			t.Fatalf("error metric contains application error code: %#v", sample.fields)
 		}
 	}

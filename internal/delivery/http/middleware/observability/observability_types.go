@@ -2,6 +2,7 @@ package observabilitymw
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/labstack/echo/v5"
@@ -11,73 +12,139 @@ import (
 )
 
 type requestInfo struct {
-	method string
-	// route is the registered template (for example, /users/:id). Its bounded
+	// requestMethod is the normalized native HTTP method used by OTel and metrics.
+	requestMethod string
+	// requestMethodOriginal retains an unknown method when requestMethod is the bounded _OTHER value.
+	requestMethodOriginal string
+	// routeTemplate is the registered template (for example, /users/:id). Its bounded
 	// values are suitable for grouping traces, logs, and metrics.
-	route string
-	// path is the concrete request path (for example, /users/42). It helps
+	routeTemplate string
+	// urlPath is the concrete request path (for example, /users/42). It helps
 	// diagnose individual requests but is intentionally excluded from metrics.
-	path   string
-	header http.Header
+	urlPath string
+	// urlScheme reflects the immediate TLS connection without trusting forwarded headers.
+	urlScheme string
+	// propagationHeaders carry traceparent and tracestate into the tracing adapter.
+	propagationHeaders http.Header
 }
 
 func newRequestInfo(c *echo.Context) requestInfo {
 	request := c.Request()
-	route := c.Path()
-	if route == "" {
-		// Keep unmatched requests in one bounded group while preserving the
-		// concrete path separately for tracing and access logs.
-		route = "unmatched"
+	routeTemplate := c.Path()
+	requestMethod, requestMethodOriginal := normalizeRequestMethod(request.Method)
+	urlScheme := "http"
+	if request.TLS != nil {
+		urlScheme = "https"
 	}
 	return requestInfo{
-		method: request.Method,
-		route:  route,
-		path:   request.URL.Path,
-		header: request.Header,
+		requestMethod:         requestMethod,
+		requestMethodOriginal: requestMethodOriginal,
+		routeTemplate:         routeTemplate,
+		urlPath:               request.URL.Path,
+		urlScheme:             urlScheme,
+		propagationHeaders:    request.Header,
 	}
 }
 
-func (i requestInfo) fields() observability.Fields {
-	return observability.FromPairs(
-		keyHTTPRequestMethod, i.method,
-		keyHTTPRoute, i.route,
+func (i requestInfo) spanStartFields() observability.Fields {
+	fields := observability.FromPairs(
+		keyHTTPRequestMethod, i.requestMethod,
+		keyURLPath, i.urlPath,
+		keyURLScheme, i.urlScheme,
 	)
+	if i.requestMethodOriginal != "" {
+		fields[keyHTTPRequestMethodOriginal] = i.requestMethodOriginal
+	}
+	// OTel forbids substituting the concrete path when the router did not match.
+	if i.routeTemplate != "" {
+		fields[keyHTTPRoute] = i.routeTemplate
+	}
+	return fields
+}
+
+func (i requestInfo) spanName() string {
+	method := i.requestMethod
+	if method == "_OTHER" {
+		method = "HTTP"
+	}
+	if i.routeTemplate == "" {
+		return method
+	}
+	return method + " " + i.routeTemplate
+}
+
+func normalizeRequestMethod(method string) (string, string) {
+	switch method {
+	case http.MethodConnect,
+		http.MethodDelete,
+		http.MethodGet,
+		http.MethodHead,
+		http.MethodOptions,
+		http.MethodPatch,
+		http.MethodPost,
+		http.MethodPut,
+		"QUERY",
+		http.MethodTrace:
+		return method, ""
+	default:
+		return "_OTHER", method
+	}
 }
 
 type requestOutcome struct {
-	request   requestInfo
-	duration  time.Duration
-	status    int
-	errorInfo requestErrorInfo
+	// request contains immutable transport facts captured before the handler runs.
+	request requestInfo
+	// duration measures handler execution and is used by logs and aggregate metrics.
+	duration time.Duration
+	// responseStatusCode is the native HTTP status resolved from Echo's response and handler error.
+	responseStatusCode int
+	// applicationError contains responder-owned application error metadata, when available.
+	applicationError applicationErrorInfo
 }
 
 func newRequestOutcome(c *echo.Context, request requestInfo, duration time.Duration, handlerErr error) requestOutcome {
-	_, status := echo.ResolveResponseStatus(c.Response(), handlerErr)
+	_, responseStatusCode := echo.ResolveResponseStatus(c.Response(), handlerErr)
 	return requestOutcome{
-		request:   request,
-		duration:  duration,
-		status:    status,
-		errorInfo: inspectRequestError(c),
+		request:            request,
+		duration:           duration,
+		responseStatusCode: responseStatusCode,
+		applicationError:   inspectApplicationError(c),
 	}
 }
 
-type requestErrorInfo struct {
-	original error
-	chain    string
-	details  string
-	code     string
-	message  string
+type applicationErrorInfo struct {
+	// originalError is the internal Go error retained for logging and span error recording.
+	originalError error
+	// causeChain is the diagnostic unwrap chain and may contain high-cardinality internal text.
+	causeChain string
+	// diagnosticDetails contains serialized responder details for traces and logs only.
+	diagnosticDetails string
+	// applicationErrorCode is the non-HTTP code assigned by the application or delivery layer.
+	applicationErrorCode string
+	// applicationErrorMessage is the safe message associated with applicationErrorCode.
+	applicationErrorMessage string
 }
 
-func inspectRequestError(c *echo.Context) requestErrorInfo {
-	original := httpcontext.Error(c)
-	details := httpcontext.ErrorDetails(c)
-	code, message := httpcontext.TransportError(c)
-	return requestErrorInfo{
-		original: original,
-		chain:    observability.ErrorCauseChain(original),
-		details:  details.String(),
-		code:     code,
-		message:  message,
+func inspectApplicationError(c *echo.Context) applicationErrorInfo {
+	outcome, ok := httpcontext.ErrorOutcomeFrom(c)
+	if !ok {
+		return applicationErrorInfo{}
 	}
+	return applicationErrorInfo{
+		originalError:           outcome.OriginalError,
+		causeChain:              observability.ErrorCauseChain(outcome.OriginalError),
+		diagnosticDetails:       outcome.DiagnosticDetails.String(),
+		applicationErrorCode:    outcome.ApplicationErrorCode,
+		applicationErrorMessage: outcome.ApplicationErrorMessage,
+	}
+}
+
+// errorType follows the OTel HTTP server rule: a 5xx response means the server
+// operation failed, while a 4xx response normally represents a client failure
+// and must not mark the server span as failed. OTel stores the status as a string.
+func (o requestOutcome) errorType() string {
+	if o.responseStatusCode < http.StatusInternalServerError {
+		return ""
+	}
+	return strconv.Itoa(o.responseStatusCode)
 }

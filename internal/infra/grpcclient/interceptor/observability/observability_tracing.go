@@ -32,7 +32,7 @@ func (t *Tracing) Start(ctx context.Context, rpc rpcInfo) (context.Context, appo
 	// StartClient creates a new span for this outbound RPC. It becomes a child
 	// of the active span in ctx, or a root span when the caller has no trace.
 	// The returned ctx contains the span, not serialized trace metadata.
-	ctx, span := t.tracer.StartClient(ctx, instrumentationScope, rpc.fullMethod, rpc.fields())
+	ctx, span := t.tracer.StartClient(ctx, instrumentationScope, rpc.method, rpc.spanStartFields())
 	if !t.propagateTraceContext {
 		return ctx, span
 	}
@@ -58,14 +58,13 @@ func (t *Tracing) Start(ctx context.Context, rpc rpcInfo) (context.Context, appo
 
 // Finish records the bounded transport outcome and completes the span.
 func (*Tracing) Finish(span appobservability.Span, outcome rpcOutcome) {
-	fields := appobservability.FromPairs(keyGRPCStatusCode, int(outcome.status))
-	if outcome.err != nil {
-		fields[keyError] = outcome.err.Error()
-		fields[keyErrorChain] = appobservability.ErrorCauseChain(outcome.err)
-		fields[keyErrorMessage] = outcome.message
+	fields := appobservability.FromPairs(keyRPCResponseStatusCode, outcome.responseStatusName())
+	if errorType := outcome.errorType(); errorType != "" {
+		fields[keyErrorType] = errorType
+		fields[keyApplicationRPCStatusMessage] = outcome.responseStatusMessage
 	}
 	span.SetAttributes(fields)
-	span.Finish(outcome.err, outcome.message)
+	span.Finish(outcome.callError, outcome.responseStatusMessage)
 }
 
 // metadataCarrier adapts multi-value outgoing gRPC metadata to the tracing

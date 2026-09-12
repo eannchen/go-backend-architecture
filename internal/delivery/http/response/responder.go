@@ -83,32 +83,26 @@ func (r *responder) Success(c *echo.Context, status int, payload any) error {
 }
 
 func (r *responder) Error(c *echo.Context, err error, code Code, message string, details ...Details) error {
-	httpcontext.SetError(c, err)
-	httpcontext.SetErrorDetails(c, optionalDetails(details...))
-	return r.writeError(c, code, message)
+	return r.writeError(c, err, code, message, optionalDetails(details...))
 }
 
 func (r *responder) InvalidQuery(c *echo.Context, err error, message string, details ...Details) error {
-	httpcontext.SetError(c, err)
-	httpcontext.SetErrorDetails(c, optionalDetails(details...))
-	return r.writeError(c, CodeInvalidQuery, message)
+	return r.writeError(c, err, CodeInvalidQuery, message, optionalDetails(details...))
 }
 
 func (r *responder) AppError(c *echo.Context, err error) error {
-	httpcontext.SetError(c, err)
 	if handled, responseErr := r.writeContextError(c, err); handled {
 		return responseErr
 	}
 	appErr, ok := apperr.As(err)
 	if !ok {
-		return r.writeError(c, Code(apperr.CodeInternal), "internal server error")
+		return r.writeError(c, err, Code(apperr.CodeInternal), "internal server error", nil)
 	}
-	httpcontext.SetErrorDetails(c, appErr.Details)
-	return r.writeError(c, Code(appErr.Code), appErr.Message)
+	return r.writeError(c, err, Code(appErr.Code), appErr.Message, appErr.Details)
 }
 
-func (r *responder) writeError(c *echo.Context, code Code, message string) error {
-	httpcontext.SetTransportError(c, string(code), message)
+func (r *responder) writeError(c *echo.Context, originalError error, code Code, message string, details Details) error {
+	recordErrorOutcome(c, originalError, code, message, details)
 	return c.JSON(code.toHTTPStatus(), errorPayload{
 		Code:    string(code),
 		Message: message,
@@ -116,31 +110,38 @@ func (r *responder) writeError(c *echo.Context, code Code, message string) error
 }
 
 func (r *responder) AppErrorWithPayload(c *echo.Context, err error, payload any) error {
-	httpcontext.SetError(c, err)
 	if handled, responseErr := r.writeContextError(c, err); handled {
 		return responseErr
 	}
 	appErr, ok := apperr.As(err)
 	if !ok {
 		code := Code(apperr.CodeInternal)
-		httpcontext.SetTransportError(c, string(code), "internal server error")
+		recordErrorOutcome(c, err, code, "internal server error", nil)
 		return c.JSON(code.toHTTPStatus(), payload)
 	}
-	httpcontext.SetErrorDetails(c, appErr.Details)
-	httpcontext.SetTransportError(c, string(appErr.Code), appErr.Message)
+	recordErrorOutcome(c, err, Code(appErr.Code), appErr.Message, appErr.Details)
 	return c.JSON(Code(appErr.Code).toHTTPStatus(), payload)
 }
 
 func (r *responder) writeContextError(c *echo.Context, err error) (bool, error) {
 	switch {
 	case errors.Is(err, context.Canceled):
-		httpcontext.SetTransportError(c, string(CodeRequestCanceled), "request canceled")
+		recordErrorOutcome(c, err, CodeRequestCanceled, "request canceled", nil)
 		return true, c.NoContent(statusClientClosedRequest)
 	case errors.Is(err, context.DeadlineExceeded):
-		return true, r.writeError(c, Code(apperr.CodeTimeout), "request timed out")
+		return true, r.writeError(c, err, Code(apperr.CodeTimeout), "request timed out", nil)
 	default:
 		return false, nil
 	}
+}
+
+func recordErrorOutcome(c *echo.Context, originalError error, code Code, message string, details Details) {
+	httpcontext.SetErrorOutcome(c, httpcontext.ErrorOutcome{
+		OriginalError:           originalError,
+		ApplicationErrorCode:    string(code),
+		ApplicationErrorMessage: message,
+		DiagnosticDetails:       details,
+	})
 }
 
 func optionalDetails(details ...Details) Details {

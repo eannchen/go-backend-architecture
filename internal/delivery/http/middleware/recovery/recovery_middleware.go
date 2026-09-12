@@ -54,8 +54,11 @@ func (m *Middleware) Handler() echo.MiddlewareFunc {
 				))
 
 				if responseCommitted(c) {
-					httpcontext.SetError(c, cause)
-					httpcontext.SetTransportError(c, string(apperr.CodeInternal), "internal server error")
+					httpcontext.SetErrorOutcome(c, httpcontext.ErrorOutcome{
+						OriginalError:           cause,
+						ApplicationErrorCode:    string(apperr.CodeInternal),
+						ApplicationErrorMessage: "internal server error",
+					})
 					err = cause
 					return
 				}

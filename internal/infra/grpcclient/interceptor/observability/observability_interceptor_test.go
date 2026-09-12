@@ -31,7 +31,7 @@ func TestUnaryInjectsTraceAndRecordsOutcome(t *testing.T) {
 	meter := observabilitytest.NewRecordingMeter()
 
 	err := New(
-		Config{DependencyName: "diagnostics"},
+		Config{DependencyName: "diagnostics", Target: "diagnostics:9090"},
 		WithTracing(tracer, TraceConfig{PropagateContext: true}),
 		WithMetrics(meter),
 		WithCompletionLog(log, fixedLogPolicy(logger.SeverityInfo)),
@@ -52,8 +52,11 @@ func TestUnaryInjectsTraceAndRecordsOutcome(t *testing.T) {
 		t.Fatalf("log calls = info:%d error:%d", len(log.InfoCalls), len(log.ErrorNoStackCalls))
 	}
 	requests := meter.CounterSamples("grpc_client_requests_total")
-	if len(requests) != 1 || requests[0].Fields[keyRPCService] != "diagnostics.v1.DiagnosticsService" || requests[0].Fields[keyGRPCStatusCode] != int(codes.OK) || requests[0].Fields[keyDependencyName] != "diagnostics" {
+	if len(requests) != 1 || requests[0].Fields[keyRPCMethod] != "diagnostics.v1.DiagnosticsService/GetHealth" || requests[0].Fields[keyRPCResponseStatusCode] != "OK" || requests[0].Fields[keyApplicationDependencyName] != "diagnostics" {
 		t.Fatalf("request metrics = %#v", requests)
+	}
+	if requests[0].Fields[keyServerAddress] != "diagnostics" || requests[0].Fields[keyServerPort] != 9090 {
+		t.Fatalf("request metric destination = %#v", requests[0].Fields)
 	}
 	if len(span.FinishCalls) != 1 || span.FinishCalls[0].Err != nil {
 		t.Fatalf("span finish calls = %#v", span.FinishCalls)
@@ -93,10 +96,10 @@ func TestUnaryRecordsRemoteFailure(t *testing.T) {
 	if len(log.ErrorNoStackCalls) != 1 || !errors.Is(log.ErrorNoStackCalls[0].Err, wireErr) {
 		t.Fatalf("error logs = %#v", log.ErrorNoStackCalls)
 	}
-	if loggedOutcome.DependencyName != "external-provider" || loggedOutcome.FullMethod != "/test.Service/Fail" || loggedOutcome.Status != codes.Unavailable || !errors.Is(loggedOutcome.Err, wireErr) {
+	if loggedOutcome.DependencyName != "external-provider" || loggedOutcome.RPCMethod != "test.Service/Fail" || loggedOutcome.GRPCStatusCode != codes.Unavailable || !errors.Is(loggedOutcome.RPCError, wireErr) {
 		t.Fatalf("log policy outcome = %+v", loggedOutcome)
 	}
-	if samples := meter.CounterSamples("grpc_client_errors_total"); len(samples) != 1 || samples[0].Fields[keyGRPCStatusCode] != int(codes.Unavailable) {
+	if samples := meter.CounterSamples("grpc_client_errors_total"); len(samples) != 1 || samples[0].Fields[keyRPCResponseStatusCode] != "UNAVAILABLE" {
 		t.Fatalf("error metrics = %#v", samples)
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/eannchen/go-backend-architecture/internal/logger"
-	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
 // AccessLog records one structured completion event per client RPC.
@@ -18,11 +17,16 @@ type AccessLog struct {
 
 // LogOutcome exposes transport facts without assigning business meaning to them.
 type LogOutcome struct {
+	// DependencyName is the optional stable application name configured for the remote service.
 	DependencyName string
-	FullMethod     string
-	Status         codes.Code
-	Duration       time.Duration
-	Err            error
+	// RPCMethod is the normalized fully-qualified gRPC method, such as package.Service/Method.
+	RPCMethod string
+	// GRPCStatusCode is the native status returned by the remote call.
+	GRPCStatusCode codes.Code
+	// Duration covers the full logical call, including a stream's lifetime.
+	Duration time.Duration
+	// RPCError is the exact error returned by gRPC, or nil for an OK status.
+	RPCError error
 }
 
 // LogPolicy decides whether and at what level one dependency logs an outcome.
@@ -42,30 +46,34 @@ func (l *AccessLog) Record(ctx context.Context, outcome rpcOutcome) {
 		return
 	}
 	severity, enabled := l.policy(LogOutcome{
-		DependencyName: outcome.rpc.dependency,
-		FullMethod:     outcome.rpc.fullMethod,
-		Status:         outcome.status,
+		DependencyName: outcome.rpc.dependencyName,
+		RPCMethod:      outcome.rpc.method,
+		GRPCStatusCode: outcome.responseStatusCode,
 		Duration:       outcome.duration,
-		Err:            outcome.err,
+		RPCError:       outcome.callError,
 	})
 	if !enabled {
 		return
 	}
 	fields := logger.FromPairs(
-		keyRPCSystem, "grpc",
-		keyRPCService, outcome.rpc.service,
+		keyRPCSystemName, "grpc",
 		keyRPCMethod, outcome.rpc.method,
-		keyRPCType, outcome.rpc.rpcType,
-		keyGRPCStatusCode, int(outcome.status),
-		keyDurationMS, outcome.duration.Milliseconds(),
+		keyApplicationRPCCallType, outcome.rpc.callType,
+		keyRPCResponseStatusCode, outcome.responseStatusName(),
+		keyLogDurationMS, outcome.duration.Milliseconds(),
 	)
-	if outcome.rpc.dependency != "" {
-		fields[keyDependencyName] = outcome.rpc.dependency
+	if outcome.rpc.serverAddress != "" {
+		fields[keyServerAddress] = outcome.rpc.serverAddress
 	}
-	if outcome.err != nil {
-		fields[keyError] = outcome.err.Error()
-		fields[keyErrorChain] = appobservability.ErrorCauseChain(outcome.err)
-		fields[keyErrorMessage] = outcome.message
+	if outcome.rpc.serverPort > 0 {
+		fields[keyServerPort] = outcome.rpc.serverPort
+	}
+	if outcome.rpc.dependencyName != "" {
+		fields[keyApplicationDependencyName] = outcome.rpc.dependencyName
+	}
+	if errorType := outcome.errorType(); errorType != "" {
+		fields[keyErrorType] = errorType
+		fields[keyApplicationRPCStatusMessage] = outcome.responseStatusMessage
 	}
 	switch severity {
 	case logger.SeverityDebug:
@@ -73,7 +81,7 @@ func (l *AccessLog) Record(ctx context.Context, outcome rpcOutcome) {
 	case logger.SeverityWarn:
 		l.log.Warn(ctx, "gRPC client request completed", fields)
 	case logger.SeverityError:
-		l.log.ErrorNoStack(ctx, "gRPC client request completed", outcome.err, fields)
+		l.log.ErrorNoStack(ctx, "gRPC client request completed", outcome.callError, fields)
 	default:
 		l.log.Info(ctx, "gRPC client request completed", fields)
 	}

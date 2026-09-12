@@ -70,12 +70,12 @@ func TestResponderAppErrorCopiesAppErrorFields(t *testing.T) {
 		t.Fatalf("details should not be exposed in response payload")
 	}
 
-	code, msg := httpcontext.TransportError(c)
-	if code != string(apperr.CodeInvalidArgument) {
-		t.Fatalf("expected transport code %q, got %q", apperr.CodeInvalidArgument, code)
+	outcome, _ := httpcontext.ErrorOutcomeFrom(c)
+	if outcome.ApplicationErrorCode != string(apperr.CodeInvalidArgument) {
+		t.Fatalf("expected application error code %q, got %q", apperr.CodeInvalidArgument, outcome.ApplicationErrorCode)
 	}
-	if msg != "bad input" {
-		t.Fatalf("expected transport message %q, got %q", "bad input", msg)
+	if outcome.ApplicationErrorMessage != "bad input" {
+		t.Fatalf("expected application error message %q, got %q", "bad input", outcome.ApplicationErrorMessage)
 	}
 }
 
@@ -118,11 +118,11 @@ func TestResponderAppErrorPrioritizesContextErrors(t *testing.T) {
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d", rec.Code, tt.wantStatus)
 			}
-			code, message := httpcontext.TransportError(c)
-			if code != tt.wantCode || message != tt.wantMessage {
-				t.Fatalf("transport error = (%q, %q), want (%q, %q)", code, message, tt.wantCode, tt.wantMessage)
+			outcome, _ := httpcontext.ErrorOutcomeFrom(c)
+			if outcome.ApplicationErrorCode != tt.wantCode || outcome.ApplicationErrorMessage != tt.wantMessage {
+				t.Fatalf("error outcome = %#v, want code %q and message %q", outcome, tt.wantCode, tt.wantMessage)
 			}
-			if !errors.Is(httpcontext.Error(c), tt.err) {
+			if !errors.Is(outcome.OriginalError, tt.err) {
 				t.Fatal("original error was not retained for observability")
 			}
 
@@ -182,12 +182,12 @@ func TestResponderErrorWritesBody(t *testing.T) {
 		t.Fatalf("expected error body to match written payload, got %#v", body)
 	}
 
-	code, msg := httpcontext.TransportError(c)
-	if code != "BAD_INPUT" {
-		t.Fatalf("expected transport code %q, got %q", "BAD_INPUT", code)
+	outcome, _ := httpcontext.ErrorOutcomeFrom(c)
+	if outcome.ApplicationErrorCode != "BAD_INPUT" {
+		t.Fatalf("expected application error code %q, got %q", "BAD_INPUT", outcome.ApplicationErrorCode)
 	}
-	if msg != "bad input" {
-		t.Fatalf("expected transport message %q, got %q", "bad input", msg)
+	if outcome.ApplicationErrorMessage != "bad input" {
+		t.Fatalf("expected application error message %q, got %q", "bad input", outcome.ApplicationErrorMessage)
 	}
 }
 
@@ -214,7 +214,8 @@ func TestResponderInvalidQueryStoresInternalDetailsOnly(t *testing.T) {
 		t.Fatalf("details should not be exposed in response payload")
 	}
 
-	details := httpcontext.ErrorDetails(c)
+	outcome, _ := httpcontext.ErrorOutcomeFrom(c)
+	details := outcome.DiagnosticDetails
 	if details == nil || details["field"] != "check" {
 		t.Fatalf("expected internal error details, got %#v", details)
 	}
@@ -292,9 +293,9 @@ func TestResponderAppErrorWithPayload_UsesErrorStatusAndMetadata(t *testing.T) {
 			if body["status"] != "down" {
 				t.Fatalf("payload = %#v, want status down", body)
 			}
-			code, message := httpcontext.TransportError(c)
-			if code != tt.wantCode || message != tt.wantMessage {
-				t.Fatalf("transport error = %q %q, want %q %q", code, message, tt.wantCode, tt.wantMessage)
+			outcome, _ := httpcontext.ErrorOutcomeFrom(c)
+			if outcome.ApplicationErrorCode != tt.wantCode || outcome.ApplicationErrorMessage != tt.wantMessage {
+				t.Fatalf("error outcome = %#v, want code %q and message %q", outcome, tt.wantCode, tt.wantMessage)
 			}
 		})
 	}

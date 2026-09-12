@@ -22,27 +22,35 @@ func NewAccessLog(log logger.Logger) *AccessLog {
 // Record relies on the logger's context provider for request and trace IDs.
 func (l *AccessLog) Record(ctx context.Context, outcome requestOutcome) {
 	fields := logger.FromPairs(
-		keyHTTPRequestMethod, outcome.request.method,
-		keyHTTPRoute, outcome.request.route,
-		keyURLPath, outcome.request.path,
-		keyHTTPResponseStatus, outcome.status,
-		keyDurationMS, outcome.duration.Milliseconds(),
+		keyHTTPRequestMethod, outcome.request.requestMethod,
+		keyURLPath, outcome.request.urlPath,
+		keyURLScheme, outcome.request.urlScheme,
+		keyHTTPResponseStatusCode, outcome.responseStatusCode,
+		keyLogDurationMS, outcome.duration.Milliseconds(),
 	)
-	if outcome.errorInfo.original != nil {
-		fields[keyError] = outcome.errorInfo.original.Error()
-		fields[keyErrorChain] = outcome.errorInfo.chain
+	if outcome.request.requestMethodOriginal != "" {
+		fields[keyHTTPRequestMethodOriginal] = outcome.request.requestMethodOriginal
 	}
-	if outcome.errorInfo.details != "" {
-		fields[keyErrorDetails] = outcome.errorInfo.details
+	if outcome.request.routeTemplate != "" {
+		fields[keyHTTPRoute] = outcome.request.routeTemplate
 	}
-	if outcome.errorInfo.code != "" {
-		fields[keyErrorCode] = outcome.errorInfo.code
+	if errorType := outcome.errorType(); errorType != "" {
+		fields[keyErrorType] = errorType
 	}
-	if outcome.errorInfo.message != "" {
-		fields[keyErrorMessage] = outcome.errorInfo.message
+	if outcome.applicationError.causeChain != "" {
+		fields[keyApplicationErrorCauseChain] = outcome.applicationError.causeChain
 	}
-	if outcome.status >= 500 {
-		l.log.ErrorNoStack(ctx, "request completed", outcome.errorInfo.original, fields)
+	if outcome.applicationError.diagnosticDetails != "" {
+		fields[keyApplicationErrorDetails] = outcome.applicationError.diagnosticDetails
+	}
+	if outcome.applicationError.applicationErrorCode != "" {
+		fields[keyApplicationErrorCode] = outcome.applicationError.applicationErrorCode
+	}
+	if outcome.applicationError.applicationErrorMessage != "" {
+		fields[keyApplicationErrorMessage] = outcome.applicationError.applicationErrorMessage
+	}
+	if outcome.responseStatusCode >= 500 {
+		l.log.ErrorNoStack(ctx, "request completed", outcome.applicationError.originalError, fields)
 		return
 	}
 	l.log.Info(ctx, "request completed", fields)

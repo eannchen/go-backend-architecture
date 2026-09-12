@@ -9,33 +9,38 @@ import (
 	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
-type rpcErrorInfo struct {
-	original error
-	chain    string
-	details  string
-	code     string
-	message  string
+type applicationErrorInfo struct {
+	// originalError is the internal Go error recovered from the transport response wrapper.
+	originalError error
+	// causeChain is the diagnostic unwrap chain and may contain high-cardinality internal text.
+	causeChain string
+	// diagnosticDetails contains serialized responder details for traces and logs only.
+	diagnosticDetails string
+	// applicationErrorCode is the transport-independent application code assigned by apperr.
+	applicationErrorCode string
+	// applicationErrorMessage is the safe gRPC status message associated with applicationErrorCode.
+	applicationErrorMessage string
 }
 
-func inspectRPCError(err error) rpcErrorInfo {
+func inspectApplicationError(err error) applicationErrorInfo {
 	if err == nil {
-		return rpcErrorInfo{}
+		return applicationErrorInfo{}
 	}
 	original := originalRPCError(err)
-	code := ""
-	details := ""
+	applicationErrorCode := ""
+	diagnosticDetails := ""
 	if appErr, ok := apperr.As(original); ok {
-		code = string(appErr.Code)
+		applicationErrorCode = string(appErr.Code)
 		if len(appErr.Details) > 0 {
-			details = appErr.Details.String()
+			diagnosticDetails = appErr.Details.String()
 		}
 	}
-	return rpcErrorInfo{
-		original: original,
-		chain:    appobservability.ErrorCauseChain(original),
-		details:  details,
-		code:     code,
-		message:  status.Convert(err).Message(),
+	return applicationErrorInfo{
+		originalError:           original,
+		causeChain:              appobservability.ErrorCauseChain(original),
+		diagnosticDetails:       diagnosticDetails,
+		applicationErrorCode:    applicationErrorCode,
+		applicationErrorMessage: status.Convert(err).Message(),
 	}
 }
 
@@ -46,8 +51,7 @@ type causalGRPCStatusError interface {
 }
 
 func originalRPCError(err error) error {
-	var responseErr causalGRPCStatusError
-	if errors.As(err, &responseErr) {
+	if responseErr, ok := errors.AsType[causalGRPCStatusError](err); ok {
 		if cause := responseErr.Unwrap(); cause != nil {
 			return cause
 		}

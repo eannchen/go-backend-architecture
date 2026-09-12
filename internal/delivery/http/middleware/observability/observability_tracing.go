@@ -2,7 +2,6 @@ package observabilitymw
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/eannchen/go-backend-architecture/internal/observability"
@@ -23,36 +22,35 @@ func NewTracing(tracer observability.Tracer) *Tracing {
 
 // Start extracts parent trace context and starts an HTTP server span.
 func (t *Tracing) Start(ctx context.Context, request requestInfo) (context.Context, observability.Span) {
-	ctx = t.tracer.Extract(ctx, headerCarrier{Header: request.header})
+	ctx = t.tracer.Extract(ctx, headerCarrier{Header: request.propagationHeaders})
 	return t.tracer.StartServer(
 		ctx,
 		instrumentationScope,
-		fmt.Sprintf("%s %s", request.method, request.route),
-		observability.MergeFields(
-			request.fields(),
-			observability.FromPairs(keyURLPath, request.path),
-		),
+		request.spanName(),
+		request.spanStartFields(),
 	)
 }
 
 // Finish records the normalized outcome and ends the span.
 func (*Tracing) Finish(span observability.Span, outcome requestOutcome) {
-	fields := observability.FromPairs(keyHTTPResponseStatus, outcome.status)
-	if outcome.errorInfo.original != nil {
-		fields[keyError] = outcome.errorInfo.original.Error()
-		fields[keyErrorChain] = outcome.errorInfo.chain
+	fields := observability.FromPairs(keyHTTPResponseStatusCode, outcome.responseStatusCode)
+	if errorType := outcome.errorType(); errorType != "" {
+		fields[keyErrorType] = errorType
 	}
-	if outcome.errorInfo.details != "" {
-		fields[keyErrorDetails] = outcome.errorInfo.details
+	if outcome.applicationError.causeChain != "" {
+		fields[keyApplicationErrorCauseChain] = outcome.applicationError.causeChain
 	}
-	if outcome.errorInfo.code != "" {
-		fields[keyErrorCode] = outcome.errorInfo.code
+	if outcome.applicationError.diagnosticDetails != "" {
+		fields[keyApplicationErrorDetails] = outcome.applicationError.diagnosticDetails
 	}
-	if outcome.errorInfo.message != "" {
-		fields[keyErrorMessage] = outcome.errorInfo.message
+	if outcome.applicationError.applicationErrorCode != "" {
+		fields[keyApplicationErrorCode] = outcome.applicationError.applicationErrorCode
+	}
+	if outcome.applicationError.applicationErrorMessage != "" {
+		fields[keyApplicationErrorMessage] = outcome.applicationError.applicationErrorMessage
 	}
 	span.SetAttributes(fields)
-	span.Finish(outcome.errorInfo.original)
+	span.Finish(outcome.applicationError.originalError)
 }
 
 // headerCarrier adapts HTTP headers to the transport-neutral tracing carrier.

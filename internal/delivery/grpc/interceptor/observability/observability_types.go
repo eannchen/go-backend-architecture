@@ -1,7 +1,6 @@
 package observability
 
 import (
-	"strings"
 	"time"
 
 	googlegrpc "google.golang.org/grpc"
@@ -9,60 +8,64 @@ import (
 	"google.golang.org/grpc/status"
 
 	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/observability/grpcsemconv"
 )
 
 type rpcInfo struct {
-	fullMethod string
-	service    string
-	method     string
-	rpcType    string
+	// method is the normalized, fully-qualified gRPC method without the wire path's leading slash.
+	method string
+	// callType distinguishes unary and streaming lifecycles; it is a template field, not an OTel field.
+	callType string
 }
 
-func newRPCInfo(fullMethod, rpcType string) rpcInfo {
-	service, method := splitFullMethod(fullMethod)
+func newRPCInfo(fullMethod, callType string) rpcInfo {
 	return rpcInfo{
-		fullMethod: fullMethod,
-		service:    service,
-		method:     method,
-		rpcType:    rpcType,
+		method:   grpcsemconv.NormalizeMethod(fullMethod),
+		callType: callType,
 	}
 }
 
-func (i rpcInfo) fields() appobservability.Fields {
+func (i rpcInfo) spanStartFields() appobservability.Fields {
 	return appobservability.FromPairs(
-		keyRPCSystem, "grpc",
-		keyRPCService, i.service,
+		keyRPCSystemName, "grpc",
 		keyRPCMethod, i.method,
-		keyRPCType, i.rpcType,
+		keyApplicationRPCCallType, i.callType,
 	)
 }
 
 type rpcOutcome struct {
-	rpc        rpcInfo
-	duration   time.Duration
-	status     codes.Code
-	handlerErr error
-	errorInfo  rpcErrorInfo
+	// rpc contains immutable transport facts captured before the service runs.
+	rpc rpcInfo
+	// duration measures service execution and is used by logs and aggregate metrics.
+	duration time.Duration
+	// responseStatusCode is the native gRPC status resolved from the returned error.
+	responseStatusCode codes.Code
+	// handlerError is the exact error returned to gRPC and used to finish the span.
+	handlerError error
+	// applicationError contains responder-owned application error metadata, when available.
+	applicationError applicationErrorInfo
 }
 
 func newRPCOutcome(rpc rpcInfo, duration time.Duration, handlerErr error) rpcOutcome {
 	rpcStatus := status.Code(handlerErr)
 	return rpcOutcome{
-		rpc:        rpc,
-		duration:   duration,
-		status:     rpcStatus,
-		handlerErr: handlerErr,
-		errorInfo:  inspectRPCError(handlerErr),
+		rpc:                rpc,
+		duration:           duration,
+		responseStatusCode: rpcStatus,
+		handlerError:       handlerErr,
+		applicationError:   inspectApplicationError(handlerErr),
 	}
 }
 
-func splitFullMethod(fullMethod string) (string, string) {
-	trimmed := strings.TrimPrefix(fullMethod, "/")
-	separator := strings.LastIndexByte(trimmed, '/')
-	if separator < 0 {
-		return "unknown", trimmed
-	}
-	return trimmed[:separator], trimmed[separator+1:]
+func (o rpcOutcome) responseStatusName() string {
+	return grpcsemconv.StatusName(o.responseStatusCode)
+}
+
+// errorType follows the OTel gRPC server rule: only statuses classified as
+// server failures populate error.type. Client-caused statuses such as
+// INVALID_ARGUMENT still describe the RPC outcome without failing the server span.
+func (o rpcOutcome) errorType() string {
+	return grpcsemconv.ServerErrorType(o.responseStatusCode)
 }
 
 func streamType(info *googlegrpc.StreamServerInfo) string {

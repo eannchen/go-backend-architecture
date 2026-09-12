@@ -3,8 +3,6 @@ package observability
 import (
 	"context"
 
-	"google.golang.org/grpc/codes"
-
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 )
 
@@ -23,39 +21,32 @@ func NewAccessLog(log logger.Logger) *AccessLog {
 
 // Record relies on the logger's context provider for request and trace IDs.
 func (l *AccessLog) Record(ctx context.Context, outcome rpcOutcome) {
+	errorType := outcome.errorType()
 	fields := logger.FromPairs(
-		keyRPCSystem, "grpc",
-		keyRPCService, outcome.rpc.service,
+		keyRPCSystemName, "grpc",
 		keyRPCMethod, outcome.rpc.method,
-		keyRPCType, outcome.rpc.rpcType,
-		keyGRPCStatusCode, int(outcome.status),
-		keyDurationMS, outcome.duration.Milliseconds(),
+		keyApplicationRPCCallType, outcome.rpc.callType,
+		keyRPCResponseStatusCode, outcome.responseStatusName(),
+		keyLogDurationMS, outcome.duration.Milliseconds(),
 	)
-	if outcome.errorInfo.original != nil {
-		fields[keyError] = outcome.errorInfo.original.Error()
-		fields[keyErrorChain] = outcome.errorInfo.chain
+	if errorType != "" {
+		fields[keyErrorType] = errorType
 	}
-	if outcome.errorInfo.details != "" {
-		fields[keyErrorDetails] = outcome.errorInfo.details
+	if outcome.applicationError.causeChain != "" {
+		fields[keyApplicationErrorCauseChain] = outcome.applicationError.causeChain
 	}
-	if outcome.errorInfo.code != "" {
-		fields[keyErrorCode] = outcome.errorInfo.code
+	if outcome.applicationError.diagnosticDetails != "" {
+		fields[keyApplicationErrorDetails] = outcome.applicationError.diagnosticDetails
 	}
-	if outcome.errorInfo.message != "" {
-		fields[keyErrorMessage] = outcome.errorInfo.message
+	if outcome.applicationError.applicationErrorCode != "" {
+		fields[keyApplicationErrorCode] = outcome.applicationError.applicationErrorCode
 	}
-	if isServerError(outcome.status) {
-		l.log.ErrorNoStack(ctx, "request completed", outcome.errorInfo.original, fields)
+	if outcome.applicationError.applicationErrorMessage != "" {
+		fields[keyApplicationErrorMessage] = outcome.applicationError.applicationErrorMessage
+	}
+	if errorType != "" {
+		l.log.ErrorNoStack(ctx, "request completed", outcome.applicationError.originalError, fields)
 		return
 	}
 	l.log.Info(ctx, "request completed", fields)
-}
-
-func isServerError(status codes.Code) bool {
-	switch status {
-	case codes.Unknown, codes.DeadlineExceeded, codes.Unimplemented, codes.Internal, codes.Unavailable, codes.DataLoss:
-		return true
-	default:
-		return false
-	}
 }

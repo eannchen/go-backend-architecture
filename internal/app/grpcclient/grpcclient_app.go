@@ -76,7 +76,10 @@ func newApp(cfg config.GRPCClientConfig, tracer observability.Tracer, log logger
 		return nil, fmt.Errorf("create demo request-context interceptors: %w", err)
 	}
 	requestObservability := clientobservability.New(
-		clientobservability.Config{DependencyName: cfg.DependencyName},
+		clientobservability.Config{
+			DependencyName: cfg.DependencyName,
+			Target:         cfg.Target,
+		},
 		clientobservability.WithTracing(tracer, clientobservability.TraceConfig{
 			PropagateContext: cfg.TracePropagation,
 		}),
@@ -160,7 +163,7 @@ func (a *App) Shutdown(ctx context.Context) error {
 func demoLogPolicy(outcome clientobservability.LogOutcome) (logger.Severity, bool) {
 	// The demo deliberately cancels Health.Watch after its first response, so that
 	// terminal status is an expected lifecycle event rather than a dependency fault.
-	if outcome.Status == codes.OK || outcome.Status == codes.Canceled {
+	if outcome.GRPCStatusCode == codes.OK || outcome.GRPCStatusCode == codes.Canceled {
 		return logger.SeverityInfo, true
 	}
 	return logger.SeverityError, true

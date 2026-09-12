@@ -14,9 +14,12 @@ import (
 	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
-// Config identifies the dependency represented by this connection.
+// Config identifies the dependency and logical endpoint represented by this connection.
 type Config struct {
+	// DependencyName is an optional stable application name used to group this dependency's telemetry.
 	DependencyName string
+	// Target is the same logical gRPC target used to create the client connection.
+	Target string
 }
 
 // Option enables one reusable observability capability for the connection.
@@ -45,16 +48,24 @@ func WithCompletionLog(log logger.Logger, policy LogPolicy) Option {
 
 // Interceptor composes tracing, metrics, and access logging for client RPCs.
 type Interceptor struct {
-	dependency string
-	tracing    *Tracing
-	metrics    *RequestMetrics
-	accessLog  *AccessLog
+	dependencyName string
+	serverAddress  string
+	serverPort     int
+	tracing        *Tracing
+	metrics        *RequestMetrics
+	accessLog      *AccessLog
 }
 
 // New creates an interceptor from only the capabilities selected by its caller.
 func New(config Config, options ...Option) *Interceptor {
 	config.DependencyName = strings.TrimSpace(config.DependencyName)
-	interceptor := &Interceptor{dependency: config.DependencyName}
+	config.Target = strings.TrimSpace(config.Target)
+	serverAddress, serverPort := parseServerEndpoint(config.Target)
+	interceptor := &Interceptor{
+		dependencyName: config.DependencyName,
+		serverAddress:  serverAddress,
+		serverPort:     serverPort,
+	}
 	for _, option := range options {
 		option(interceptor)
 	}
@@ -67,7 +78,7 @@ func (i *Interceptor) Unary() googlegrpc.UnaryClientInterceptor {
 		if !i.enabled() {
 			return invoker(ctx, method, req, reply, connection, opts...)
 		}
-		rpc := newRPCInfo(i.dependency, method, "unary")
+		rpc := newRPCInfo(i.dependencyName, i.serverAddress, i.serverPort, method, "unary")
 		var span appobservability.Span
 		if i.tracing != nil {
 			ctx, span = i.tracing.Start(ctx, rpc)
@@ -86,7 +97,7 @@ func (i *Interceptor) Stream() googlegrpc.StreamClientInterceptor {
 		if !i.enabled() {
 			return streamer(ctx, description, connection, method, opts...)
 		}
-		rpc := newRPCInfo(i.dependency, method, streamType(description))
+		rpc := newRPCInfo(i.dependencyName, i.serverAddress, i.serverPort, method, streamType(description))
 		var span appobservability.Span
 		if i.tracing != nil {
 			ctx, span = i.tracing.Start(ctx, rpc)

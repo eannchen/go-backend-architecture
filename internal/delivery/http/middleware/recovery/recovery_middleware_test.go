@@ -43,12 +43,12 @@ func TestMiddlewareRecoversPanicWithStandardInternalResponse(t *testing.T) {
 		t.Fatalf("body = %#v", body)
 	}
 
-	if originalErr := httpcontext.Error(c); originalErr == nil || originalErr.Error() != "panic: database password" {
-		t.Fatalf("recorded error = %v", originalErr)
+	outcome, _ := httpcontext.ErrorOutcomeFrom(c)
+	if outcome.OriginalError == nil || outcome.OriginalError.Error() != "panic: database password" {
+		t.Fatalf("recorded error = %v", outcome.OriginalError)
 	}
-	code, message := httpcontext.TransportError(c)
-	if code != string(apperr.CodeInternal) || message != "internal server error" {
-		t.Fatalf("transport error = (%q, %q)", code, message)
+	if outcome.ApplicationErrorCode != string(apperr.CodeInternal) || outcome.ApplicationErrorMessage != "internal server error" {
+		t.Fatalf("error outcome = %#v", outcome)
 	}
 	assertPanicLog(t, log)
 }
@@ -63,7 +63,8 @@ func TestMiddlewarePreservesPanicErrorCause(t *testing.T) {
 	})(c); err != nil {
 		t.Fatalf("middleware error = %v", err)
 	}
-	if !errors.Is(httpcontext.Error(c), cause) {
+	outcome, _ := httpcontext.ErrorOutcomeFrom(c)
+	if !errors.Is(outcome.OriginalError, cause) {
 		t.Fatal("recorded panic does not preserve its error cause")
 	}
 }
@@ -87,8 +88,9 @@ func TestMiddlewareDoesNotOverwriteCommittedResponse(t *testing.T) {
 	if rec.Code != http.StatusOK || rec.Body.String() != "partial" {
 		t.Fatalf("response = (%d, %q), want unchanged partial response", rec.Code, rec.Body.String())
 	}
-	if originalErr := httpcontext.Error(c); originalErr == nil || originalErr.Error() != "panic: stream failed" {
-		t.Fatalf("recorded error = %v", originalErr)
+	outcome, _ := httpcontext.ErrorOutcomeFrom(c)
+	if outcome.OriginalError == nil || outcome.OriginalError.Error() != "panic: stream failed" {
+		t.Fatalf("recorded error = %v", outcome.OriginalError)
 	}
 	assertPanicLog(t, log)
 }
