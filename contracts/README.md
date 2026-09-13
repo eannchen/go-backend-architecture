@@ -8,6 +8,6 @@
 
 ## How to extend
 
-- Change the source contract first, then run its generation and lint targets.
+- Change the source contract first, then run `make proto-check` or the corresponding HTTP generation target.
 - Version externally visible gRPC packages and preserve existing field numbers.
 - Map generated transport types at the delivery boundary; never pass them into usecases or repositories.
