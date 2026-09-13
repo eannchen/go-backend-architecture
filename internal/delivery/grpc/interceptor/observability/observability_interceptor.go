@@ -11,6 +11,8 @@ import (
 )
 
 // Interceptor coordinates tracing, metrics, and access logging around each RPC.
+// Completion telemetry uses the context received here; values added by inner
+// interceptors are not returned with the handler's response and error.
 type Interceptor struct {
 	tracing   *Tracing
 	metrics   *RequestMetrics

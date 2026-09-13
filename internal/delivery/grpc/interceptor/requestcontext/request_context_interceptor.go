@@ -77,6 +77,8 @@ func (i *Interceptor) Unary() googlegrpc.UnaryServerInterceptor {
 			defer cancel()
 		}
 
+		// gRPC passes this derived context inward; handlers return no context for
+		// outer interceptors to retrieve afterward.
 		return handler(requestCtx, req)
 	}
 }
@@ -98,6 +100,8 @@ func (i *Interceptor) Stream() googlegrpc.StreamServerInterceptor {
 			}
 		}
 
+		// ServerStream cannot replace its context, so wrap it to pass the enriched
+		// context to downstream interceptors and the service.
 		return handler(srv, &contextServerStream{ServerStream: stream, ctx: requestCtx})
 	}
 }

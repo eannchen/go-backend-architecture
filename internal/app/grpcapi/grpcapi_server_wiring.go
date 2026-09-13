@@ -57,6 +57,10 @@ func (d wiring) buildServer(healthUsecase usecasehealth.Usecase) (serverComponen
 	requestObservability := observabilityinterceptor.New(d.tracer, d.log, d.meter)
 	recovery := recoveryinterceptor.New(d.log, responder)
 
+	// Interceptors are listed outermost to innermost. Request context runs first
+	// because gRPC passes derived contexts inward only, so observability receives
+	// the validated request ID. Recovery stays inside observability so recovered
+	// panics are recorded as failed RPC outcomes.
 	server, err := grpcdelivery.NewServer(
 		grpcdelivery.ServerConfig{
 			Address:              d.cfg.GRPC.Address,

@@ -68,6 +68,9 @@ func (d wiring) buildServer(responder httpresponse.Responder, repos appRepositor
 	}, d.cfg.HTTP.RequestID.IncomingKey)
 	exposeHeaders := appendUniqueHeader(nil, d.cfg.HTTP.RequestID.ResponseKey)
 
+	// Middleware is listed outermost to innermost. CORS handles preflight before
+	// rate limiting, while request context applies IDs and deadlines before limiter
+	// work. Observability and recovery wrap all downstream outcomes.
 	middlewares := []echo.MiddlewareFunc{
 		observabilitymw.New(d.tracer, d.log, d.meter).Handler(),
 		recoverymw.New(d.log, responder).Handler(),

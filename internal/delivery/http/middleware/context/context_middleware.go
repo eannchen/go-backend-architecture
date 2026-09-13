@@ -98,6 +98,8 @@ func (m *RequestContextMiddleware) Handler() echo.MiddlewareFunc {
 				defer cancel()
 			}
 
+			// Echo stores a mutable request pointer, so replacing it makes this derived
+			// context available both downstream and to outer middleware after it returns.
 			c.SetRequest(req.WithContext(reqCtx))
 			return next(c)
 		}
