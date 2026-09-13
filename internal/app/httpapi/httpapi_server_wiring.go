@@ -72,7 +72,6 @@ func (d wiring) buildServer(responder httpresponse.Responder, repos appRepositor
 		observabilitymw.New(d.tracer, d.log, d.meter).Handler(),
 		recoverymw.New(d.log, responder).Handler(),
 		echoMiddleware.SecureWithConfig(secureCfg),
-		globalLimiter.Handler(),
 		echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
 			AllowOrigins: d.cfg.HTTP.CORSAllowOrigins,
 			AllowMethods: []string{
@@ -88,6 +87,7 @@ func (d wiring) buildServer(responder httpresponse.Responder, repos appRepositor
 			AllowCredentials: true,
 		}),
 		requestContext.Handler(),
+		globalLimiter.Handler(),
 	}
 	ipExtractor, err := buildIPExtractor(d.cfg.HTTP.TrustedProxyCIDRs)
 	if err != nil {

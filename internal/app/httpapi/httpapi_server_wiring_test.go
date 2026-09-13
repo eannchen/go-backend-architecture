@@ -86,6 +86,51 @@ func TestBuildServerAppliesEnvironmentHTTPProtection(t *testing.T) {
 	}
 }
 
+func TestBuildServerEstablishesRequestContextBeforeRateLimitingAndSkipsPreflight(t *testing.T) {
+	wiring := newWiring(config.Config{
+		AppEnv: "test",
+		HTTP: config.HTTPConfig{
+			Address:          ":0",
+			RequestTimeout:   time.Second,
+			CORSAllowOrigins: []string{"https://app.example.com"},
+			RequestID: config.RequestIDConfig{
+				IncomingKey: "X-Correlation-ID",
+			},
+		},
+	}, logger.NoopLogger{}, observability.NoopTracer{}, observability.NoopMeter{})
+
+	tokenBucket := &kvstoretest.TokenBucketRepository{
+		AllowFunc: func(ctx context.Context, _ string, _ int, _ time.Duration) (repokvstore.TokenBucketDecision, error) {
+			if got := observability.RequestIDFromContext(ctx); got != "request-123" {
+				t.Fatalf("rate-limit request ID = %q, want request-123", got)
+			}
+			if _, ok := ctx.Deadline(); !ok {
+				t.Fatal("rate-limit context has no request deadline")
+			}
+			return repokvstore.TokenBucketDecision{Allowed: true}, nil
+		},
+	}
+	server, err := wiring.buildServer(httpresponse.NewResponder(), appRepositories{tokenBucketRepo: tokenBucket}, appHandlers{}, appUsecases{})
+	if err != nil {
+		t.Fatalf("buildServer() error = %v", err)
+	}
+
+	preflight := httptest.NewRequest(http.MethodOptions, "/missing", nil)
+	preflight.Header.Set(echo.HeaderOrigin, "https://app.example.com")
+	preflight.Header.Set(echo.HeaderAccessControlRequestMethod, http.MethodGet)
+	server.ServeHTTP(httptest.NewRecorder(), preflight)
+	if tokenBucket.AllowCalls != 0 {
+		t.Fatalf("rate-limit calls after preflight = %d, want 0", tokenBucket.AllowCalls)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/missing", nil)
+	request.Header.Set("X-Correlation-ID", "request-123")
+	server.ServeHTTP(httptest.NewRecorder(), request)
+	if tokenBucket.AllowCalls != 1 {
+		t.Fatalf("rate-limit calls after application request = %d, want 1", tokenBucket.AllowCalls)
+	}
+}
+
 func TestIsLocalAppEnv(t *testing.T) {
 	tests := []struct {
 		name string
