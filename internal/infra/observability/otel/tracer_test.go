@@ -60,6 +60,17 @@ func TestSpanFinish_SetsStatusAndRecordsErrors(t *testing.T) {
 	}
 }
 
+func TestTracerStartRecordsInternalKind(t *testing.T) {
+	recorder := installSpanRecorder(t)
+	_, span := NewTracer("accounts-api").Start(context.Background(), "usecase", "account.get")
+	span.Finish(nil)
+
+	ended := recorder.Ended()
+	if len(ended) != 1 || ended[0].SpanKind() != apitrace.SpanKindInternal {
+		t.Fatalf("ended spans = %#v, want one internal span", ended)
+	}
+}
+
 func TestTracerStartServer_RecordsKindAttributesAndExposesContext(t *testing.T) {
 	recorder := installSpanRecorder(t)
 	tracer := NewTracer("accounts-api")

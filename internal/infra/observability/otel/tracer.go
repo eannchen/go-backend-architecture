@@ -27,13 +27,7 @@ func NewTracer(serviceName string) observability.Tracer {
 }
 
 func (t *tracer) Start(ctx context.Context, scope, spanName string, optionalFields ...observability.Fields) (context.Context, observability.Span) {
-	fields := observability.OptionalFields(optionalFields...)
-	opts := []trace.SpanStartOption{}
-	if len(fields) > 0 {
-		opts = append(opts, trace.WithAttributes(toTraceAttributes(fields)...))
-	}
-	ctx, s := otel.Tracer(t.tracerName(scope)).Start(ctx, spanName, opts...)
-	return ctx, &span{span: s}
+	return t.startWithKind(ctx, scope, spanName, trace.SpanKindInternal, optionalFields...)
 }
 
 func (t *tracer) StartServer(ctx context.Context, scope, spanName string, optionalFields ...observability.Fields) (context.Context, observability.Span) {
