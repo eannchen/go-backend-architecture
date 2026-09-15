@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 )
 
 // Tracing owns distributed-context extraction and server-span lifecycle.
@@ -29,9 +30,16 @@ func (t *Tracing) Start(ctx context.Context, rpc rpcInfo) (context.Context, appo
 		// remote parent stored in ctx; it does not create the server span itself.
 		ctx = t.tracer.Extract(ctx, metadataCarrier{MD: md})
 	}
+	fields := rpc.spanStartFields()
+	if identity, ok := calleridentity.FromContext(ctx); ok {
+		// Caller identity is useful on individual spans but intentionally excluded
+		// from aggregate metrics, where arbitrary subjects increase cardinality.
+		fields[keyApplicationCallerID] = identity.Subject
+		fields[keyApplicationCallerAuthenticationType] = string(identity.AuthenticationType)
+	}
 	// StartServer always creates this service's own span. A valid extracted
 	// parent joins it to the upstream trace; no parent starts a new root trace.
-	return t.tracer.StartServer(ctx, instrumentationScope, rpc.method, rpc.spanStartFields())
+	return t.tracer.StartServer(ctx, instrumentationScope, rpc.method, fields)
 }
 
 // Finish records the normalized outcome and ends the span.

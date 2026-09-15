@@ -16,7 +16,8 @@ type ServerConfig struct {
 	// ownership of the server certificate and must remain secret.
 	ServerKeyFile string
 	// ClientCAFile contains CA certificates used to verify certificates presented
-	// by clients. It is only needed when client certificates participate in mTLS.
+	// by clients. The gRPC caller-identity adapter separately interprets a verified
+	// certificate's URI SAN; this protocol-neutral loader does not choose identity.
 	ClientCAFile string
 	// RequireClientCert makes a verified client certificate mandatory. Together
 	// with server authentication, this turns ordinary TLS into mutual TLS.

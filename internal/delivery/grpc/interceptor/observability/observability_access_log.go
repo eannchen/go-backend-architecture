@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 )
 
 // AccessLog writes one structured completion log per RPC.
@@ -29,6 +30,10 @@ func (l *AccessLog) Record(ctx context.Context, outcome rpcOutcome) {
 		keyRPCResponseStatusCode, outcome.responseStatusName(),
 		keyLogDurationMS, outcome.duration.Milliseconds(),
 	)
+	if identity, ok := calleridentity.FromContext(ctx); ok {
+		fields[keyApplicationCallerID] = identity.Subject
+		fields[keyApplicationCallerAuthenticationType] = string(identity.AuthenticationType)
+	}
 	if errorType != "" {
 		fields[keyErrorType] = errorType
 	}

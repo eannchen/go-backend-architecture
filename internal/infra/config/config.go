@@ -106,6 +106,7 @@ type GRPCServerTLSConfig struct {
 	// ServerKeyFile is the secret private key matching ServerCertFile.
 	ServerKeyFile string
 	// ClientCAFile identifies which client certificates the server trusts for mTLS.
+	// Verified certificates must carry one URI SAN to become a caller identity.
 	ClientCAFile string
 	// RequireClientCert rejects clients that do not present a trusted certificate.
 	RequireClientCert bool

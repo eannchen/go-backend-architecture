@@ -13,6 +13,10 @@ const (
 	keyLogDurationMS = "duration.ms"
 	// keyApplicationRPCCallType is a template field distinguishing unary and streaming call shapes.
 	keyApplicationRPCCallType = "app.rpc.call_type"
+	// keyApplicationCallerID is the authenticated machine identity established by a transport adapter.
+	keyApplicationCallerID = "app.caller.id"
+	// keyApplicationCallerAuthenticationType identifies how the machine identity was verified.
+	keyApplicationCallerAuthenticationType = "app.caller.authentication_type"
 	// keyApplicationErrorCauseChain is a template diagnostic field containing the internal Go error chain.
 	keyApplicationErrorCauseChain = "app.error.cause_chain"
 	// keyApplicationErrorDetails is a template field containing safe serialized responder details.

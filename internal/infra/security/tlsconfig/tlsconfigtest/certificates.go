@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -50,13 +51,23 @@ func NewCertificateAuthority(t testing.TB) *CertificateAuthority {
 // IssueServerCertificate creates a server certificate for the supplied DNS names.
 func (a *CertificateAuthority) IssueServerCertificate(t testing.TB, dnsNames ...string) tls.Certificate {
 	t.Helper()
-	return a.issue(t, "test server", []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, dnsNames)
+	return a.issue(t, "test server", []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, dnsNames, nil)
 }
 
 // IssueClientCertificate creates a client-authentication certificate.
 func (a *CertificateAuthority) IssueClientCertificate(t testing.TB, commonName string) tls.Certificate {
 	t.Helper()
-	return a.issue(t, commonName, []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}, nil)
+	return a.issue(t, commonName, []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}, nil, nil)
+}
+
+// IssueClientCertificateWithURI creates a client certificate with an explicit machine identity.
+func (a *CertificateAuthority) IssueClientCertificateWithURI(t testing.TB, rawURI string) tls.Certificate {
+	t.Helper()
+	identityURI, err := url.Parse(rawURI)
+	if err != nil {
+		t.Fatalf("parse client identity URI: %v", err)
+	}
+	return a.issue(t, "test client", []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}, nil, []*url.URL{identityURI})
 }
 
 // CertPool returns a trust pool containing this authority.
@@ -99,13 +110,14 @@ func WriteCertificateFiles(t testing.TB, name string, certificate tls.Certificat
 	return certificateFile, privateKeyFile
 }
 
-func (a *CertificateAuthority) issue(t testing.TB, commonName string, usages []x509.ExtKeyUsage, dnsNames []string) tls.Certificate {
+func (a *CertificateAuthority) issue(t testing.TB, commonName string, usages []x509.ExtKeyUsage, dnsNames []string, uris []*url.URL) tls.Certificate {
 	t.Helper()
 	privateKey := newPrivateKey(t)
 	template := &x509.Certificate{
 		SerialNumber: newSerialNumber(t),
 		Subject:      pkix.Name{CommonName: commonName},
 		DNSNames:     dnsNames,
+		URIs:         uris,
 		NotBefore:    time.Now().Add(-time.Minute),
 		NotAfter:     time.Now().Add(time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature,

@@ -2,11 +2,13 @@ package grpcapi
 
 import (
 	"context"
+	"crypto/tls"
 	"testing"
 	"time"
 
 	googlegrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
@@ -14,8 +16,10 @@ import (
 
 	diagnosticsv1 "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/gen/diagnostics/v1"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
+	"github.com/eannchen/go-backend-architecture/internal/infra/security/tlsconfig/tlsconfigtest"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
@@ -117,4 +121,87 @@ func TestBuildServerWiresServicesRequestContextAndRecovery(t *testing.T) {
 		t.Fatalf("panic status = %s, want Internal", got)
 	}
 	<-requestContexts
+}
+
+func TestBuildServerPublishesVerifiedMTLSCallerIdentity(t *testing.T) {
+	const subject = "spiffe://example.internal/service/catalog"
+
+	authority := tlsconfigtest.NewCertificateAuthority(t)
+	serverCertFile, serverKeyFile := tlsconfigtest.WriteCertificateFiles(t, "server", authority.IssueServerCertificate(t, "localhost"))
+	clientCertificate := authority.IssueClientCertificateWithURI(t, subject)
+	type identityResult struct {
+		identity calleridentity.Identity
+		found    bool
+	}
+	clientIdentity := make(chan identityResult, 1)
+	healthUsecase := &healthtest.Usecase{
+		CheckFunc: func(ctx context.Context, _ usecasehealth.CheckMode) (usecasehealth.Result, error) {
+			identity, ok := calleridentity.FromContext(ctx)
+			clientIdentity <- identityResult{identity: identity, found: ok}
+			return usecasehealth.Result{}, nil
+		},
+	}
+	wiring := newWiring(config.Config{GRPC: config.GRPCConfig{
+		Address:               "127.0.0.1:0",
+		HealthRefreshInterval: time.Hour,
+		RequestTimeout:        time.Second,
+		MaxRecvMessageBytes:   1 << 20,
+		MaxSendMessageBytes:   1 << 20,
+		TLS: config.GRPCServerTLSConfig{
+			Enabled:           true,
+			ServerCertFile:    serverCertFile,
+			ServerKeyFile:     serverKeyFile,
+			ClientCAFile:      authority.WriteCAFile(t),
+			RequireClientCert: true,
+		},
+	}}, logger.NoopLogger{}, observability.NoopTracer{}, observability.NoopMeter{})
+
+	components, err := wiring.buildServer(healthUsecase)
+	if err != nil {
+		t.Fatalf("buildServer() error = %v", err)
+	}
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- components.server.Start() }()
+	t.Cleanup(func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := components.reporter.Shutdown(shutdownCtx); err != nil {
+			t.Errorf("shutdown health reporter: %v", err)
+		}
+		if err := components.server.Shutdown(shutdownCtx); err != nil {
+			t.Errorf("shutdown gRPC server: %v", err)
+		}
+		if err := <-serveErr; err != nil {
+			t.Errorf("serve gRPC: %v", err)
+		}
+	})
+
+	conn, err := googlegrpc.NewClient(
+		components.server.Address().String(),
+		googlegrpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
+			MinVersion:   tls.VersionTLS12,
+			ServerName:   "localhost",
+			RootCAs:      authority.CertPool(),
+			Certificates: []tls.Certificate{clientCertificate},
+		})),
+	)
+	if err != nil {
+		t.Fatalf("create mTLS gRPC client: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("close client connection: %v", err)
+		}
+	})
+
+	callCtx, cancelCall := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelCall()
+	_, err = diagnosticsv1.NewDiagnosticsServiceClient(conn).GetHealth(callCtx, &diagnosticsv1.GetHealthRequest{})
+	if err != nil {
+		t.Fatalf("GetHealth() error = %v", err)
+	}
+	result := <-clientIdentity
+	if !result.found || result.identity.Subject != subject || result.identity.AuthenticationType != calleridentity.AuthenticationTypeMTLS {
+		t.Fatalf("caller identity = (%+v, %t)", result.identity, result.found)
+	}
 }

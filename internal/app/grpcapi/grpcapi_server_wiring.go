@@ -9,12 +9,14 @@ import (
 
 	grpcdelivery "github.com/eannchen/go-backend-architecture/internal/delivery/grpc"
 	diagnosticsv1 "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/gen/diagnostics/v1"
+	calleridentityinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/calleridentity"
 	observabilityinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/observability"
 	recoveryinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/recovery"
 	requestcontextinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/requestcontext"
 	grpcresponse "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
 	diagnosticsservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics"
 	healthservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health"
+	infracalleridentity "github.com/eannchen/go-backend-architecture/internal/infra/security/calleridentity"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
@@ -56,11 +58,22 @@ func (d wiring) buildServer(healthUsecase usecasehealth.Usecase) (serverComponen
 	}
 	requestObservability := observabilityinterceptor.New(d.tracer, d.log, d.meter)
 	recovery := recoveryinterceptor.New(d.log, responder)
+	unaryInterceptors := []googlegrpc.UnaryServerInterceptor{requestContext.Unary()}
+	streamInterceptors := []googlegrpc.StreamServerInterceptor{requestContext.Stream()}
+	if d.cfg.GRPC.TLS.Enabled && d.cfg.GRPC.TLS.ClientCAFile != "" {
+		callerIdentity, err := calleridentityinterceptor.New(infracalleridentity.URICertificateExtractor{}, responder)
+		if err != nil {
+			return serverComponents{}, fmt.Errorf("create gRPC caller-identity interceptor: %w", err)
+		}
+		unaryInterceptors = append(unaryInterceptors, callerIdentity.Unary())
+		streamInterceptors = append(streamInterceptors, callerIdentity.Stream())
+	}
+	unaryInterceptors = append(unaryInterceptors, requestObservability.Unary(), recovery.Unary())
+	streamInterceptors = append(streamInterceptors, requestObservability.Stream(), recovery.Stream())
 
-	// Interceptors are listed outermost to innermost. Request context runs first
-	// because gRPC passes derived contexts inward only, so observability receives
-	// the validated request ID. Recovery stays inside observability so recovered
-	// panics are recorded as failed RPC outcomes.
+	// Interceptors are listed outermost to innermost. Context enrichers run before
+	// observability because gRPC passes derived contexts inward only. Recovery
+	// stays inside observability so recovered panics become failed RPC outcomes.
 	server, err := grpcdelivery.NewServer(
 		grpcdelivery.ServerConfig{
 			Address:              d.cfg.GRPC.Address,
@@ -70,16 +83,8 @@ func (d wiring) buildServer(healthUsecase usecasehealth.Usecase) (serverComponen
 			TransportCredentials: transportCredentials,
 		},
 		d.log,
-		[]googlegrpc.UnaryServerInterceptor{
-			requestContext.Unary(),
-			requestObservability.Unary(),
-			recovery.Unary(),
-		},
-		[]googlegrpc.StreamServerInterceptor{
-			requestContext.Stream(),
-			requestObservability.Stream(),
-			recovery.Stream(),
-		},
+		unaryInterceptors,
+		streamInterceptors,
 		grpcdelivery.ServiceRegistrarFunc(func(registrar googlegrpc.ServiceRegistrar) {
 			diagnosticsv1.RegisterDiagnosticsServiceServer(registrar, diagnostics)
 		}),

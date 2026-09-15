@@ -13,6 +13,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 )
 
 func TestUnaryRecordsTraceLogAndMetrics(t *testing.T) {
@@ -44,6 +45,36 @@ func TestUnaryRecordsTraceLogAndMetrics(t *testing.T) {
 	}
 	if got := meter.histogramCalls["grpc_server_request_duration_seconds"]; got != 1 {
 		t.Fatalf("duration samples = %d, want 1", got)
+	}
+}
+
+func TestUnaryAddsCallerIdentityToTraceAndLogButNotMetrics(t *testing.T) {
+	tracer := &recordingTracer{span: &recordingSpan{}}
+	meter := newRecordingMeter()
+	log := &loggertest.Logger{InfoFunc: func(context.Context, string, ...logger.Fields) {}}
+	ctx := calleridentity.WithIdentity(context.Background(), calleridentity.Identity{
+		Subject:            "spiffe://example.internal/service/catalog",
+		AuthenticationType: calleridentity.AuthenticationTypeMTLS,
+	})
+
+	_, err := New(tracer, log, meter).Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{FullMethod: "/test.Service/Call"}, func(context.Context, any) (any, error) {
+		return nil, nil
+	})
+	if err != nil {
+		t.Fatalf("interceptor error = %v", err)
+	}
+	if got := tracer.startFields[keyApplicationCallerID]; got != "spiffe://example.internal/service/catalog" {
+		t.Fatalf("span caller identity = %v", got)
+	}
+	if got := log.InfoCalls[0].Fields[0][keyApplicationCallerID]; got != "spiffe://example.internal/service/catalog" {
+		t.Fatalf("log caller identity = %v", got)
+	}
+	for _, samples := range meter.counters {
+		for _, sample := range samples {
+			if _, ok := sample.fields[keyApplicationCallerID]; ok {
+				t.Fatalf("metric contains caller identity: %#v", sample.fields)
+			}
+		}
 	}
 }
 
@@ -172,13 +203,15 @@ type recordingTracer struct {
 	span          *recordingSpan
 	extractCalled bool
 	startName     string
+	startFields   appobservability.Fields
 }
 
 func (t *recordingTracer) Start(ctx context.Context, _, _ string, _ ...appobservability.Fields) (context.Context, appobservability.Span) {
 	return ctx, t.span
 }
-func (t *recordingTracer) StartServer(ctx context.Context, _, name string, _ ...appobservability.Fields) (context.Context, appobservability.Span) {
+func (t *recordingTracer) StartServer(ctx context.Context, _, name string, fields ...appobservability.Fields) (context.Context, appobservability.Span) {
 	t.startName = name
+	t.startFields = appobservability.OptionalFields(fields...)
 	return ctx, t.span
 }
 func (t *recordingTracer) StartClient(ctx context.Context, _, _ string, _ ...appobservability.Fields) (context.Context, appobservability.Span) {
