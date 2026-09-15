@@ -31,7 +31,7 @@ func newHandlerForTest(otp *authotptest.OTPAuthenticator, session *sessiontest.S
 	return NewHandler(
 		logger.NoopLogger{},
 		nil,
-		httpresponse.NewResponder(nil),
+		httpresponse.NewResponder(),
 		otp,
 		&authoauthtest.OAuthAuthenticator{},
 		session,
@@ -65,7 +65,7 @@ func TestHandlerOAuthFlowBindsCallbackToAuthorizeBrowser(t *testing.T) {
 		},
 	}
 	h := NewHandler(
-		logger.NoopLogger{}, nil, httpresponse.NewResponder(nil), &authotptest.OTPAuthenticator{}, oauth, session,
+		logger.NoopLogger{}, nil, httpresponse.NewResponder(), &authotptest.OTPAuthenticator{}, oauth, session,
 		SessionCookieConfig{Name: "session_id", TTL: 30 * time.Minute}, nil,
 	)
 	e := newEchoForTest(t)
@@ -299,7 +299,7 @@ func TestHandlerLogoutLogsRevokeFailureAndClearsCookie(t *testing.T) {
 	h := NewHandler(
 		log,
 		nil,
-		httpresponse.NewResponder(nil),
+		httpresponse.NewResponder(),
 		&authotptest.OTPAuthenticator{},
 		&authoauthtest.OAuthAuthenticator{},
 		session,

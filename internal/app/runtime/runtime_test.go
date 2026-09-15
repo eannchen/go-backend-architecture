@@ -22,7 +22,7 @@ func TestRuntimeShutdownAttemptsEveryResourceAndJoinsErrors(t *testing.T) {
 			return loggerErr
 		},
 	}
-	runtime := &Runtime{Observability: obs, Logger: log}
+	runtime := &Runtime{Telemetry: &Telemetry{Observability: obs, Logger: log}}
 
 	err := runtime.Shutdown(context.Background())
 

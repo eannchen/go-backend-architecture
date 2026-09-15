@@ -3,12 +3,12 @@ package otel
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"testing"
 
 	apiotel "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	apitrace "go.opentelemetry.io/otel/trace"
@@ -60,18 +60,30 @@ func TestSpanFinish_SetsStatusAndRecordsErrors(t *testing.T) {
 	}
 }
 
-func TestTracerStartServer_RecordsKindAttributesAndIDs(t *testing.T) {
+func TestTracerStartRecordsInternalKind(t *testing.T) {
 	recorder := installSpanRecorder(t)
-	_, span := NewTracer("accounts-api").StartServer(
+	_, span := NewTracer("accounts-api").Start(context.Background(), "usecase", "account.get")
+	span.Finish(nil)
+
+	ended := recorder.Ended()
+	if len(ended) != 1 || ended[0].SpanKind() != apitrace.SpanKindInternal {
+		t.Fatalf("ended spans = %#v, want one internal span", ended)
+	}
+}
+
+func TestTracerStartServer_RecordsKindAttributesAndExposesContext(t *testing.T) {
+	recorder := installSpanRecorder(t)
+	tracer := NewTracer("accounts-api")
+	ctx, span := tracer.StartServer(
 		context.Background(),
 		"http",
 		"GET /users",
 		observability.FromPairs("http.request.method", "GET", "http.response.status_code", 200),
 	)
 
-	traceID, spanID, ok := span.IDs()
-	if !ok || traceID == "" || spanID == "" {
-		t.Fatalf("span IDs = %q, %q, %v; want valid IDs", traceID, spanID, ok)
+	traceContext, ok := tracer.TraceContext(ctx)
+	if !ok || traceContext.TraceID == "" || traceContext.SpanID == "" {
+		t.Fatalf("trace context = %+v, %v; want valid IDs", traceContext, ok)
 	}
 	span.Finish(nil)
 
@@ -90,11 +102,23 @@ func TestTracerStartServer_RecordsKindAttributesAndIDs(t *testing.T) {
 	}
 }
 
-func TestTracerExtractHTTP_ContinuesRemoteTrace(t *testing.T) {
-	headers := http.Header{}
-	headers.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+func TestTracerStartClientRecordsClientKind(t *testing.T) {
+	recorder := installSpanRecorder(t)
+	_, span := NewTracer("accounts-api").StartClient(context.Background(), "grpc-client", "/test.Service/Check")
+	span.Finish(nil)
 
-	ctx := NewTracer("accounts-api").ExtractHTTP(context.Background(), headers)
+	ended := recorder.Ended()
+	if len(ended) != 1 || ended[0].SpanKind() != apitrace.SpanKindClient {
+		t.Fatalf("ended spans = %#v, want one client span", ended)
+	}
+}
+
+func TestTracerExtractContinuesRemoteTrace(t *testing.T) {
+	carrier := propagation.MapCarrier{
+		"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+	}
+
+	ctx := NewTracer("accounts-api").Extract(context.Background(), carrier)
 	spanContext := apitrace.SpanContextFromContext(ctx)
 
 	if !spanContext.IsValid() || !spanContext.IsRemote() {
@@ -102,6 +126,41 @@ func TestTracerExtractHTTP_ContinuesRemoteTrace(t *testing.T) {
 	}
 	if got := spanContext.TraceID().String(); got != "4bf92f3577b34da6a3ce929d0e0e4736" {
 		t.Fatalf("trace ID = %q, want propagated trace ID", got)
+	}
+}
+
+func TestTracerExtractsRemoteParentFromTextCarrier(t *testing.T) {
+	recorder := installSpanRecorder(t)
+	carrier := propagation.MapCarrier{
+		"traceparent": "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+	}
+
+	ctx := NewTracer("test").Extract(context.Background(), carrier)
+	_, span := NewTracer("test").StartServer(ctx, "grpc", "/test.Service/Check")
+	span.Finish(nil)
+
+	ended := recorder.Ended()
+	if len(ended) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(ended))
+	}
+	if got := ended[0].Parent().TraceID().String(); got != "0123456789abcdef0123456789abcdef" {
+		t.Fatalf("parent trace ID = %q", got)
+	}
+}
+
+func TestTracerInjectsCurrentSpanIntoTextCarrier(t *testing.T) {
+	recorder := installSpanRecorder(t)
+	ctx, span := NewTracer("test").StartClient(context.Background(), "grpc-client", "/test.Service/Check")
+	carrier := propagation.MapCarrier{}
+
+	NewTracer("test").Inject(ctx, carrier)
+	span.Finish(nil)
+
+	if carrier.Get("traceparent") == "" {
+		t.Fatalf("carrier = %#v, want traceparent", carrier)
+	}
+	if len(recorder.Ended()) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(recorder.Ended()))
 	}
 }
 

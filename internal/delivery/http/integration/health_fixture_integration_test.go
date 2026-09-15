@@ -37,7 +37,7 @@ func newHealthFixture(t *testing.T) *healthFixture {
 	handler := healthhttp.NewHandler(
 		logger.NoopLogger{},
 		tracer,
-		httpresponse.NewResponder(nil),
+		httpresponse.NewResponder(),
 		usecase,
 		healthhttp.StreamConfig{
 			CheckInterval:     time.Minute,

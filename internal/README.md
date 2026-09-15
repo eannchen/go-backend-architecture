@@ -13,4 +13,4 @@
 2. Contracts in `internal/repository/<area>/`.
 3. Infra implementation in `internal/infra/...`.
 4. Transport handler in `internal/delivery/...`.
-5. Wire in the matching process composition file (for HTTP, `internal/app/api/api_*_wiring.go`).
+5. Wire in the matching process composition file (`internal/app/httpapi/httpapi_*_wiring.go` for HTTP or `internal/app/grpcapi/grpcapi_*_wiring.go` for gRPC).

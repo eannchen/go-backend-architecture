@@ -1,6 +1,8 @@
 package response
 
 import (
+	"context"
+	"errors"
 	"net/http"
 
 	"github.com/labstack/echo/v5"
@@ -16,6 +18,11 @@ type Code string
 const (
 	CodeInvalidQuery     Code = "INVALID_QUERY"
 	CodeInvalidRequestID Code = "INVALID_REQUEST_ID"
+	CodeRequestCanceled  Code = "REQUEST_CANCELED"
+
+	// 499 is the conventional server-side status for a client that closes the
+	// request before a response can be completed.
+	statusClientClosedRequest = 499
 )
 
 func (c Code) toHTTPStatus() int {
@@ -30,6 +37,7 @@ func (c Code) toHTTPStatus() int {
 var codeStatusMap = map[Code]int{
 	CodeInvalidQuery:     http.StatusBadRequest,
 	CodeInvalidRequestID: http.StatusBadRequest,
+	CodeRequestCanceled:  statusClientClosedRequest,
 
 	Code(apperr.CodeInvalidArgument): http.StatusBadRequest,
 	Code(apperr.CodeUnauthorized):    http.StatusUnauthorized,
@@ -42,14 +50,8 @@ var codeStatusMap = map[Code]int{
 	Code(apperr.CodeInternal):        http.StatusInternalServerError,
 }
 
-// Type aliases forwarded from httpcontext so Responder's public API stays self-contained.
-type (
-	Meta    = httpcontext.Meta
-	Details = httpcontext.Details
-)
-
-// NewContextMeta creates a Meta backed by Echo request context.
-var NewContextMeta = httpcontext.NewContextMeta
+// Details is forwarded from httpcontext so Responder's public API stays self-contained.
+type Details = httpcontext.Details
 
 // Responder writes transport responses and records metadata for observability middleware.
 type Responder interface {
@@ -64,16 +66,11 @@ type Responder interface {
 	StartSSE(c *echo.Context) (*SSEStream, error)
 }
 
-type responder struct {
-	meta Meta
-}
+type responder struct{}
 
 // NewResponder creates an injectable HTTP responder.
-func NewResponder(meta Meta) Responder {
-	if meta == nil {
-		meta = httpcontext.NewContextMeta()
-	}
-	return &responder{meta: meta}
+func NewResponder() Responder {
+	return &responder{}
 }
 
 type errorPayload struct {
@@ -86,29 +83,26 @@ func (r *responder) Success(c *echo.Context, status int, payload any) error {
 }
 
 func (r *responder) Error(c *echo.Context, err error, code Code, message string, details ...Details) error {
-	r.meta.SetError(c, err)
-	r.meta.SetErrorDetails(c, optionalDetails(details...))
-	return r.writeError(c, code, message)
+	return r.writeError(c, err, code, message, optionalDetails(details...))
 }
 
 func (r *responder) InvalidQuery(c *echo.Context, err error, message string, details ...Details) error {
-	r.meta.SetError(c, err)
-	r.meta.SetErrorDetails(c, optionalDetails(details...))
-	return r.writeError(c, CodeInvalidQuery, message)
+	return r.writeError(c, err, CodeInvalidQuery, message, optionalDetails(details...))
 }
 
 func (r *responder) AppError(c *echo.Context, err error) error {
-	r.meta.SetError(c, err)
+	if handled, responseErr := r.writeContextError(c, err); handled {
+		return responseErr
+	}
 	appErr, ok := apperr.As(err)
 	if !ok {
-		return r.writeError(c, Code(apperr.CodeInternal), "internal server error")
+		return r.writeError(c, err, Code(apperr.CodeInternal), "internal server error", nil)
 	}
-	r.meta.SetErrorDetails(c, Details(appErr.Details))
-	return r.writeError(c, Code(appErr.Code), appErr.Message)
+	return r.writeError(c, err, Code(appErr.Code), appErr.Message, appErr.Details)
 }
 
-func (r *responder) writeError(c *echo.Context, code Code, message string) error {
-	r.meta.SetTransportError(c, string(code), message)
+func (r *responder) writeError(c *echo.Context, originalError error, code Code, message string, details Details) error {
+	recordErrorOutcome(c, originalError, code, message, details)
 	return c.JSON(code.toHTTPStatus(), errorPayload{
 		Code:    string(code),
 		Message: message,
@@ -116,16 +110,38 @@ func (r *responder) writeError(c *echo.Context, code Code, message string) error
 }
 
 func (r *responder) AppErrorWithPayload(c *echo.Context, err error, payload any) error {
-	r.meta.SetError(c, err)
+	if handled, responseErr := r.writeContextError(c, err); handled {
+		return responseErr
+	}
 	appErr, ok := apperr.As(err)
 	if !ok {
 		code := Code(apperr.CodeInternal)
-		r.meta.SetTransportError(c, string(code), "internal server error")
+		recordErrorOutcome(c, err, code, "internal server error", nil)
 		return c.JSON(code.toHTTPStatus(), payload)
 	}
-	r.meta.SetErrorDetails(c, Details(appErr.Details))
-	r.meta.SetTransportError(c, string(appErr.Code), appErr.Message)
+	recordErrorOutcome(c, err, Code(appErr.Code), appErr.Message, appErr.Details)
 	return c.JSON(Code(appErr.Code).toHTTPStatus(), payload)
+}
+
+func (r *responder) writeContextError(c *echo.Context, err error) (bool, error) {
+	switch {
+	case errors.Is(err, context.Canceled):
+		recordErrorOutcome(c, err, CodeRequestCanceled, "request canceled", nil)
+		return true, c.NoContent(statusClientClosedRequest)
+	case errors.Is(err, context.DeadlineExceeded):
+		return true, r.writeError(c, err, Code(apperr.CodeTimeout), "request timed out", nil)
+	default:
+		return false, nil
+	}
+}
+
+func recordErrorOutcome(c *echo.Context, originalError error, code Code, message string, details Details) {
+	httpcontext.SetErrorOutcome(c, httpcontext.ErrorOutcome{
+		OriginalError:           originalError,
+		ApplicationErrorCode:    string(code),
+		ApplicationErrorMessage: message,
+		DiagnosticDetails:       details,
+	})
 }
 
 func optionalDetails(details ...Details) Details {

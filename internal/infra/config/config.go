@@ -14,6 +14,7 @@ type Config struct {
 	AppEnv      string
 	ServiceName string
 	HTTP        HTTPConfig
+	GRPC        GRPCConfig
 	DB          DBConfig
 	Redis       RedisConfig
 	Auth        AuthConfig
@@ -75,7 +76,40 @@ type HTTPConfig struct {
 	RequestTimeout      time.Duration
 	CORSAllowOrigins    []string
 	TrustedProxyCIDRs   []string
+	RequestID           RequestIDConfig
 	HealthStream        HealthStreamConfig
+}
+
+type GRPCConfig struct {
+	Address               string
+	HealthRefreshInterval time.Duration
+	ReflectionEnabled     bool
+	RequestTimeout        time.Duration
+	MaxRecvMessageBytes   int
+	MaxSendMessageBytes   int
+	RequestID             RequestIDConfig
+	TLS                   GRPCServerTLSConfig
+}
+
+// RequestIDConfig controls optional request-ID interoperability for an inbound transport.
+type RequestIDConfig struct {
+	IncomingKey   string
+	ResponseKey   string
+	RejectInvalid bool
+}
+
+// GRPCServerTLSConfig controls server identity and optional client-certificate verification.
+type GRPCServerTLSConfig struct {
+	Enabled bool
+	// ServerCertFile is the certificate chain the gRPC server presents to clients.
+	ServerCertFile string
+	// ServerKeyFile is the secret private key matching ServerCertFile.
+	ServerKeyFile string
+	// ClientCAFile identifies which client certificates the server trusts for mTLS.
+	// Verified certificates must carry one URI SAN to become a caller identity.
+	ClientCAFile string
+	// RequireClientCert rejects clients that do not present a trusted certificate.
+	RequireClientCert bool
 }
 
 // HealthStreamConfig bounds the health SSE demonstration endpoint.
@@ -112,7 +146,8 @@ type LogConfig struct {
 }
 
 type OTelConfig struct {
-	Enabled            bool
+	// ExportEnabled controls collector traffic; local instrumentation and trace propagation remain active.
+	ExportEnabled      bool
 	ExporterEndpoint   string
 	TracesEndpoint     string
 	LogsEndpoint       string
@@ -126,8 +161,9 @@ type ShutdownConfig struct {
 }
 
 func Load() (Config, error) {
+	appEnv := getEnv("APP_ENV", "local")
 	cfg := Config{
-		AppEnv:      getEnv("APP_ENV", "local"),
+		AppEnv:      appEnv,
 		ServiceName: getEnv("SERVICE_NAME", "app"),
 		HTTP: HTTPConfig{
 			Address:             getEnv("HTTP_ADDRESS", ":8080"),
@@ -139,10 +175,35 @@ func Load() (Config, error) {
 			RequestTimeout:      getDuration("HTTP_REQUEST_TIMEOUT", 10*time.Second),
 			CORSAllowOrigins:    getCSV("HTTP_CORS_ALLOW_ORIGINS", []string{"http://localhost:3000"}),
 			TrustedProxyCIDRs:   getCSV("HTTP_TRUSTED_PROXY_CIDRS", nil),
+			RequestID: RequestIDConfig{
+				IncomingKey:   getEnv("HTTP_REQUEST_ID_INCOMING_HEADER", "X-Request-ID"),
+				ResponseKey:   getEnv("HTTP_REQUEST_ID_RESPONSE_HEADER", "X-Request-ID"),
+				RejectInvalid: getBool("HTTP_REQUEST_ID_REJECT_INVALID", false),
+			},
 			HealthStream: HealthStreamConfig{
 				CheckInterval:     getDuration("HEALTH_STREAM_CHECK_INTERVAL", 15*time.Second),
 				HeartbeatInterval: getDuration("HEALTH_STREAM_HEARTBEAT_INTERVAL", 5*time.Second),
 				MaxDuration:       getDuration("HEALTH_STREAM_MAX_DURATION", time.Minute),
+			},
+		},
+		GRPC: GRPCConfig{
+			Address:               getEnv("GRPC_ADDRESS", ":9090"),
+			HealthRefreshInterval: getDuration("GRPC_HEALTH_REFRESH_INTERVAL", 10*time.Second),
+			ReflectionEnabled:     getBool("GRPC_REFLECTION_ENABLED", isLocalAppEnv(appEnv)),
+			RequestTimeout:        getDuration("GRPC_REQUEST_TIMEOUT", 10*time.Second),
+			MaxRecvMessageBytes:   getInt("GRPC_MAX_RECV_MESSAGE_BYTES", 4<<20),
+			MaxSendMessageBytes:   getInt("GRPC_MAX_SEND_MESSAGE_BYTES", 4<<20),
+			RequestID: RequestIDConfig{
+				IncomingKey:   getEnv("GRPC_REQUEST_ID_INCOMING_METADATA_KEY", "x-request-id"),
+				ResponseKey:   getEnv("GRPC_REQUEST_ID_RESPONSE_METADATA_KEY", "x-request-id"),
+				RejectInvalid: getBool("GRPC_REQUEST_ID_REJECT_INVALID", false),
+			},
+			TLS: GRPCServerTLSConfig{
+				Enabled:           getBool("GRPC_SERVER_TLS_ENABLED", false),
+				ServerCertFile:    getEnv("GRPC_SERVER_TLS_CERT_FILE", ""),
+				ServerKeyFile:     getEnv("GRPC_SERVER_TLS_KEY_FILE", ""),
+				ClientCAFile:      getEnv("GRPC_SERVER_TLS_CLIENT_CA_FILE", ""),
+				RequireClientCert: getBool("GRPC_SERVER_TLS_REQUIRE_CLIENT_CERT", false),
 			},
 		},
 		DB: DBConfig{
@@ -164,7 +225,7 @@ func Load() (Config, error) {
 			CacheTTL:     getDuration("REDIS_CACHE_TTL", 2*time.Minute),
 		},
 		OTel: OTelConfig{
-			Enabled:            getBool("OTEL_ENABLED", true),
+			ExportEnabled:      getBool("OTEL_EXPORT_ENABLED", true),
 			ExporterEndpoint:   getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"),
 			Insecure:           getBool("OTEL_INSECURE", true),
 			TraceSamplingRatio: getFloat("OTEL_TRACES_SAMPLER_RATIO", 1.0),
@@ -208,6 +269,14 @@ func Load() (Config, error) {
 	cfg.AppEnv = strings.TrimSpace(cfg.AppEnv)
 	cfg.ServiceName = strings.TrimSpace(cfg.ServiceName)
 	cfg.HTTP.Address = strings.TrimSpace(cfg.HTTP.Address)
+	cfg.HTTP.RequestID.IncomingKey = strings.TrimSpace(cfg.HTTP.RequestID.IncomingKey)
+	cfg.HTTP.RequestID.ResponseKey = strings.TrimSpace(cfg.HTTP.RequestID.ResponseKey)
+	cfg.GRPC.Address = strings.TrimSpace(cfg.GRPC.Address)
+	cfg.GRPC.RequestID.IncomingKey = strings.TrimSpace(cfg.GRPC.RequestID.IncomingKey)
+	cfg.GRPC.RequestID.ResponseKey = strings.TrimSpace(cfg.GRPC.RequestID.ResponseKey)
+	cfg.GRPC.TLS.ServerCertFile = strings.TrimSpace(cfg.GRPC.TLS.ServerCertFile)
+	cfg.GRPC.TLS.ServerKeyFile = strings.TrimSpace(cfg.GRPC.TLS.ServerKeyFile)
+	cfg.GRPC.TLS.ClientCAFile = strings.TrimSpace(cfg.GRPC.TLS.ClientCAFile)
 	cfg.DB.URL = strings.TrimSpace(cfg.DB.URL)
 	cfg.Redis.Addr = strings.TrimSpace(cfg.Redis.Addr)
 	cfg.OTel.ExporterEndpoint = strings.TrimSpace(cfg.OTel.ExporterEndpoint)
@@ -254,6 +323,24 @@ func Load() (Config, error) {
 	if cfg.HTTP.HealthStream.MaxDuration <= cfg.HTTP.HealthStream.CheckInterval || cfg.HTTP.HealthStream.MaxDuration <= cfg.HTTP.HealthStream.HeartbeatInterval {
 		return Config{}, fmt.Errorf("HEALTH_STREAM_MAX_DURATION must be greater than both HEALTH_STREAM_CHECK_INTERVAL and HEALTH_STREAM_HEARTBEAT_INTERVAL")
 	}
+	if cfg.GRPC.Address == "" {
+		return Config{}, fmt.Errorf("GRPC_ADDRESS must not be empty")
+	}
+	if cfg.GRPC.HealthRefreshInterval <= 0 {
+		return Config{}, fmt.Errorf("GRPC_HEALTH_REFRESH_INTERVAL must be > 0")
+	}
+	if cfg.GRPC.RequestTimeout <= 0 {
+		return Config{}, fmt.Errorf("GRPC_REQUEST_TIMEOUT must be > 0")
+	}
+	if cfg.GRPC.MaxRecvMessageBytes <= 0 || cfg.GRPC.MaxSendMessageBytes <= 0 {
+		return Config{}, fmt.Errorf("GRPC_MAX_RECV_MESSAGE_BYTES and GRPC_MAX_SEND_MESSAGE_BYTES must be > 0")
+	}
+	if err := validateGRPCTLS(cfg.GRPC.TLS); err != nil {
+		return Config{}, err
+	}
+	if cfg.Shutdown.GracePeriod <= 0 {
+		return Config{}, fmt.Errorf("SHUTDOWN_GRACE_PERIOD must be > 0")
+	}
 	if cfg.RateLimit.GlobalIPCapacity <= 0 || cfg.RateLimit.GlobalIPRefillInterval <= 0 {
 		return Config{}, fmt.Errorf("RATE_LIMIT_GLOBAL_IP_CAPACITY and RATE_LIMIT_GLOBAL_IP_REFILL_INTERVAL must be > 0")
 	}
@@ -281,6 +368,22 @@ func Load() (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func validateGRPCTLS(cfg GRPCServerTLSConfig) error {
+	if !cfg.Enabled {
+		if cfg.RequireClientCert {
+			return fmt.Errorf("GRPC_SERVER_TLS_REQUIRE_CLIENT_CERT requires GRPC_SERVER_TLS_ENABLED")
+		}
+		return nil
+	}
+	if cfg.ServerCertFile == "" || cfg.ServerKeyFile == "" {
+		return fmt.Errorf("GRPC_SERVER_TLS_CERT_FILE and GRPC_SERVER_TLS_KEY_FILE are required when GRPC_SERVER_TLS_ENABLED is true")
+	}
+	if cfg.RequireClientCert && cfg.ClientCAFile == "" {
+		return fmt.Errorf("GRPC_SERVER_TLS_CLIENT_CA_FILE is required when GRPC_SERVER_TLS_REQUIRE_CLIENT_CERT is true")
+	}
+	return nil
 }
 
 func getEnv(key, fallback string) string {

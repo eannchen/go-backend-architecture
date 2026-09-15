@@ -27,6 +27,9 @@ go.work.sum
 # env file
 .env
 
+# Local TLS certificates and private keys
+certs/
+
 # Temp files
 tmp/
 volumes/

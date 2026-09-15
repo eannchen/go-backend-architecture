@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -92,7 +93,11 @@ func NewServer(cfg ServerConfig, log logger.Logger, binder echo.Binder, validato
 func (s *Server) Start() error {
 	s.logger.Info(context.Background(), "http server starting", logger.FromPairs("address", s.cfg.Address))
 
-	return s.httpServer.ListenAndServe()
+	err := s.httpServer.ListenAndServe()
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
 }
 
 // ServeHTTP dispatches requests through the configured Echo handler.

@@ -1,0 +1,151 @@
+package httpapi
+
+import (
+	"fmt"
+	"net"
+	"net/http"
+	"strings"
+
+	"github.com/labstack/echo/v5"
+	echoMiddleware "github.com/labstack/echo/v5/middleware"
+
+	httpdelivery "github.com/eannchen/go-backend-architecture/internal/delivery/http"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/binding"
+	healthhttp "github.com/eannchen/go-backend-architecture/internal/delivery/http/handler/health"
+	bodylimitmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/bodylimit"
+	contextmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/context"
+	observabilitymw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/observability"
+	ratelimitmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/ratelimit"
+	recoverymw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/recovery"
+	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
+	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
+)
+
+func (d wiring) buildServer(responder httpresponse.Responder, repos appRepositories, handlers appHandlers, usecases appUsecases) (*httpdelivery.Server, error) {
+	validatorRegistrars := []httpdelivery.ValidationRegistrar{
+		healthhttp.RegisterValidation,
+	}
+
+	secureCfg := echoMiddleware.SecureConfig{
+		XSSProtection:      "1; mode=block",
+		ContentTypeNosniff: "nosniff",
+		XFrameOptions:      "DENY",
+		ReferrerPolicy:     "strict-origin-when-cross-origin",
+	}
+	if !isLocalAppEnv(d.cfg.AppEnv) {
+		secureCfg.HSTSMaxAge = 31536000
+		secureCfg.HSTSPreloadEnabled = true
+	}
+	globalLimiter := ratelimitmw.NewGlobalRateLimit(globalratelimit.NewIPLimiter(repos.tokenBucketRepo, d.log, globalratelimit.Config{
+		Capacity:       d.cfg.RateLimit.GlobalIPCapacity,
+		RefillInterval: d.cfg.RateLimit.GlobalIPRefillInterval,
+	}), responder, d.meter)
+	preMiddlewares := []echo.MiddlewareFunc{
+		bodylimitmw.New(d.cfg.HTTP.MaxRequestBodyBytes).Handler(),
+	}
+	requestContext, err := contextmw.NewRequestContextMiddleware(
+		contextmw.Config{
+			Timeout: d.cfg.HTTP.RequestTimeout,
+			RequestID: contextmw.RequestIDConfig{
+				IncomingHeaderKey: d.cfg.HTTP.RequestID.IncomingKey,
+				ResponseHeaderKey: d.cfg.HTTP.RequestID.ResponseKey,
+				RejectInvalid:     d.cfg.HTTP.RequestID.RejectInvalid,
+			},
+		},
+		responder,
+		contextmw.WithTimeoutSkipper(func(c *echo.Context) bool {
+			return c.Request().URL.Path == healthhttp.StreamPath
+		}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create HTTP request-context middleware: %w", err)
+	}
+	allowHeaders := appendUniqueHeader([]string{
+		echo.HeaderOrigin,
+		echo.HeaderContentType,
+		echo.HeaderAccept,
+		echo.HeaderAuthorization,
+	}, d.cfg.HTTP.RequestID.IncomingKey)
+	exposeHeaders := appendUniqueHeader(nil, d.cfg.HTTP.RequestID.ResponseKey)
+
+	// Middleware is listed outermost to innermost. CORS handles preflight before
+	// rate limiting, while request context applies IDs and deadlines before limiter
+	// work. Observability and recovery wrap all downstream outcomes.
+	middlewares := []echo.MiddlewareFunc{
+		observabilitymw.New(d.tracer, d.log, d.meter).Handler(),
+		recoverymw.New(d.log, responder).Handler(),
+		echoMiddleware.SecureWithConfig(secureCfg),
+		echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
+			AllowOrigins: d.cfg.HTTP.CORSAllowOrigins,
+			AllowMethods: []string{
+				http.MethodGet,
+				http.MethodPost,
+				http.MethodPut,
+				http.MethodPatch,
+				http.MethodDelete,
+				http.MethodOptions,
+			},
+			AllowHeaders:     allowHeaders,
+			ExposeHeaders:    exposeHeaders,
+			AllowCredentials: true,
+		}),
+		requestContext.Handler(),
+		globalLimiter.Handler(),
+	}
+	ipExtractor, err := buildIPExtractor(d.cfg.HTTP.TrustedProxyCIDRs)
+	if err != nil {
+		return nil, fmt.Errorf("build ip extractor: %w", err)
+	}
+	serverCfg := httpdelivery.ServerConfig{
+		Address:        d.cfg.HTTP.Address,
+		ReadTimeout:    d.cfg.HTTP.ReadTimeout,
+		WriteTimeout:   d.cfg.HTTP.WriteTimeout,
+		IdleTimeout:    d.cfg.HTTP.IdleTimeout,
+		MaxHeaderBytes: d.cfg.HTTP.MaxHeaderBytes,
+		IPExtractor:    ipExtractor,
+	}
+	binder := binding.NewNormalizeBinder(nil)
+	return httpdelivery.NewServer(serverCfg, d.log, binder, validatorRegistrars, preMiddlewares, middlewares, handlers.health, handlers.auth)
+}
+
+func appendUniqueHeader(headers []string, header string) []string {
+	header = strings.TrimSpace(header)
+	if header == "" {
+		return headers
+	}
+	for _, existing := range headers {
+		if strings.EqualFold(existing, header) {
+			return headers
+		}
+	}
+	return append(headers, header)
+}
+
+func isLocalAppEnv(env string) bool {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case "local", "dev", "development", "test":
+		return true
+	default:
+		return false
+	}
+}
+
+func buildIPExtractor(trustedCIDRs []string) (echo.IPExtractor, error) {
+	if len(trustedCIDRs) == 0 {
+		return echo.ExtractIPDirect(), nil
+	}
+
+	opts := []echo.TrustOption{
+		echo.TrustLoopback(false),
+		echo.TrustLinkLocal(false),
+		echo.TrustPrivateNet(false),
+	}
+	for _, raw := range trustedCIDRs {
+		_, ipNet, err := net.ParseCIDR(raw)
+		if err != nil {
+			return nil, fmt.Errorf("parse trusted proxy cidr %q: %w", raw, err)
+		}
+		opts = append(opts, echo.TrustIPRange(ipNet))
+	}
+	return echo.ExtractIPFromXFFHeader(opts...), nil
+}
