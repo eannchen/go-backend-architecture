@@ -48,7 +48,7 @@ func TestStreamHealthWritesInitialHealthEvent(t *testing.T) {
 	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
 
 	e := echo.New()
-	e.Validator = httpdeliverytest.NewValidator(t, RegisterValidation)
+	e.Validator = httpdeliverytest.NewValidator(t)
 	req := httptest.NewRequest(http.MethodGet, StreamPath+"?check=live", nil).WithContext(ctx)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
@@ -74,7 +74,7 @@ func TestStreamHealthRejectsInvalidQueryBeforeOpeningStream(t *testing.T) {
 	uc := &healthtest.Usecase{}
 	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
 	e := echo.New()
-	e.Validator = httpdeliverytest.NewValidator(t, RegisterValidation)
+	e.Validator = httpdeliverytest.NewValidator(t)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, StreamPath+"?check=bad", nil), rec)
 
@@ -107,7 +107,7 @@ func TestStreamHealthEmitsDependencyFailureAndLogsWarning(t *testing.T) {
 	}
 	h := NewHandler(log, nil, nil, uc, streamConfig())
 	e := echo.New()
-	e.Validator = httpdeliverytest.NewValidator(t, RegisterValidation)
+	e.Validator = httpdeliverytest.NewValidator(t)
 	req := httptest.NewRequest(http.MethodGet, StreamPath, nil).WithContext(ctx)
 	rec := httptest.NewRecorder()
 
@@ -134,7 +134,7 @@ func TestStreamHealthStopsAfterEventWriteFailure(t *testing.T) {
 	}
 	h := NewHandler(log, nil, nil, uc, streamConfig())
 	e := echo.New()
-	e.Validator = httpdeliverytest.NewValidator(t, RegisterValidation)
+	e.Validator = httpdeliverytest.NewValidator(t)
 	w := &failingHealthStreamWriter{header: make(http.Header), err: wantErr}
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, StreamPath, nil), w)
 

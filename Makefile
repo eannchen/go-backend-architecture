@@ -9,8 +9,13 @@ GOOSE_MIGRATION_DIR ?= $(CURDIR)/internal/infra/db/postgres/migrations
 GO_TEST ?= go test
 AIR_HTTPAPI_CMD ?= air -c .air.toml
 AIR_GRPCAPI_CMD ?= air -c .air.grpcapi.toml
-OAPI_CODEGEN_CMD ?= github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+OAPI_CODEGEN_CMD ?= github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
+VACUUM_CMD ?= github.com/daveshanley/vacuum@v0.30.1
+OASDIFF_CMD ?= github.com/oasdiff/oasdiff@v1.29.1
 BUF_CMD ?= github.com/bufbuild/buf/cmd/buf@v1.72.0
+OPENAPI_CONTRACT ?= contracts/http/openapi.yaml
+OPENAPI_GENERATED_DIR ?= internal/delivery/http/openapi/gen
+OPENAPI_BREAKING_BASE_REF ?= main
 # `?=` sets a default that a developer or CI can override on the command line.
 # BASE_REF is a local Git name such as main, a tag, or a commit hash. AGAINST is
 # Buf's description of the baseline: `.git` means this repository, `ref=` selects
@@ -28,7 +33,7 @@ INTEGRATION_PACKAGES := \
 	./internal/infra/kvstore/redis/store \
 	./internal/delivery/http/integration
 
-.PHONY: install run run-httpapi run-httpapi-stop run-grpcapi run-grpcapi-stop fmt-check vet build check test test-cover test-race test-grpc test-integration test-all ci openapi-generate proto-generate proto-lint proto-breaking proto-generated-check sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring openapi proto proto-check sqlc mup mdown mstatus
+.PHONY: install run run-httpapi run-httpapi-stop run-grpcapi run-grpcapi-stop fmt-check vet build check test test-cover test-race test-grpc test-integration test-all ci openapi-generate openapi-lint openapi-breaking openapi-generated-check openapi-check proto-generate proto-lint proto-breaking proto-generated-check sqlc-generate migrate-up migrate-down migrate-status dev-up dev-down dev-logs check-goose-dbstring openapi proto proto-check sqlc mup mdown mstatus
 
 run: run-httpapi
 
@@ -60,7 +65,9 @@ install:
 	go install github.com/air-verse/air@latest
 	go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 	go install github.com/pressly/goose/v3/cmd/goose@latest
-	go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+	go install $(OAPI_CODEGEN_CMD)
+	go install $(VACUUM_CMD)
+	go install $(OASDIFF_CMD)
 	go install github.com/bufbuild/buf/cmd/buf@v1.72.0
 
 fmt-check:
@@ -97,10 +104,43 @@ test-integration:
 
 test-all: test test-integration
 
-ci: proto-check check test-race test-integration
+ci: openapi-check proto-check check test-race test-integration
 
 openapi-generate:
-	go run $(OAPI_CODEGEN_CMD) -config oapi-codegen.yaml contracts/http/openapi.yaml
+	go run $(OAPI_CODEGEN_CMD) -config oapi-codegen.yaml $(OPENAPI_CONTRACT)
+
+openapi-lint:
+	VACUUM_NO_UPDATE_CHECK=true go run $(VACUUM_CMD) lint -d $(OPENAPI_CONTRACT)
+
+# OASDiff's default breaking policy protects existing clients. It rejects changes
+# such as removing operations or required responses, adding required request data,
+# and narrowing accepted request values. Compatible additions remain allowed.
+# The historical contract is copied to a temporary file so neither Git checkout nor
+# the working contract is modified during comparison.
+openapi-breaking:
+	@base_commit="$$(git rev-parse --verify --quiet '$(OPENAPI_BREAKING_BASE_REF)^{commit}')"; \
+	if [ -z "$$base_commit" ]; then \
+		echo "OpenAPI breaking-check baseline '$(OPENAPI_BREAKING_BASE_REF)' is not available locally."; \
+		exit 1; \
+	fi; \
+	if git cat-file -e "$$base_commit:$(OPENAPI_CONTRACT)" 2>/dev/null; then \
+		base_contract="$$(mktemp)"; \
+		trap 'rm -f "$$base_contract"' EXIT; \
+		git show "$$base_commit:$(OPENAPI_CONTRACT)" > "$$base_contract"; \
+		go run $(OASDIFF_CMD) breaking --fail-on ERR "$$base_contract" "$(OPENAPI_CONTRACT)"; \
+	else \
+		echo "Skipping OpenAPI breaking check: baseline '$(OPENAPI_BREAKING_BASE_REF)' predates the HTTP contract."; \
+	fi
+
+openapi-generated-check: openapi-generate
+	@changes="$$(git status --short -- $(OPENAPI_GENERATED_DIR))"; \
+	if [ -n "$$changes" ]; then \
+		echo "Generated OpenAPI files are out of date. Run 'make openapi-generate' and commit the result:"; \
+		echo "$$changes"; \
+		exit 1; \
+	fi
+
+openapi-check: openapi-lint openapi-breaking openapi-generated-check
 
 proto-generate:
 	go run $(BUF_CMD) generate

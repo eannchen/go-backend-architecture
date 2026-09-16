@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	httpdelivery "github.com/eannchen/go-backend-architecture/internal/delivery/http"
 	healthhttp "github.com/eannchen/go-backend-architecture/internal/delivery/http/handler/health"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
@@ -47,7 +46,7 @@ func newHealthFixture(t *testing.T) *healthFixture {
 	)
 
 	return &healthFixture{
-		serverFixture: newServerFixture(t, []httpdelivery.ValidationRegistrar{healthhttp.RegisterValidation}, handler),
+		serverFixture: newServerFixture(t, nil, handler),
 	}
 }
 

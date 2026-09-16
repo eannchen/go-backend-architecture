@@ -81,7 +81,7 @@ func (h *Handler) SendOTP(c *echo.Context) error {
 	var spanErr error
 	defer func() { span.Finish(spanErr) }()
 
-	var req otpSendRequest
+	var req openapi.OTPSendRequest
 	if err := c.Bind(&req); err != nil {
 		spanErr = err
 		return h.responder.InvalidQuery(c, err, "invalid request body")
@@ -91,7 +91,7 @@ func (h *Handler) SendOTP(c *echo.Context) error {
 		return h.responder.InvalidQuery(c, err, "validation failed")
 	}
 
-	if err := h.otp.SendCode(ctx, req.Email); err != nil {
+	if err := h.otp.SendCode(ctx, string(req.Email)); err != nil {
 		spanErr = err
 		return h.responder.AppError(c, err)
 	}
@@ -106,7 +106,7 @@ func (h *Handler) VerifyOTP(c *echo.Context) error {
 	var spanErr error
 	defer func() { span.Finish(spanErr) }()
 
-	var req otpVerifyRequest
+	var req openapi.OTPVerifyRequest
 	if err := c.Bind(&req); err != nil {
 		spanErr = err
 		return h.responder.InvalidQuery(c, err, "invalid request body")
@@ -116,7 +116,7 @@ func (h *Handler) VerifyOTP(c *echo.Context) error {
 		return h.responder.InvalidQuery(c, err, "validation failed")
 	}
 
-	identity, err := h.otp.VerifyCode(ctx, req.Email, req.Code)
+	identity, err := h.otp.VerifyCode(ctx, string(req.Email), req.Code)
 	if err != nil {
 		spanErr = err
 		return h.responder.AppError(c, err)
@@ -160,7 +160,7 @@ func (h *Handler) OAuthCallback(c *echo.Context) error {
 
 	provider := c.Param("provider")
 
-	var q oauthCallbackQuery
+	var q openapi.OauthCallbackParams
 	if err := c.Bind(&q); err != nil {
 		spanErr = err
 		return h.responder.InvalidQuery(c, err, "invalid callback parameters")

@@ -22,10 +22,6 @@ import (
 )
 
 func (d wiring) buildServer(responder httpresponse.Responder, repos appRepositories, handlers appHandlers, usecases appUsecases) (*httpdelivery.Server, error) {
-	validatorRegistrars := []httpdelivery.ValidationRegistrar{
-		healthhttp.RegisterValidation,
-	}
-
 	secureCfg := echoMiddleware.SecureConfig{
 		XSSProtection:      "1; mode=block",
 		ContentTypeNosniff: "nosniff",
@@ -105,7 +101,7 @@ func (d wiring) buildServer(responder httpresponse.Responder, repos appRepositor
 		IPExtractor:    ipExtractor,
 	}
 	binder := binding.NewNormalizeBinder(nil)
-	return httpdelivery.NewServer(serverCfg, d.log, binder, validatorRegistrars, preMiddlewares, middlewares, handlers.health, handlers.auth)
+	return httpdelivery.NewServer(serverCfg, d.log, binder, nil, preMiddlewares, middlewares, handlers.health, handlers.auth)
 }
 
 func appendUniqueHeader(headers []string, header string) []string {

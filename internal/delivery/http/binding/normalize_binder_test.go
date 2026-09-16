@@ -15,6 +15,8 @@ type nestedValue struct {
 	Value string
 }
 
+type namedString string
+
 func TestNormalizeStrings(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -46,6 +48,19 @@ func TestNormalizeStrings(t *testing.T) {
 				Nested  nestedValue
 				Pointer *nestedValue
 			}{Nested: nestedValue{Value: "nested"}, Pointer: &nestedValue{Value: "pointer"}},
+		},
+		{
+			name: "named strings and optional string pointers",
+			target: &struct {
+				Named    namedString  `case:"lower"`
+				Optional *namedString `case:"upper"`
+				Missing  *namedString `case:"upper"`
+			}{Named: "  VALUE  ", Optional: namedStringPointer("  value  ")},
+			want: &struct {
+				Named    namedString  `case:"lower"`
+				Optional *namedString `case:"upper"`
+				Missing  *namedString `case:"upper"`
+			}{Named: "value", Optional: namedStringPointer("VALUE")},
 		},
 		{
 			name: "string struct and pointer slices",
@@ -84,6 +99,10 @@ func TestNormalizeStrings(t *testing.T) {
 			}
 		})
 	}
+}
+
+func namedStringPointer(value namedString) *namedString {
+	return &value
 }
 
 func TestNormalizeBinder_UsesDefaultBinderThenNormalizes(t *testing.T) {

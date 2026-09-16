@@ -6,6 +6,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 
+	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
@@ -29,7 +30,7 @@ func (h *Handler) StreamHealth(c *echo.Context) (err error) {
 		span.Finish(spanErr)
 	}()
 
-	var req request
+	var req openapi.StreamHealthParams
 	if err := c.Bind(&req); err != nil {
 		spanErr = err
 		return h.responder.InvalidQuery(c, err, "invalid query parameters")
@@ -38,7 +39,11 @@ func (h *Handler) StreamHealth(c *echo.Context) (err error) {
 		spanErr = err
 		return h.responder.InvalidQuery(c, err, "invalid query parameters")
 	}
-	mode, _ := usecasehealth.ParseCheckMode(req.Check)
+	check := ""
+	if req.Check != nil {
+		check = string(*req.Check)
+	}
+	mode, _ := usecasehealth.ParseCheckMode(check)
 
 	stream, err := h.responder.StartSSE(c)
 	if err != nil {

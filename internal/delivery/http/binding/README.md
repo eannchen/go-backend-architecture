@@ -3,7 +3,7 @@
 ## Pattern used
 
 - `NormalizeBinder` wraps any `echo.Binder`: delegates bind, then trims and optionally case-converts string fields via struct tags (`trim:"false"`, `case:"lower"`, `case:"upper"`).
-- Handles nested structs, pointers, and slices.
+- Handles named strings, optional string pointers, nested structs, and slices so generated OpenAPI models normalize consistently.
 - Injected into `NewServer` via constructor; pass `nil` for the default normalize binder.
 
 ## How to extend

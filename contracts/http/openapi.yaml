@@ -21,6 +21,9 @@ paths:
           in: query
           required: false
           description: Which check to run. live = process only; ready = process + DB, cache, KV, vector store.
+          x-oapi-codegen-extra-tags:
+            query: check
+            validate: "omitempty,oneof=live ready"
           schema:
             type: string
             enum:
@@ -66,6 +69,9 @@ paths:
           in: query
           required: false
           description: Which check to run for each event. live = process only; ready = process + DB, cache, KV, vector store.
+          x-oapi-codegen-extra-tags:
+            query: check
+            validate: "omitempty,oneof=live ready"
           schema:
             type: string
             enum:
@@ -217,14 +223,22 @@ paths:
           in: query
           required: true
           description: Authorization code returned by the OAuth provider.
+          x-oapi-codegen-extra-tags:
+            query: code
+            validate: required
           schema:
             type: string
+            minLength: 1
         - name: state
           in: query
           required: true
           description: CSRF state token for validation.
+          x-oapi-codegen-extra-tags:
+            query: state
+            validate: required
           schema:
             type: string
+            minLength: 1
       responses:
         "200":
           description: OAuth login successful; session cookie set in response.
@@ -384,6 +398,10 @@ components:
           description: Email address to send the OTP code to.
           type: string
           format: email
+          maxLength: 320
+          x-oapi-codegen-extra-tags:
+            validate: "required,email,max=320"
+            case: lower
 
     OTPVerifyRequest:
       description: Request body for verifying an OTP code.
@@ -396,9 +414,17 @@ components:
           description: Email address the OTP was sent to.
           type: string
           format: email
+          maxLength: 320
+          x-oapi-codegen-extra-tags:
+            validate: "required,email,max=320"
+            case: lower
         code:
           description: The OTP code received via email.
           type: string
+          minLength: 1
+          x-oapi-codegen-extra-tags:
+            validate: required
+            case: upper
 
     AuthResponse:
       description: Authenticated user information returned after successful login.

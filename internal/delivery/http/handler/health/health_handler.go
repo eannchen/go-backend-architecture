@@ -13,10 +13,6 @@ import (
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
-type request struct {
-	Check string `query:"check" validate:"omitempty,health_check_mode"`
-}
-
 func NewHandler(
 	log logger.Logger,
 	tracer observability.Tracer,
@@ -62,7 +58,7 @@ func (h *Handler) GetHealth(c *echo.Context) (err error) {
 		span.Finish(spanErr)
 	}()
 
-	var req request
+	var req openapi.GetHealthParams
 	if err := c.Bind(&req); err != nil {
 		spanErr = err
 		return h.responder.InvalidQuery(c, err, "invalid query parameters")
@@ -72,7 +68,11 @@ func (h *Handler) GetHealth(c *echo.Context) (err error) {
 		return h.responder.InvalidQuery(c, err, "invalid query parameters")
 	}
 
-	mode, _ := usecasehealth.ParseCheckMode(req.Check)
+	check := ""
+	if req.Check != nil {
+		check = string(*req.Check)
+	}
+	mode, _ := usecasehealth.ParseCheckMode(check)
 
 	result, err := h.usecase.Check(ctx, mode)
 	if err != nil {
