@@ -1,4 +1,4 @@
-name: Quality
+name: Code quality
 
 on:
   push:
@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   unit:
-    name: Unit and quality
+    name: Run static checks and unit tests
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

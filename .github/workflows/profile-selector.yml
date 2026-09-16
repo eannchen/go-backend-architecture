@@ -1,4 +1,4 @@
-name: Profile selector
+name: Template profiles
 
 on:
   push:
@@ -15,13 +15,17 @@ concurrency:
 
 jobs:
   selected-profile:
-    name: ${{ matrix.profile }}
+    name: ${{ matrix.label }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        profile: [public-http, service-grpc]
+        include:
+          - profile: public-http
+            label: Validate Public HTTP profile
+          - profile: service-grpc
+            label: Validate Service gRPC profile
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
