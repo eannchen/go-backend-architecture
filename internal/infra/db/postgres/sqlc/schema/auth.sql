@@ -15,3 +15,5 @@ CREATE TABLE oauth_connections (
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     UNIQUE(provider, provider_user_id)
 );
+
+CREATE INDEX idx_oauth_connections_user_id ON oauth_connections(user_id);

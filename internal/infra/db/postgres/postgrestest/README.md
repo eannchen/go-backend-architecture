@@ -2,7 +2,7 @@
 
 ## Pattern used
 
-- Integration-only helpers start pinned disposable PostgreSQL with pgvector and apply the real Goose migrations.
+- Integration-only helpers start pinned disposable PostgreSQL and apply the real Goose migrations.
 - The calling test package owns one instance and explicitly closes it after all package tests finish.
 - Failed suites copy container logs before cleanup so CI keeps the diagnostics.
 

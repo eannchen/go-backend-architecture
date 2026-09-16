@@ -1,7 +1,5 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE EXTENSION IF NOT EXISTS vector;
-
 CREATE TABLE users (
     id             BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     email          VARCHAR(320) NOT NULL UNIQUE,
@@ -20,7 +18,7 @@ CREATE TABLE oauth_connections (
     UNIQUE(provider, provider_user_id)
 );
 
--- Index list also in sqlc/schema.sql for a single tuning reference.
+-- Index list also belongs in sqlc/schema/auth.sql for one tuning reference.
 CREATE INDEX idx_oauth_connections_user_id ON oauth_connections(user_id);
 -- +goose StatementEnd
 
@@ -28,5 +26,4 @@ CREATE INDEX idx_oauth_connections_user_id ON oauth_connections(user_id);
 -- +goose StatementBegin
 DROP TABLE IF EXISTS oauth_connections;
 DROP TABLE IF EXISTS users;
-DROP EXTENSION IF EXISTS vector;
 -- +goose StatementEnd

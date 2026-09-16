@@ -2,9 +2,10 @@
 
 ## Pattern used
 
-- Environment and defaults parsed once into typed structs with validation at bootstrap.
-- Consumed by app wiring and infra constructors; not exposed to usecase or delivery as-is.
+- Shared runtime settings and each transport profile are loaded and validated independently.
+- App composition combines `RuntimeConfig` with only its own HTTP or gRPC configuration.
 
 ## How to extend
 
-- Add/change fields on config structs; update env parsing and validation in one place.
+- Put process-neutral settings in `runtime_config.go`; put transport-owned settings in the matching profile file.
+- Keep profile tests beside their loader so removing a profile removes its configuration and tests together.

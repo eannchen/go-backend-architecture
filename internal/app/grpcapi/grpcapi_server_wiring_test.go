@@ -38,7 +38,7 @@ func TestBuildServerWiresServicesRequestContextAndRecovery(t *testing.T) {
 			return usecasehealth.Result{}, nil
 		},
 	}
-	wiring := newWiring(config.Config{GRPC: config.GRPCConfig{
+	wiring := newWiring(config.GRPCAPIConfig{GRPC: config.GRPCConfig{
 		Address:               "127.0.0.1:0",
 		HealthRefreshInterval: time.Hour,
 		RequestTimeout:        time.Second,
@@ -141,7 +141,7 @@ func TestBuildServerPublishesVerifiedMTLSCallerIdentity(t *testing.T) {
 			return usecasehealth.Result{}, nil
 		},
 	}
-	wiring := newWiring(config.Config{GRPC: config.GRPCConfig{
+	wiring := newWiring(config.GRPCAPIConfig{GRPC: config.GRPCConfig{
 		Address:               "127.0.0.1:0",
 		HealthRefreshInterval: time.Hour,
 		RequestTimeout:        time.Second,

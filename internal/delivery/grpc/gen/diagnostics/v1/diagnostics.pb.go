@@ -187,9 +187,7 @@ type GetHealthResponse struct {
 	// cache contains the cache dependency state.
 	Cache *DependencyHealth `protobuf:"bytes,3,opt,name=cache,proto3" json:"cache,omitempty"`
 	// kv_store contains the key-value store dependency state.
-	KvStore *DependencyHealth `protobuf:"bytes,4,opt,name=kv_store,json=kvStore,proto3" json:"kv_store,omitempty"`
-	// vector_store contains the vector extension dependency state.
-	VectorStore   *DependencyHealth `protobuf:"bytes,5,opt,name=vector_store,json=vectorStore,proto3" json:"vector_store,omitempty"`
+	KvStore       *DependencyHealth `protobuf:"bytes,4,opt,name=kv_store,json=kvStore,proto3" json:"kv_store,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -248,13 +246,6 @@ func (x *GetHealthResponse) GetCache() *DependencyHealth {
 func (x *GetHealthResponse) GetKvStore() *DependencyHealth {
 	if x != nil {
 		return x.KvStore
-	}
-	return nil
-}
-
-func (x *GetHealthResponse) GetVectorStore() *DependencyHealth {
-	if x != nil {
-		return x.VectorStore
 	}
 	return nil
 }
@@ -384,13 +375,12 @@ const file_diagnostics_v1_diagnostics_proto_rawDesc = "" +
 	"\n" +
 	" diagnostics/v1/diagnostics.proto\x12\x0ediagnostics.v1\"G\n" +
 	"\x10GetHealthRequest\x123\n" +
-	"\x04mode\x18\x01 \x01(\x0e2\x1f.diagnostics.v1.HealthCheckModeR\x04mode\"\xa3\x02\n" +
+	"\x04mode\x18\x01 \x01(\x0e2\x1f.diagnostics.v1.HealthCheckModeR\x04mode\"\xde\x01\n" +
 	"\x11GetHealthResponse\x12\x18\n" +
 	"\ahealthy\x18\x01 \x01(\bR\ahealthy\x12:\n" +
 	"\bdatabase\x18\x02 \x01(\v2\x1e.diagnostics.v1.DatabaseHealthR\bdatabase\x126\n" +
 	"\x05cache\x18\x03 \x01(\v2 .diagnostics.v1.DependencyHealthR\x05cache\x12;\n" +
-	"\bkv_store\x18\x04 \x01(\v2 .diagnostics.v1.DependencyHealthR\akvStore\x12C\n" +
-	"\fvector_store\x18\x05 \x01(\v2 .diagnostics.v1.DependencyHealthR\vvectorStore\"\xdd\x01\n" +
+	"\bkv_store\x18\x04 \x01(\v2 .diagnostics.v1.DependencyHealthR\akvStore\"\xdd\x01\n" +
 	"\x0eDatabaseHealth\x124\n" +
 	"\x06status\x18\x01 \x01(\x0e2\x1c.diagnostics.v1.HealthStatusR\x06status\x12\x17\n" +
 	"\x04name\x18\x02 \x01(\tH\x00R\x04name\x88\x01\x01\x12$\n" +
@@ -441,16 +431,15 @@ var file_diagnostics_v1_diagnostics_proto_depIdxs = []int32{
 	4, // 1: diagnostics.v1.GetHealthResponse.database:type_name -> diagnostics.v1.DatabaseHealth
 	5, // 2: diagnostics.v1.GetHealthResponse.cache:type_name -> diagnostics.v1.DependencyHealth
 	5, // 3: diagnostics.v1.GetHealthResponse.kv_store:type_name -> diagnostics.v1.DependencyHealth
-	5, // 4: diagnostics.v1.GetHealthResponse.vector_store:type_name -> diagnostics.v1.DependencyHealth
-	1, // 5: diagnostics.v1.DatabaseHealth.status:type_name -> diagnostics.v1.HealthStatus
-	1, // 6: diagnostics.v1.DependencyHealth.status:type_name -> diagnostics.v1.HealthStatus
-	2, // 7: diagnostics.v1.DiagnosticsService.GetHealth:input_type -> diagnostics.v1.GetHealthRequest
-	3, // 8: diagnostics.v1.DiagnosticsService.GetHealth:output_type -> diagnostics.v1.GetHealthResponse
-	8, // [8:9] is the sub-list for method output_type
-	7, // [7:8] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	1, // 4: diagnostics.v1.DatabaseHealth.status:type_name -> diagnostics.v1.HealthStatus
+	1, // 5: diagnostics.v1.DependencyHealth.status:type_name -> diagnostics.v1.HealthStatus
+	2, // 6: diagnostics.v1.DiagnosticsService.GetHealth:input_type -> diagnostics.v1.GetHealthRequest
+	3, // 7: diagnostics.v1.DiagnosticsService.GetHealth:output_type -> diagnostics.v1.GetHealthResponse
+	7, // [7:8] is the sub-list for method output_type
+	6, // [6:7] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_diagnostics_v1_diagnostics_proto_init() }

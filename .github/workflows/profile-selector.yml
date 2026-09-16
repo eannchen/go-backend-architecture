@@ -1,0 +1,45 @@
+name: Profile selector
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  selected-profile:
+    name: ${{ matrix.profile }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [public-http, service-grpc]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Select profile
+        run: go run ./tools/profile-selector --profile '${{ matrix.profile }}' --apply
+
+      - name: Remove unused module dependencies
+        run: go mod tidy
+
+      - name: Generate selected database code
+        run: make sqlc-generate
+
+      - name: Check selected project
+        run: make check test

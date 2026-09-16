@@ -30,7 +30,6 @@ func TestGetHealthSuccess(t *testing.T) {
 				},
 				Cache:   usecasehealth.Dependency{Status: "up"},
 				KVStore: usecasehealth.Dependency{Status: "up"},
-				Vector:  usecasehealth.Dependency{Status: "up"},
 			}, nil
 		},
 	}
@@ -56,7 +55,7 @@ func TestGetHealthSuccess(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if got.Database.Name != "app" || got.Database.Status != "up" || got.Kvstore.Status != "up" || got.Vectorstore.Status != "up" {
+	if got.Database.Name != "app" || got.Database.Status != "up" || got.Kvstore.Status != "up" {
 		t.Fatalf("unexpected response payload: %+v", got)
 	}
 }

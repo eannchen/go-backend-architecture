@@ -31,8 +31,8 @@ func TestBuildServerAppliesEnvironmentHTTPProtection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			wiring := newWiring(config.Config{
-				AppEnv: tt.appEnv,
+			wiring := newWiring(config.HTTPAPIConfig{
+				RuntimeConfig: config.RuntimeConfig{AppEnv: tt.appEnv},
 				HTTP: config.HTTPConfig{
 					Address:          ":0",
 					ReadTimeout:      time.Second,
@@ -87,8 +87,8 @@ func TestBuildServerAppliesEnvironmentHTTPProtection(t *testing.T) {
 }
 
 func TestBuildServerEstablishesRequestContextBeforeRateLimitingAndSkipsPreflight(t *testing.T) {
-	wiring := newWiring(config.Config{
-		AppEnv: "test",
+	wiring := newWiring(config.HTTPAPIConfig{
+		RuntimeConfig: config.RuntimeConfig{AppEnv: "test"},
 		HTTP: config.HTTPConfig{
 			Address:          ":0",
 			RequestTimeout:   time.Second,

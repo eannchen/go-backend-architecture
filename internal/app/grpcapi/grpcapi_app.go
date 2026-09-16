@@ -7,11 +7,13 @@ import (
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
 	grpcdelivery "github.com/eannchen/go-backend-architecture/internal/delivery/grpc"
 	healthservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health"
+	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
 )
 
 type App struct {
 	*appruntime.Runtime
+	Config   config.GRPCAPIConfig
 	Server   *grpcdelivery.Server
 	Reporter *healthservice.Reporter
 }
@@ -19,13 +21,17 @@ type App struct {
 var _ appruntime.Application = (*App)(nil)
 
 func New(ctx context.Context) (*App, error) {
-	runtime, err := appruntime.New(ctx)
+	cfg, err := config.LoadGRPCAPI()
+	if err != nil {
+		return nil, err
+	}
+	runtime, err := appruntime.New(ctx, cfg.RuntimeConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	wiring := newWiring(
-		runtime.Config,
+		cfg,
 		runtime.Logger,
 		runtime.Observability.Tracer(),
 		runtime.Observability.Meter(),
@@ -41,6 +47,7 @@ func New(ctx context.Context) (*App, error) {
 
 	return &App{
 		Runtime:  runtime,
+		Config:   cfg,
 		Server:   components.server,
 		Reporter: components.reporter,
 	}, nil

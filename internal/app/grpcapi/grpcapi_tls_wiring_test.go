@@ -22,7 +22,7 @@ func TestBuildTransportCredentials(t *testing.T) {
 	t.Run("TLS", func(t *testing.T) {
 		authority := tlsconfigtest.NewCertificateAuthority(t)
 		certificateFile, privateKeyFile := tlsconfigtest.WriteCertificateFiles(t, "server", authority.IssueServerCertificate(t, "localhost"))
-		wiring := wiring{cfg: config.Config{GRPC: config.GRPCConfig{TLS: config.GRPCServerTLSConfig{
+		wiring := wiring{cfg: config.GRPCAPIConfig{GRPC: config.GRPCConfig{TLS: config.GRPCServerTLSConfig{
 			Enabled:        true,
 			ServerCertFile: certificateFile,
 			ServerKeyFile:  privateKeyFile,
@@ -38,7 +38,7 @@ func TestBuildTransportCredentials(t *testing.T) {
 	})
 
 	t.Run("invalid certificate files", func(t *testing.T) {
-		wiring := wiring{cfg: config.Config{GRPC: config.GRPCConfig{TLS: config.GRPCServerTLSConfig{
+		wiring := wiring{cfg: config.GRPCAPIConfig{GRPC: config.GRPCConfig{TLS: config.GRPCServerTLSConfig{
 			Enabled:        true,
 			ServerCertFile: "missing.pem",
 			ServerKeyFile:  "missing-key.pem",

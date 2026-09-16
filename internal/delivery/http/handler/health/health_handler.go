@@ -100,8 +100,5 @@ func toResponse(result usecasehealth.Result) openapi.HealthResponse {
 		Kvstore: openapi.HealthDependency{
 			Status: result.KVStore.Status,
 		},
-		Vectorstore: openapi.HealthDependency{
-			Status: result.Vector.Status,
-		},
 	}
 }

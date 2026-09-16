@@ -17,17 +17,13 @@ type Application interface{ Shutdown(context.Context) error }
 
 type Runtime struct {
 	*Telemetry
-	Config      config.Config
+	Config      config.RuntimeConfig
 	DBPool      *pgxpool.Pool
 	RedisClient *goredis.Client
 }
 
-func New(ctx context.Context) (*Runtime, error) {
-	cfg, err := config.Load()
-	if err != nil {
-		return nil, err
-	}
-	telemetry, err := NewTelemetry(ctx, cfg, cfg.ServiceName)
+func New(ctx context.Context, cfg config.RuntimeConfig) (*Runtime, error) {
+	telemetry, err := NewTelemetry(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}

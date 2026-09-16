@@ -79,7 +79,7 @@ type HealthDatabase struct {
 	UptimeSeconds int64 `json:"uptime_seconds"`
 }
 
-// HealthDependency Generic dependency status for cache, KV, and vector store.
+// HealthDependency Generic dependency status for cache and KV.
 type HealthDependency struct {
 	// Status ok when the dependency is reachable and usable; otherwise indicates failure.
 	Status string `json:"status"`
@@ -87,17 +87,14 @@ type HealthDependency struct {
 
 // HealthResponse Aggregate status of the service and its dependencies for health checks.
 type HealthResponse struct {
-	// Cache Generic dependency status for cache, KV, and vector store.
+	// Cache Generic dependency status for cache and KV.
 	Cache HealthDependency `json:"cache"`
 
 	// Database Primary database health; used to decide if the instance can serve read/write traffic.
 	Database HealthDatabase `json:"database"`
 
-	// Kvstore Generic dependency status for cache, KV, and vector store.
+	// Kvstore Generic dependency status for cache and KV.
 	Kvstore HealthDependency `json:"kvstore"`
-
-	// Vectorstore Generic dependency status for cache, KV, and vector store.
-	Vectorstore HealthDependency `json:"vectorstore"`
 }
 
 // MessageResponse Generic success message.
@@ -138,7 +135,7 @@ type OauthCallbackParams struct {
 
 // GetHealthParams defines parameters for GetHealth.
 type GetHealthParams struct {
-	// Check Which check to run. live = process only; ready = process + DB, cache, KV, vector store.
+	// Check Which check to run. live = process only; ready = process + DB, cache, and KV.
 	Check *GetHealthParamsCheck `form:"check,omitempty" json:"check,omitempty" query:"check" validate:"omitempty,oneof=live ready"`
 }
 
@@ -147,7 +144,7 @@ type GetHealthParamsCheck string
 
 // StreamHealthParams defines parameters for StreamHealth.
 type StreamHealthParams struct {
-	// Check Which check to run for each event. live = process only; ready = process + DB, cache, KV, vector store.
+	// Check Which check to run for each event. live = process only; ready = process + DB, cache, and KV.
 	Check *StreamHealthParamsCheck `form:"check,omitempty" json:"check,omitempty" query:"check" validate:"omitempty,oneof=live ready"`
 }
 

@@ -6,10 +6,10 @@
 - Stores use generated static SQL and shared builder for dynamic SQL.
 - No PostgreSQL/driver types exposed outside this package.
 - `pgtype.go` converts PostgreSQL driver values at the infra boundary.
-- **DDL:** `sqlc/schema.sql` mirrors tables + indexes (sqlc + tuning reference); **migrations** apply in envs—keep them in sync when you change schema or indexes.
+- **DDL:** `sqlc/schema/auth.sql` mirrors the public HTTP authentication tables; migrations apply them in environments.
 
 ## How to extend
 
 - Add store implementations under `store/`; static queries in the SQL layer, or builder for conditional shapes.
 - Use the `pgtype` helpers when mapping nullable timestamps or date-only values to domain-friendly Go types.
-- New migrations under `migrations/`; mirror structural/index changes in `sqlc/schema.sql`, then `make sqlc-generate`.
+- Add migrations under `migrations/`; mirror structural changes in the matching `sqlc/schema/` file, then run `make sqlc-generate`.

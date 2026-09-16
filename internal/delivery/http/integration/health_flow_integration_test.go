@@ -9,7 +9,7 @@ func TestHealthFlow(t *testing.T) {
 
 	t.Run("liveness does not require dependencies", func(t *testing.T) {
 		got := fixture.getHealth(t, "live")
-		if got.Database.Status != "skipped" || got.Cache.Status != "skipped" || got.Kvstore.Status != "skipped" || got.Vectorstore.Status != "skipped" {
+		if got.Database.Status != "skipped" || got.Cache.Status != "skipped" || got.Kvstore.Status != "skipped" {
 			t.Fatalf("liveness response = %+v, want all dependencies skipped", got)
 		}
 	})
@@ -19,7 +19,7 @@ func TestHealthFlow(t *testing.T) {
 		if got.Database.Status != "up" || got.Database.Name != "integration_test" || got.Database.InRecovery || got.Database.UptimeSeconds < 0 {
 			t.Fatalf("database readiness = %+v, want active integration database", got.Database)
 		}
-		if got.Cache.Status != "up" || got.Kvstore.Status != "up" || got.Vectorstore.Status != "up" {
+		if got.Cache.Status != "up" || got.Kvstore.Status != "up" {
 			t.Fatalf("dependency readiness = %+v, want all dependencies up", got)
 		}
 	})

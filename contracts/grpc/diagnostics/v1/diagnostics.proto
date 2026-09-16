@@ -57,8 +57,6 @@ message GetHealthResponse {
   // kv_store contains the key-value store dependency state.
   DependencyHealth kv_store = 4;
 
-  // vector_store contains the vector extension dependency state.
-  DependencyHealth vector_store = 5;
 }
 
 // DatabaseHealth reports database state and details that are known after a successful check.

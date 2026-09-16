@@ -8,13 +8,13 @@ import (
 
 // wiring centralizes shared dependencies used when wiring constructors.
 type wiring struct {
-	cfg    config.Config
+	cfg    config.HTTPAPIConfig
 	log    logger.Logger
 	tracer observability.Tracer
 	meter  observability.Meter
 }
 
-func newWiring(cfg config.Config, log logger.Logger, tracer observability.Tracer, meter observability.Meter) wiring {
+func newWiring(cfg config.HTTPAPIConfig, log logger.Logger, tracer observability.Tracer, meter observability.Meter) wiring {
 	return wiring{
 		cfg:    cfg,
 		log:    log,

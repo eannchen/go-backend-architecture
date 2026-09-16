@@ -33,8 +33,7 @@ func TestGetHealthMapsReadyResult(t *testing.T) {
 	}
 	if got.GetDatabase().GetStatus() != diagnosticsv1.HealthStatus_HEALTH_STATUS_UP ||
 		got.GetCache().GetStatus() != diagnosticsv1.HealthStatus_HEALTH_STATUS_UP ||
-		got.GetKvStore().GetStatus() != diagnosticsv1.HealthStatus_HEALTH_STATUS_UP ||
-		got.GetVectorStore().GetStatus() != diagnosticsv1.HealthStatus_HEALTH_STATUS_UP {
+		got.GetKvStore().GetStatus() != diagnosticsv1.HealthStatus_HEALTH_STATUS_UP {
 		t.Fatalf("unexpected dependency statuses: %v", got)
 	}
 	if got.GetDatabase().Name == nil || got.GetDatabase().GetName() != "app" {
@@ -184,7 +183,6 @@ func readyResult() usecasehealth.Result {
 		Database: usecasehealth.Database{Status: "up", Name: "app", InRecovery: false, UptimeSeconds: 123},
 		Cache:    usecasehealth.Dependency{Status: "up"},
 		KVStore:  usecasehealth.Dependency{Status: "up"},
-		Vector:   usecasehealth.Dependency{Status: "up"},
 	}
 }
 
@@ -193,6 +191,5 @@ func skippedResult() usecasehealth.Result {
 		Database: usecasehealth.Database{Status: "skipped"},
 		Cache:    usecasehealth.Dependency{Status: "skipped"},
 		KVStore:  usecasehealth.Dependency{Status: "skipped"},
-		Vector:   usecasehealth.Dependency{Status: "skipped"},
 	}
 }

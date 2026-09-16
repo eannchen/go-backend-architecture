@@ -16,7 +16,6 @@ type Result struct {
 	Database Database
 	Cache    Dependency
 	KVStore  Dependency
-	Vector   Dependency
 }
 
 type Database struct {
@@ -110,9 +109,6 @@ func (u *impl) Check(ctx context.Context, mode CheckMode) (result Result, err er
 		KVStore: Dependency{
 			Status: "skipped",
 		},
-		Vector: Dependency{
-			Status: "skipped",
-		},
 	}
 
 	if mode == CheckModeLive {
@@ -134,12 +130,6 @@ func (u *impl) Check(ctx context.Context, mode CheckMode) (result Result, err er
 	result.Database.Name = serverStatus.DatabaseName
 	result.Database.InRecovery = serverStatus.InRecovery
 	result.Database.UptimeSeconds = serverStatus.UptimeSeconds
-
-	if err := u.dbHealth.CheckVectorExtension(ctx); err != nil {
-		result.Vector.Status = "down"
-		return result, apperr.Wrap(err, apperr.CodeUnavailable, "vector extension readiness failed")
-	}
-	result.Vector.Status = "up"
 
 	if err := u.cacheHealth.Ping(ctx); err != nil {
 		result.Cache.Status = "down"

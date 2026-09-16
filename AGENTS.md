@@ -1,7 +1,7 @@
 <!--
   Source of truth for AI rules (edit above the generated Skills block).
   Skills source of truth: .agents/skills/<name>/SKILL.md
-  After any edit, run ./scripts/sync-agents.sh to propagate changes to all tools.
+  After any edit, run ./tools/sync-agents.sh to propagate changes to all tools.
 -->
 
 # Project Overview
@@ -266,7 +266,7 @@ After changing `AGENTS.md` or any `.agents/skills/*/SKILL.md`, run the sync scri
 
 1. Run from the repository root:
    ```bash
-   ./scripts/sync-agents.sh
+   ./tools/sync-agents.sh
    ```
 2. Confirm the script printed "Done. Claude Code, Cursor, and Codex are in sync."
 

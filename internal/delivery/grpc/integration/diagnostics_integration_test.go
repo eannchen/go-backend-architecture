@@ -184,6 +184,5 @@ func healthyReadyResult() usecasehealth.Result {
 		Database: usecasehealth.Database{Status: "up", Name: "app", UptimeSeconds: 123},
 		Cache:    usecasehealth.Dependency{Status: "up"},
 		KVStore:  usecasehealth.Dependency{Status: "up"},
-		Vector:   usecasehealth.Dependency{Status: "up"},
 	}
 }

@@ -18,9 +18,9 @@ type Telemetry struct {
 	Observability observability.Runtime
 }
 
-// NewTelemetry creates process telemetry with a caller-selected service identity.
-func NewTelemetry(ctx context.Context, cfg config.Config, serviceName string) (*Telemetry, error) {
-	obs, err := otel.Setup(ctx, cfg.OTel, serviceName, cfg.AppEnv)
+// NewTelemetry creates process telemetry with the configured service identity.
+func NewTelemetry(ctx context.Context, cfg config.RuntimeConfig) (*Telemetry, error) {
+	obs, err := otel.Setup(ctx, cfg.OTel, cfg.ServiceName, cfg.AppEnv)
 	if err != nil {
 		return nil, err
 	}

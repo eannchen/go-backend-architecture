@@ -7,22 +7,28 @@ import (
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
 	httpDelivery "github.com/eannchen/go-backend-architecture/internal/delivery/http"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
+	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
 )
 
 type App struct {
 	*appruntime.Runtime
+	Config config.HTTPAPIConfig
 	Server *httpDelivery.Server
 }
 
 var _ appruntime.Application = (*App)(nil)
 
 func New(ctx context.Context) (*App, error) {
-	runtime, err := appruntime.New(ctx)
+	cfg, err := config.LoadHTTPAPI()
 	if err != nil {
 		return nil, err
 	}
-	wiring := newWiring(runtime.Config, runtime.Logger, runtime.Observability.Tracer(), runtime.Observability.Meter())
+	runtime, err := appruntime.New(ctx, cfg.RuntimeConfig)
+	if err != nil {
+		return nil, err
+	}
+	wiring := newWiring(cfg, runtime.Logger, runtime.Observability.Tracer(), runtime.Observability.Meter())
 	redisStores := wiring.buildRedisStores(runtime.RedisClient)
 
 	repositories := wiring.buildRepositories(runtime.DBPool, redisStores)
@@ -39,6 +45,7 @@ func New(ctx context.Context) (*App, error) {
 
 	return &App{
 		Runtime: runtime,
+		Config:  cfg,
 		Server:  server,
 	}, nil
 }

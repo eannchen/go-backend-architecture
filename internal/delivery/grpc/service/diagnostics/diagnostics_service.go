@@ -70,11 +70,10 @@ func toResponse(result usecasehealth.Result, healthy bool) *diagnosticsv1.GetHea
 	}
 
 	return &diagnosticsv1.GetHealthResponse{
-		Healthy:     healthy,
-		Database:    database,
-		Cache:       &diagnosticsv1.DependencyHealth{Status: toHealthStatus(result.Cache.Status)},
-		KvStore:     &diagnosticsv1.DependencyHealth{Status: toHealthStatus(result.KVStore.Status)},
-		VectorStore: &diagnosticsv1.DependencyHealth{Status: toHealthStatus(result.Vector.Status)},
+		Healthy:  healthy,
+		Database: database,
+		Cache:    &diagnosticsv1.DependencyHealth{Status: toHealthStatus(result.Cache.Status)},
+		KvStore:  &diagnosticsv1.DependencyHealth{Status: toHealthStatus(result.KVStore.Status)},
 	}
 }
 

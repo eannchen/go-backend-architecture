@@ -34,13 +34,3 @@ func TestDBHealthStore_GetServerStatus(t *testing.T) {
 		t.Fatalf("uptime seconds = %d, want a non-negative value", status.UptimeSeconds)
 	}
 }
-
-func TestDBHealthStore_CheckVectorExtension(t *testing.T) {
-	store := NewDBHealthStore(requirePostgresTestPool(t), observability.NoopTracer{})
-
-	// Migrations install the vector extension, so this verifies both the health
-	// adapter's query and the database state required by the application.
-	if err := store.CheckVectorExtension(context.Background()); err != nil {
-		t.Fatalf("check vector extension: %v", err)
-	}
-}

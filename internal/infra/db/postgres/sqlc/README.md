@@ -2,10 +2,10 @@
 
 ## Pattern used
 
-- Query files and schema are source of truth; generated Go code in a subpackage, only imported by infra.
+- Query and schema files are source of truth; generated Go code stays inside infra.
 - No string concatenation for SQL.
 
 ## How to extend
 
-- Add/edit query files, then run the sqlc generate step.
-- For schema changes, update schema file and run migrations; keep DDL consistent.
+- Add/edit query files, then run `make sqlc-generate` with the installed profile configuration.
+- Keep authentication tables in `schema/auth.sql`; the gRPC health queries need no application schema.
