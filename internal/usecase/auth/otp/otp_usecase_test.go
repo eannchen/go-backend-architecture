@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
@@ -150,9 +151,9 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 		code             string
 		storedHash       string
 		consumeOTPErr    error
-		getUserResult    repodb.User
+		getUserResult    domainuser.User
 		getUserErr       error
-		createUserResult repodb.User
+		createUserResult domainuser.User
 		createUserErr    error
 		wantIdentity     auth.Identity
 		wantCode         apperr.Code
@@ -191,7 +192,7 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 			email:            "user@example.com",
 			code:             validCode,
 			storedHash:       validHash,
-			getUserResult:    repodb.User{ID: 42, Email: "user@example.com"},
+			getUserResult:    domainuser.User{ID: 42, Email: "user@example.com", Status: domainuser.StatusActive},
 			wantIdentity:     auth.Identity{UserID: 42, Email: "user@example.com", Method: auth.MethodOTP},
 			wantConsumeCalls: 1,
 			wantGetUserCalls: 1,
@@ -202,11 +203,21 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 			code:             validCode,
 			storedHash:       validHash,
 			getUserErr:       repodb.ErrNotFound,
-			createUserResult: repodb.User{ID: 99, Email: "new@example.com"},
+			createUserResult: domainuser.User{ID: 99, Email: "new@example.com", Status: domainuser.StatusActive},
 			wantIdentity:     auth.Identity{UserID: 99, Email: "new@example.com", Method: auth.MethodOTP},
 			wantConsumeCalls: 1,
 			wantGetUserCalls: 1,
 			wantCreateCalls:  1,
+		},
+		{
+			name:             "rejects disabled user",
+			email:            "disabled@example.com",
+			code:             validCode,
+			storedHash:       validHash,
+			getUserResult:    domainuser.User{ID: 43, Email: "disabled@example.com", Status: domainuser.StatusDisabled},
+			wantCode:         apperr.CodeForbidden,
+			wantConsumeCalls: 1,
+			wantGetUserCalls: 1,
 		},
 		{
 			name:             "returns internal error when OTP consume fails",
@@ -265,10 +276,10 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 				},
 			}
 			userRepo := &dbtest.UserRepository{
-				GetByEmailFunc: func(context.Context, string) (repodb.User, error) {
+				GetByEmailFunc: func(context.Context, string) (domainuser.User, error) {
 					return tt.getUserResult, tt.getUserErr
 				},
-				CreateByEmailFunc: func(context.Context, string) (repodb.User, error) {
+				CreateByEmailFunc: func(context.Context, string) (domainuser.User, error) {
 					return tt.createUserResult, tt.createUserErr
 				},
 			}

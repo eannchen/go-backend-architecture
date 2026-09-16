@@ -8,7 +8,8 @@
 - Repository boundaries are usecase/consumer-driven, not schema/table-driven.
 - One schema/table does not imply one repository interface. Group methods by business capability.
 - Transactions controlled by usecase via `db/TxManager`.
-- Struct ownership: repository packages define their own structs — never import from `internal/domain`. Domain types belong to usecases. Structs may carry raw storage values and DB-computed aggregations.
+- Repository contracts may use domain entities when persistence returns a business object shared across workflows.
+- Repository-owned structs remain appropriate for operation inputs, raw storage values, and DB-computed projections that are not domain concepts.
 
 ## How to extend
 
@@ -16,4 +17,5 @@
 - Use `xxxx_repository.go` naming. Keep methods minimal and business-driven.
 - Prefer capability names (`user_repository.go`, `auth_repository.go`) over schema names.
 - Avoid ORM-style generic CRUD repositories that mirror tables directly; expose only operations needed by usecases.
+- Return domain entities rather than redefining them at persistence boundaries; keep query-specific projections in repository packages.
 - Implement under the corresponding `internal/infra/...` package.

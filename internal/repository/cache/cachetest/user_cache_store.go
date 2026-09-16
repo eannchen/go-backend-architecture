@@ -3,25 +3,25 @@ package cachetest
 import (
 	"context"
 
+	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 	repocache "github.com/eannchen/go-backend-architecture/internal/repository/cache"
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
 )
 
 // UserCacheStore is a reusable test double for repocache.UserCacheStore.
 type UserCacheStore struct {
-	GetByIDFunc     func(context.Context, int64) (repodb.User, bool, error)
+	GetByIDFunc     func(context.Context, int64) (domainuser.User, bool, error)
 	GetByIDCalls    int
 	GetByIDID       int64
-	SetByIDFunc     func(context.Context, int64, repodb.User) error
+	SetByIDFunc     func(context.Context, int64, domainuser.User) error
 	SetByIDCalls    int
 	SetByIDID       int64
-	SetByIDUser     repodb.User
+	SetByIDUser     domainuser.User
 	DeleteByIDFunc  func(context.Context, int64) error
 	DeleteByIDCalls int
 	DeleteByIDID    int64
 }
 
-func (s *UserCacheStore) GetByID(ctx context.Context, id int64) (repodb.User, bool, error) {
+func (s *UserCacheStore) GetByID(ctx context.Context, id int64) (domainuser.User, bool, error) {
 	s.GetByIDCalls++
 	s.GetByIDID = id
 	if s.GetByIDFunc == nil {
@@ -30,7 +30,7 @@ func (s *UserCacheStore) GetByID(ctx context.Context, id int64) (repodb.User, bo
 	return s.GetByIDFunc(ctx, id)
 }
 
-func (s *UserCacheStore) SetByID(ctx context.Context, id int64, user repodb.User) error {
+func (s *UserCacheStore) SetByID(ctx context.Context, id int64, user domainuser.User) error {
 	s.SetByIDCalls++
 	s.SetByIDID = id
 	s.SetByIDUser = user

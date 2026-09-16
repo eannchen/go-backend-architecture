@@ -3,26 +3,27 @@ package dbtest
 import (
 	"context"
 
+	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
 )
 
 // UserRepository is a reusable test double for repodb.UserRepository.
 type UserRepository struct {
-	GetByEmailFunc       func(context.Context, string) (repodb.User, error)
+	GetByEmailFunc       func(context.Context, string) (domainuser.User, error)
 	GetByEmailCalls      int
 	GetByEmailEmail      string
-	GetByIDFunc          func(context.Context, int64) (repodb.User, error)
+	GetByIDFunc          func(context.Context, int64) (domainuser.User, error)
 	GetByIDCalls         int
 	GetByIDID            int64
-	CreateByEmailFunc    func(context.Context, string) (repodb.User, error)
+	CreateByEmailFunc    func(context.Context, string) (domainuser.User, error)
 	CreateByEmailCalls   int
 	CreateByEmailEmail   string
-	UpsertOAuthUserFunc  func(context.Context, repodb.OAuthUserUpsert) (repodb.User, error)
+	UpsertOAuthUserFunc  func(context.Context, repodb.OAuthUserUpsert) (domainuser.User, error)
 	UpsertOAuthUserCalls int
 	UpsertOAuthUserInfo  repodb.OAuthUserUpsert
 }
 
-func (r *UserRepository) GetByEmail(ctx context.Context, email string) (repodb.User, error) {
+func (r *UserRepository) GetByEmail(ctx context.Context, email string) (domainuser.User, error) {
 	r.GetByEmailCalls++
 	r.GetByEmailEmail = email
 	if r.GetByEmailFunc == nil {
@@ -31,7 +32,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (repodb.U
 	return r.GetByEmailFunc(ctx, email)
 }
 
-func (r *UserRepository) GetByID(ctx context.Context, id int64) (repodb.User, error) {
+func (r *UserRepository) GetByID(ctx context.Context, id int64) (domainuser.User, error) {
 	r.GetByIDCalls++
 	r.GetByIDID = id
 	if r.GetByIDFunc == nil {
@@ -40,7 +41,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (repodb.User, er
 	return r.GetByIDFunc(ctx, id)
 }
 
-func (r *UserRepository) CreateByEmail(ctx context.Context, email string) (repodb.User, error) {
+func (r *UserRepository) CreateByEmail(ctx context.Context, email string) (domainuser.User, error) {
 	r.CreateByEmailCalls++
 	r.CreateByEmailEmail = email
 	if r.CreateByEmailFunc == nil {
@@ -49,7 +50,7 @@ func (r *UserRepository) CreateByEmail(ctx context.Context, email string) (repod
 	return r.CreateByEmailFunc(ctx, email)
 }
 
-func (r *UserRepository) UpsertOAuthUser(ctx context.Context, info repodb.OAuthUserUpsert) (repodb.User, error) {
+func (r *UserRepository) UpsertOAuthUser(ctx context.Context, info repodb.OAuthUserUpsert) (domainuser.User, error) {
 	r.UpsertOAuthUserCalls++
 	r.UpsertOAuthUserInfo = info
 	if r.UpsertOAuthUserFunc == nil {

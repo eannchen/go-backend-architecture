@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
 )
@@ -32,7 +33,7 @@ func TestUserStoreIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	if created.ID == 0 || created.Email != email {
+	if created.ID == 0 || created.Email != email || created.Status != domainuser.StatusActive {
 		t.Fatalf("unexpected created user: %+v", created)
 	}
 
@@ -64,7 +65,7 @@ func TestUserStoreIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upsert oauth user: %v", err)
 	}
-	if oauthUser.ID == 0 || oauthUser.Email != oauthEmail {
+	if oauthUser.ID == 0 || oauthUser.Email != oauthEmail || oauthUser.Status != domainuser.StatusActive {
 		t.Fatalf("unexpected oauth user: %+v", oauthUser)
 	}
 

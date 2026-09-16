@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 
+	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repocache "github.com/eannchen/go-backend-architecture/internal/repository/cache"
@@ -33,7 +34,7 @@ func NewCachedUserStore(
 	return &CachedUserStore{base: base, cache: cache, log: log, tracer: tracer}
 }
 
-func (r *CachedUserStore) GetByID(ctx context.Context, id int64) (user repodb.User, err error) {
+func (r *CachedUserStore) GetByID(ctx context.Context, id int64) (user domainuser.User, err error) {
 	ctx, span := r.tracer.Start(ctx, "repository", "cached_user_store.get_by_id",
 		observability.FromPairs("user.id", id),
 	)
@@ -51,7 +52,7 @@ func (r *CachedUserStore) GetByID(ctx context.Context, id int64) (user repodb.Us
 
 	user, err = r.base.GetByID(ctx, id)
 	if err != nil {
-		return repodb.User{}, err
+		return domainuser.User{}, err
 	}
 
 	if cacheErr := r.cache.SetByID(ctx, id, user); cacheErr != nil {
@@ -61,18 +62,18 @@ func (r *CachedUserStore) GetByID(ctx context.Context, id int64) (user repodb.Us
 }
 
 // GetByEmail bypasses cache — email-based lookups are infrequent (login only).
-func (r *CachedUserStore) GetByEmail(ctx context.Context, email string) (repodb.User, error) {
+func (r *CachedUserStore) GetByEmail(ctx context.Context, email string) (domainuser.User, error) {
 	return r.base.GetByEmail(ctx, email)
 }
 
-func (r *CachedUserStore) CreateByEmail(ctx context.Context, email string) (repodb.User, error) {
+func (r *CachedUserStore) CreateByEmail(ctx context.Context, email string) (domainuser.User, error) {
 	return r.base.CreateByEmail(ctx, email)
 }
 
-func (r *CachedUserStore) UpsertOAuthUser(ctx context.Context, info repodb.OAuthUserUpsert) (repodb.User, error) {
+func (r *CachedUserStore) UpsertOAuthUser(ctx context.Context, info repodb.OAuthUserUpsert) (domainuser.User, error) {
 	user, err := r.base.UpsertOAuthUser(ctx, info)
 	if err != nil {
-		return repodb.User{}, err
+		return domainuser.User{}, err
 	}
 	if cacheErr := r.cache.DeleteByID(ctx, user.ID); cacheErr != nil {
 		r.log.Warn(ctx, "user cache invalidation failed", logger.FromPairs("user.id", user.ID, "error", cacheErr))
