@@ -1,13 +1,15 @@
-# internal/infra/composed
+# Composed infrastructure adapters
 
-## Pattern used
+This directory combines multiple adapters behind one repository contract.
 
-- Decorator pattern: each subpackage composes multiple infra implementations behind one repository contract (e.g. cache-aside wraps a DB store with a cache store, exposing the same `UserRepository` interface).
-- The composed store owns coordination logic (cache hit/miss, invalidation) so usecases stay unaware of caching.
-- Files named `<feature>_cached_store.go`; each subpackage is one feature (e.g. `user/`).
+## Responsibilities and boundaries
 
-## How to extend
+- A composed adapter coordinates multiple adapters, such as a cache lookup, primary-store read, cache population, and invalidation.
+- It implements the same contract as the primary adapter, keeping usecases unaware of composition.
+- Cache consistency and dependency-failure policy are explicit in the composed implementation.
 
-- Add a subpackage per feature that needs composition (e.g. `composed/product/`).
-- Implement the same repository contract as the base store. Accept the base + cache (or other layer) via constructor injection.
-- Wire in the matching process composition file (for HTTP, `internal/app/httpapi/httpapi_*_wiring.go`) by wrapping the base store with the composed store.
+## Extending
+
+- Add one feature package when a repository operation requires multiple adapters.
+- Inject the primary and supporting adapters through the constructor.
+- Document and test the selected cache or coordination pattern, acceptable staleness, and failure behavior.

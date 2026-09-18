@@ -1,13 +1,15 @@
-# internal/security/calleridentity
+# Caller identity contract
 
-## Pattern used
+This package defines the transport-neutral identity of an authenticated machine caller.
 
-- Defines the transport-neutral identity of an authenticated machine caller.
-- Owns the certificate extractor contract implemented by security infrastructure.
-- Stores identity in `context.Context` so delivery, observability, and explicitly identity-aware application code can share it without importing gRPC or TLS.
+## Responsibilities and boundaries
 
-## How to extend
+- Owns the identity value, context helpers, and certificate extractor contract.
+- Delivery extracts transport credentials; infrastructure implements certificate interpretation; usecases receive identity explicitly when authorization needs it.
+- Identity fields have the same meaning regardless of the authentication mechanism.
 
-- Keep certificate, token, and gateway parsing in their transport adapters.
-- Add identity fields only when they have the same meaning across authentication mechanisms.
-- Pass identity explicitly to business methods when authorization is part of the business rule.
+## Extending
+
+- Add a field only when its meaning is consistent across identity sources; make it optional when a source cannot provide it.
+- Keep certificate, token, and gateway parsing in their adapters.
+- Pass identity into business methods instead of reading context when authorization is part of the business rule.

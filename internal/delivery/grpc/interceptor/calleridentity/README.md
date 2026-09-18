@@ -1,13 +1,16 @@
-# internal/delivery/grpc/interceptor/calleridentity
+# gRPC caller identity
 
-## Pattern used
+This interceptor derives an authenticated machine identity from a verified client certificate.
 
-- Reads only certificates from gRPC's verified TLS chains; a merely presented certificate never establishes identity.
-- Delegates certificate-to-identity policy to an extractor injected by app wiring.
-- Adds the identity to unary and streaming contexts before observability and services run.
-- Calls without a client certificate remain anonymous when the server permits optional client certificates.
+## Responsibilities and boundaries
 
-## How to extend
+- Reads only certificates accepted by the TLS verified chain; a presented but unverified certificate never establishes identity.
+- Delegates certificate interpretation to the injected `CertificateExtractor`.
+- Adds identity to unary and streaming contexts before observability and service execution.
+- Leaves calls anonymous when client certificates are optional and none is verified.
 
-- Inject infra's URI-SAN extractor or another `CertificateExtractor` matching the certificate authority's explicit identity convention.
-- Keep authorization policy out of this interceptor; services or a separate authorization interceptor decide what an authenticated identity may do.
+## Extending
+
+- Inject an extractor matching the certificate authority's documented identity convention.
+- Keep authorization decisions in usecases or a dedicated authorization interceptor.
+- Do not infer identity from unverified peer data.

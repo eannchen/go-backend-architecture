@@ -1,13 +1,15 @@
-# internal/delivery/http/binding
+# HTTP request binding
 
-## Pattern used
+This package normalizes bound request fields before validation and handler execution.
 
-- `NormalizeBinder` wraps any `echo.Binder`: delegates bind, then trims and optionally case-converts string fields via struct tags (`trim:"false"`, `case:"lower"`, `case:"upper"`).
-- Handles named strings, optional string pointers, nested structs, and slices so generated OpenAPI models normalize consistently.
-- Injected into `NewServer` via constructor; pass `nil` for the default normalize binder.
+## Responsibilities and boundaries
 
-## How to extend
+- `NormalizeBinder` delegates decoding to an `echo.Binder`, then applies string normalization expressed by struct tags.
+- Supported normalization includes trimming, case conversion, pointers, named strings, nested structs, and slices.
+- The binder changes transport input only; business normalization remains outside this package.
 
-- New normalization: add a struct tag, read it in `normalizeStruct`, apply in a helper. Add tests.
-- Custom binder: implement `echo.Binder`, pass it to `NewServer` in wiring.
-- Opt-out per field: `trim:"false"`.
+## Extending
+
+- Express field behavior with `trim` and `case` tags, including OpenAPI-generated extra tags.
+- Add a normalization rule with focused reflection and binding tests.
+- Inject a custom `echo.Binder` through app wiring when decoding behavior must change.

@@ -1,11 +1,15 @@
-# internal/infra/security/tlsconfig
+# TLS configuration
 
-## Pattern used
+This package loads certificates and trust roots into standard-library `tls.Config` values without importing HTTP or gRPC.
 
-- Server and client certificates, trust roots, and optional mutual-TLS identities are loaded into standard-library `tls.Config` values.
-- TLS 1.2 is the minimum; a configured client CA verifies optional certificates or becomes mandatory when mTLS is enabled.
+## Responsibilities and boundaries
 
-## How to extend
+- Builds separate client and server configurations with TLS 1.2 as the minimum.
+- Server trust roots can verify optional client certificates or require mutual TLS (mTLS), according to configuration.
+- Returns standard-library configuration without importing HTTP or gRPC credential types.
 
-- Add certificate reload behind a dedicated provider rather than adding file watching to transport servers.
-- Keep protocol-specific credential wrappers in the relevant app composition package.
+## Extending
+
+- Add certificate reload through a dedicated provider rather than file watching inside a transport server.
+- Keep client and server identity fields explicit when extending configuration.
+- Wrap returned configurations with protocol credentials in app composition.

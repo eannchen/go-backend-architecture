@@ -1,11 +1,14 @@
-# internal/delivery/http/middleware/ratelimit
+# HTTP rate-limit middleware
 
-## Pattern used
+This middleware maps an application rate-limit decision to an HTTP response.
 
-- Maps an app-owned rate-limit decision to HTTP 429 responses and the standard `Retry-After` header.
-- Delegates keys, algorithm choice, and failure policy to the usecase layer.
+## Responsibilities and boundaries
 
-## How to extend
+- Returns HTTP 429 and, when available, the HTTP `Retry-After` response header.
+- Uses Echo's resolved client IP as the global limiter key.
+- Delegates quota configuration, the token-bucket operation, and dependency-failure behavior to the usecase.
 
-- Keep middleware transport-only; add a feature-specific limiter in its owning usecase.
-- Use the shared response helper for rejection and technical errors.
+## Extending
+
+- Add feature-specific policies to the usecase that owns the protected operation.
+- Keep this middleware limited to HTTP input and response mapping.

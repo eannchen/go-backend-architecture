@@ -1,20 +1,16 @@
-# internal/delivery/http
+# HTTP delivery
 
-## Pattern used
+This package adapts HTTP requests to application usecases and owns the Echo server boundary.
 
-- Adapter pattern from HTTP transport to usecase calls.
-- `server.go` owns Echo setup, global middleware, and route registration.
-- Handlers under `handler/<feature>/`, files named `<feature>_<role>.go` (e.g. `auth_handler.go`, `auth_dto.go`).
-- OpenAPI-generated request and response models in `openapi/gen/` from `contracts/http/openapi.yaml`.
-- Handlers bind and validate generated request models explicitly; business validation remains in usecases and domain types.
-- Request binding normalization in `binding/`, injected as the server's Binder.
-- Request-scoped Echo context values (session, response metadata for observability) live in `httpcontext/` so handlers and middleware share one place for Set/Get helpers.
-- One observability middleware coordinates tracing, metrics, and access logging from a shared request outcome.
+## Responsibilities and boundaries
 
-## How to extend
+- `server.go` owns Echo construction, injected binding and validation, middleware installation, route registration, and transport shutdown.
+- Handlers bind and validate transport input, call usecases, and map results through the shared responder.
+- OpenAPI-generated request and response types remain under `openapi/gen` and do not cross into usecases.
+- `httpcontext` contains typed accessors for request state shared by handlers, responders, and middleware.
 
-- Add `handler/<feature>/` with `<feature>_handler.go`, `<feature>_dto.go`, etc.
-- Register routes via `RouteRegistrar`.
-- Put portable request constraints in OpenAPI and use `x-oapi-codegen-extra-tags` only for Go binding, normalization, and validator tags.
-- Update `contracts/http/openapi.yaml`, run `make openapi-generate`, then adapt handlers to the generated request types.
-- Keep handlers thin: bind/validate -> call usecase -> map response.
+## Extending
+
+- Update the OpenAPI contract and regenerate before adapting a handler.
+- Add handlers under `handler/<feature>` and register routes through `RouteRegistrar`.
+- Keep transport validation and response mapping here; keep business rules in usecases or domain types.

@@ -1,17 +1,16 @@
-# internal/delivery/grpc/interceptor/requestcontext
+# gRPC request context
 
-## Pattern used
+This interceptor applies unary-call deadlines and optional request-ID interoperability.
 
-- Valid incoming request IDs are added to the context; accepting and returning request-ID metadata are separate, optional policies.
-- Missing IDs are not generated because native trace IDs provide automatic correlation.
-- Malformed incoming IDs are ignored by default so optional interoperability metadata cannot block business work; strict rejection is opt-in.
-- Unary calls receive the configured server timeout while preserving any earlier client deadline.
-- Streaming calls carry request metadata without a server-wide stream deadline.
-- Handler errors pass through unchanged; each service is the final response-mapping boundary and should use the shared gRPC responder.
+## Responsibilities and boundaries
 
-## How to extend
+- Accepts and returns request-ID metadata only when keys are configured; missing IDs are not generated.
+- Ignores malformed optional IDs by default, with strict rejection available through configuration.
+- Applies a unary server timeout without extending a shorter client deadline.
+- Carries metadata into streams without imposing one deadline on the entire stream.
+- Passes handler errors through unchanged so services remain the response-mapping boundary.
 
-- Select metadata keys in app wiring when callers share a request-ID convention; leave them empty to rely only on tracing.
-- Add protocol-level context values here only when every gRPC service should receive them.
-- Keep authorization and rate-limit policy in separate interceptors.
-- Keep application-error and context-error mapping in services rather than adding post-handler normalization here.
+## Extending
+
+- Add a context value only when every gRPC service needs it.
+- Keep authentication, authorization, rate limiting, and error normalization in separate interceptors or services.

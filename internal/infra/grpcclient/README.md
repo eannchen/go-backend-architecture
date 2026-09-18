@@ -1,14 +1,15 @@
-# internal/infra/grpcclient
+# Outbound gRPC connections
 
-## Pattern used
+This package provides reusable gRPC connection mechanics without defining a universal remote-service client.
 
-- Owns only reusable outbound gRPC connection mechanics: the target, transport credentials, message limits, lifecycle, and explicitly supplied interceptors.
-- Transport credentials are built by app composition and must be explicit, including deliberate plaintext credentials for local development.
-- Connections are lazy; availability is established by bounded RPC calls rather than blocking process startup.
-- It does not assume that every dependency shares deadlines, trace context, request IDs, authentication, metrics, or logging policy.
+## Responsibilities and boundaries
 
-## How to extend
+- Owns targets, transport credentials, message limits, explicitly selected interceptors, and connection shutdown.
+- `New` creates a lazy connection and does not wait for the remote server; use RPC deadlines where startup or readiness depends on a call.
+- It does not assume shared deadlines, tracing, request IDs, authentication, logging, or metrics for every dependency.
 
-- Add one service-specific adapter under `internal/infra/external/` for each remote dependency; let that adapter implement the contract owned by `internal/repository/external/`.
-- Select connection-wide interceptors in that adapter's app wiring. Internal dependencies may share trace and request context; third-party dependencies should receive only metadata required by their contract.
-- Keep method-specific deadlines, retries, error mapping, and business-oriented telemetry in the adapter or a narrow generated-client wrapper.
+## Extending
+
+- Implement each remote dependency under `internal/infra/external` against its repository contract.
+- Select connection-wide interceptors according to that dependency's trust and telemetry policy.
+- Keep method deadlines, retries, response interpretation, error mapping, and business telemetry in the dependency adapter.

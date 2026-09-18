@@ -1,16 +1,16 @@
-# internal/delivery/http/middleware/observability
+# HTTP server observability
 
-## Pattern used
+This middleware records server spans, access logs, and request metrics from one completed request outcome.
 
-- One middleware owns the request lifecycle and calls the next handler once.
-- Separate tracing, access-log, and request-metrics components consume one normalized request outcome.
-- The responder records one `httpcontext.ErrorOutcome` containing the original error, application/delivery code, safe message, and diagnostic details.
-- Standard OTel fields describe the HTTP method, route, concrete path, scheme, response status, and server failure type.
-- Template-owned responder fields use `app.error.*`, keeping application codes and safe response details distinct from native HTTP status.
-- Metrics use bounded method, route, and status fields only; the concrete path and detailed diagnostics stay in traces and logs.
+## Responsibilities and boundaries
 
-## How to extend
+- Calls the next handler once and shares its result across tracing, logging, and metrics.
+- The responder stores the original error, safe response details, and application code in one typed `httpcontext` outcome.
+- Attributes defined by OpenTelemetry keep their standard names; project-specific attributes use the `app.` prefix.
+- Concrete paths, caller-specific values, and detailed errors stay out of metric dimensions.
 
-- Add detailed diagnostic fields to tracing and access logs; add only bounded fields to metrics.
-- Keep standard OTel names for protocol facts and prefix template-specific fields with `app.` so ownership stays visible.
-- Keep response interpretation in the shared outcome so all three components observe the same result.
+## Extending
+
+- Add detailed diagnostics only to traces and logs.
+- Add metric attributes only when their value set is bounded.
+- Keep response interpretation centralized so all three signals report the same outcome.

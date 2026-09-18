@@ -1,13 +1,15 @@
-# internal/app
+# Application composition
 
-## Pattern used
+This directory contains the composition roots for executable processes.
 
-- `runtime` provides lightweight telemetry setup and the full configuration, DB, and Redis runtime used by servers.
-- `httpapi` composes the HTTP API process from that runtime.
-- `grpcapi` composes the standalone gRPC process from that runtime.
+## Responsibilities and boundaries
 
-## How to extend
+- `runtime` owns infrastructure and lifecycle code shared by executable types.
+- `httpapi` and `grpcapi` choose concrete implementations and assemble their delivery adapters.
+- Composition packages contain wiring and lifecycle orchestration, not business rules or protocol mapping.
 
-- Add shared process dependencies in `runtime`; add future worker compositions in a sibling `internal/app/<process>/` package.
-- Keep transport-specific wiring in `httpapi` and `grpcapi`, with purpose-specific filenames.
-- Keep business logic out of this package.
+## Extending
+
+- Add a sibling package for a new executable process.
+- Put a dependency in `runtime` only when multiple process types own it in the same way.
+- Keep process-specific constructors and shutdown order in the corresponding composition package.

@@ -1,11 +1,15 @@
-# internal/infra/config
+# Runtime configuration
 
-## Pattern used
+This package loads and validates environment-backed configuration before application startup.
 
-- Shared runtime settings and each transport profile are loaded and validated independently.
-- App composition combines `RuntimeConfig` with only its own HTTP or gRPC configuration.
+## Responsibilities and boundaries
 
-## How to extend
+- `LoadRuntime` reads shared settings; `LoadHTTPAPI` and `LoadGRPCAPI` add the settings for their executable.
+- Configuration values are normalized and validated once, then injected into constructors.
+- HTTP and gRPC configuration and tests remain in separate files so the profile selector can remove the unused pair.
 
-- Put process-neutral settings in `runtime_config.go`; put transport-owned settings in the matching profile file.
-- Keep profile tests beside their loader so removing a profile removes its configuration and tests together.
+## Extending
+
+- Put settings shared by executable types in `runtime_config.go` and transport-specific settings in the matching profile file.
+- Add defaults, normalization, validation, and tests with each new setting.
+- Do not read environment variables from delivery, usecase, or domain packages.

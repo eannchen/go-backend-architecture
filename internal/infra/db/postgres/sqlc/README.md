@@ -1,11 +1,15 @@
-# internal/infra/db/postgres/sqlc
+# PostgreSQL sqlc sources
 
-## Pattern used
+This directory contains the SQL schema and queries used to generate the PostgreSQL data-access layer.
 
-- Query and schema files are source of truth; generated Go code stays inside infra.
-- No string concatenation for SQL.
+## Responsibilities and boundaries
 
-## How to extend
+- Schema and query files are editable generation inputs; `gen` contains generated Go code.
+- Profile-specific sqlc configuration selects the schema and query files present in that project shape.
+- Generated database types remain inside infrastructure adapters.
 
-- Add/edit query files, then run `make sqlc-generate` with the installed profile configuration.
-- Keep authentication tables in `schema/auth.sql`; the gRPC health queries need no application schema.
+## Extending
+
+- Add or change schema and query files, then run `make sqlc-generate`.
+- Review generated changes and update store mappings in the same change.
+- Keep runtime-conditional query construction in the SQL builder rather than concatenating SQL here.

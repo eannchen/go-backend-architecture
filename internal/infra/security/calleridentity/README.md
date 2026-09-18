@@ -1,11 +1,15 @@
-# internal/infra/security/calleridentity
+# Certificate caller identity
 
-## Pattern used
+This package implements certificate-to-identity policies for verified client certificates.
 
-- Implements certificate-to-identity policies defined by `internal/security/calleridentity`.
-- The default implementation requires one URI subject alternative name and does not infer identity from the legacy Common Name.
+## Responsibilities and boundaries
 
-## How to extend
+- The extractor requires exactly one URI Subject Alternative Name (SAN) and rejects missing or ambiguous identities.
+- Legacy Common Name values are not accepted as identity.
+- gRPC peer inspection and business authorization remain outside this package.
 
-- Add another extractor when the certificate authority uses a different explicit identity convention.
-- Keep gRPC peer inspection in delivery and authorization decisions outside this package.
+## Extending
+
+- Add an extractor only for an explicit identity convention supported by the certificate authority.
+- Return the shared `internal/security/calleridentity.Identity` type.
+- Reject ambiguous certificates rather than selecting one identity silently.

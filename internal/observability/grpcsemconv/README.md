@@ -1,12 +1,14 @@
-# internal/observability/grpcsemconv
+# gRPC telemetry conventions
 
-## Pattern used
+This package normalizes gRPC values shared by client and server instrumentation.
 
-- Centralizes the gRPC values required by current OpenTelemetry RPC semantic conventions.
-- Keeps client and server failure classification explicit because the same status can have different meaning on each side.
-- Contains no tracing SDK or interceptor behavior.
+## Responsibilities and boundaries
 
-## How to extend
+- Removes gRPC's wire-path prefix from method names and returns canonical names for status codes.
+- Classifies client and server failures separately because one status can have different meaning on each side.
+- Contains no tracing SDK, logging policy, destination parsing, or interceptor lifecycle.
 
-- Add only gRPC-to-OTel normalization shared by client and server instrumentation.
-- Keep request models, destination parsing, logging policy, and interceptor lifecycle in their owning packages.
+## Extending
+
+- Add only gRPC-to-telemetry normalization used by both inbound and outbound instrumentation.
+- Keep application fields and signal-specific behavior in their owning middleware or interceptor.

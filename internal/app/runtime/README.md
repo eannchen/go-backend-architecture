@@ -1,13 +1,15 @@
-# internal/app/runtime
+# Shared process runtime
 
-## Pattern used
+This package owns resources and lifecycle behavior that are not specific to HTTP or gRPC.
 
-- `Telemetry` owns the process logger and observability providers for processes that do not need data services.
-- `Runtime` extends that foundation with configuration, database, and Redis connections for backend servers.
-- Provides one shutdown boundary for those shared resources.
-- Provides the common start, signal, and graceful-shutdown lifecycle used by process entrypoints.
+## Responsibilities and boundaries
 
-## How to extend
+- `Telemetry` owns the logger and observability providers.
+- `Runtime` owns process-shared configuration plus PostgreSQL and Redis resources.
+- `RunLifecycle` coordinates blocking startup with root-context cancellation and bounded shutdown; each `cmd` package converts OS signals into that root context.
 
-- Add only process-neutral dependencies here.
-- Keep API handlers, workers, and feature wiring in their process composition package.
+## Extending
+
+- Add only resources whose construction and lifecycle are shared by multiple process types.
+- Expose one shutdown path for every owned resource and preserve reverse dependency order.
+- Keep handlers, services, workers, and feature wiring in their process composition packages.

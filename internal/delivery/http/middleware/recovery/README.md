@@ -1,12 +1,15 @@
-# internal/delivery/http/middleware/recovery
+# HTTP panic recovery
 
-## Pattern used
+This middleware converts panics from downstream HTTP handling into safe transport failures.
 
-- Recovery is a transport safety boundary for panics that handlers cannot map themselves.
-- Uncommitted responses use the shared responder so clients receive the standard internal-error payload.
-- Committed responses are never overwritten; the panic is recorded for observability and returned up the middleware chain.
+## Responsibilities and boundaries
 
-## How to extend
+- Logs panic details internally without exposing them to clients.
+- Uses the shared responder only when the response has not been committed.
+- Never overwrites a committed response. It rethrows Go's `http.ErrAbortHandler` sentinel so the HTTP server can abort the connection without writing another response.
+- Runs inside observability so recovered panics are recorded as request outcomes.
 
-- Keep panic values and stacks in internal logs only.
-- Preserve `http.ErrAbortHandler` so `net/http` can terminate the request using its standard behavior.
+## Extending
+
+- Keep panic values and stacks out of response payloads.
+- Add special handling only when required by Echo or `net/http` behavior.

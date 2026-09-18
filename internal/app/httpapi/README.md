@@ -1,12 +1,15 @@
-# internal/app/httpapi
+# HTTP application composition
 
-## Pattern used
+This package assembles and runs the public HTTP API process.
 
-- Composes the HTTP API process from the shared `runtime` dependencies.
-- Builds in stages: infra -> repositories -> usecases -> handlers -> server.
-- Returns startup errors early and cleans up already-initialized resources.
+## Responsibilities and boundaries
 
-## How to extend
+- Builds infrastructure, repository adapters, usecases, handlers, middleware, and the HTTP server in dependency order.
+- Returns startup failures immediately and closes resources that were already initialized.
+- Contains wiring only; request mapping belongs in delivery and business behavior belongs in usecases or domain code.
 
-- Add HTTP-specific constructor wiring in the matching `httpapi_*_wiring.go` file.
-- Keep process-neutral setup in `internal/app/runtime` and business logic outside this package.
+## Extending
+
+- Add constructors to the matching `httpapi_*_wiring.go` file.
+- Put setup shared by multiple executable types in `internal/app/runtime`.
+- Preserve explicit construction and reverse-order cleanup when adding dependencies.

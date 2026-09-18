@@ -1,15 +1,16 @@
-# internal/delivery/http/integration
+# HTTP integration tests
 
-## Pattern used
+This package verifies HTTP feature workflows through real handlers, usecases, repositories, PostgreSQL, and Redis.
 
-- Feature tests run the HTTP server in-process with disposable PostgreSQL and Redis containers.
-- `server_fixture_integration_test.go` centralizes binder, validator, route registration, and HTTP request mechanics.
-- Fixture files own dependency wiring, request helpers, and cleanup; flow files read as client-visible scenarios.
-- External providers stay fake so tests remain deterministic and do not send network requests outside their containers.
+## Responsibilities and boundaries
 
-## How to extend
+- The server fixture owns common HTTP mechanics, binder, validation, and route registration.
+- Feature fixtures own dependency wiring and cleanup; flow tests describe client-visible scenarios.
+- PostgreSQL and Redis are disposable real backends, while unrelated external providers remain test implementations.
+- SQL, Redis keys, serialization, expiration, and atomicity details are tested in their adapter packages instead.
 
-- Keep multi-step workflows explicit; use tables only when every case follows the same arrange, act, and assert sequence.
-- Reuse the server fixture, but keep each feature's handler, usecase, and repository wiring in its own fixture.
-- Assert client-visible behavior here and keep SQL, key-format, serialization, and TTL assertions in adapter tests.
-- Register cleanup for every test that writes state and add new integration packages to `INTEGRATION_PACKAGES` in the Makefile.
+## Extending
+
+- Keep each feature's wiring and cleanup in its fixture.
+- Reuse the server fixture and keep multi-step workflows explicit.
+- Register cleanup for every created row and key.

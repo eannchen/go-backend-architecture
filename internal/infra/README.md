@@ -1,12 +1,15 @@
-# internal/infra
+# Infrastructure adapters
 
-## Pattern used
+This directory contains concrete implementations of repository and shared technical contracts.
 
-- Adapter pattern: each subpackage implements one kind of contract (persistence, cache, KV, external service, logging, observability).
-- Vendor/SDK details stay inside infra. Only contract-friendly types cross the boundary.
-- Returns standard Go errors (`fmt.Errorf` with `%w`); usecases wrap into `apperr`.
+## Responsibilities and boundaries
 
-## How to extend
+- Database, cache, key-value, provider, logging, observability, and security SDK details remain inside infrastructure packages.
+- Adapters map vendor types and errors to contract-friendly types before returning.
+- Constructors expose dependencies explicitly; app composition chooses and owns concrete instances.
 
-- Add a subpackage per infrastructure concern; implement the contract from `internal/repository` or the relevant contract package.
-- Keep constructors explicit and injectable; wire in a process composition package under `internal/app` only.
+## Extending
+
+- Implement an existing contract or add the required contract before adding an adapter.
+- Keep provider configuration and lifecycle ownership explicit.
+- Do not return driver, SDK, or framework types through repository contracts.

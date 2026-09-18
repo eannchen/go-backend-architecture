@@ -1,13 +1,16 @@
-# contracts/grpc
+# gRPC contracts
 
-## Pattern used
+This directory contains the versioned Protocol Buffer contracts used by the gRPC adapter.
 
-- Versioned protobuf packages are the source of truth; generated Go transport types are committed under `internal/delivery/grpc/gen`.
-- Buf's `STANDARD` lint policy keeps contracts consistent, while its `FILE` breaking policy protects generated-code and wire compatibility.
-- CI compares changes with the exact pull-request base or pre-push commit and verifies that generation produces no uncommitted output.
+## Responsibilities and boundaries
 
-## How to extend
+- Protobuf files are the source of truth; generated Go files belong in `internal/delivery/grpc/gen`.
+- `buf.yaml` selects Buf's `STANDARD` lint category, its recommended rules for Protobuf naming, packages, and structure.
+- It also selects `FILE`, Buf's strictest breaking-change category. The category checks compatibility per `.proto` file,
+  including Protobuf's binary wire format, JSON format, and generated source, so moving a declaration between files is breaking.
+- When removing a field, reserve both its number and name so neither can be reused accidentally.
 
-- Preserve existing field numbers. Reserve the numbers and names of removed fields so they cannot be reused accidentally.
-- Add compatible methods and fields to the current version; create a new versioned package for an intentional breaking redesign instead of weakening the policy.
-- Run `make proto-check` before committing. It uses local `main` by default; override `PROTO_BREAKING_BASE_REF` and `PROTO_BREAKING_AGAINST` when another baseline is required.
+## Extending
+
+- Add compatible methods or fields to the current version; create a new version for an intentional breaking redesign.
+- Run `make proto-check` after changes. Set `PROTO_BREAKING_BASE_REF` to compare with a local Git ref other than `main`.

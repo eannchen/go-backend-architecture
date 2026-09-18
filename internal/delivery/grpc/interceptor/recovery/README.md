@@ -1,11 +1,14 @@
-# internal/delivery/grpc/interceptor/recovery
+# gRPC panic recovery
 
-## Pattern used
+This interceptor converts panics from RPC handling into safe internal gRPC failures.
 
-- Unary and stream interceptors recover panics at the transport boundary.
-- The original panic and stack are logged internally; clients receive a safe `Internal` status.
+## Responsibilities and boundaries
 
-## How to extend
+- Logs the panic and stack internally without exposing them to clients.
+- Wraps unary and streaming handlers.
+- Runs inside observability so a recovered panic is recorded as the RPC outcome.
 
-- Keep recovery as the innermost infrastructure interceptor so outer observability sees the mapped failure.
-- Do not expose panic values or stack traces in gRPC status messages.
+## Extending
+
+- Preserve gRPC's `Internal` status code and its client-safe message.
+- Keep recovery inside observability in the interceptor chain.

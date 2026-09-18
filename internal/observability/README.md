@@ -1,14 +1,16 @@
-# internal/observability
+# Observability contracts
 
-## Pattern used
+This package defines vendor-neutral tracing, metrics, log-emission, and propagation behavior shared across layers.
 
-- Framework-agnostic interfaces (Tracer, Span, Meter, LogEmitter) so app layers do not import OpenTelemetry.
-- Tracing supports server extraction and client injection without exposing transport or OTel carrier types.
-- Context helpers carry request IDs across layers; trace identity remains in the active native span context.
-- Shared error-chain formatting keeps transport tracing and logging consistent.
+## Responsibilities and boundaries
 
-## How to extend
+- Delivery and infrastructure instrumentation depend on these contracts instead of importing OpenTelemetry.
+- Carrier interfaces support server extraction and client injection without exposing transport types.
+- Request IDs use explicit context helpers; trace identity remains in the native active span context.
+- Shared error formatting keeps tracing and logging outcomes consistent.
 
-- Add capabilities behind interfaces first.
-- Keep OTel/vendor details in `internal/infra/observability/`.
-- Wire implementations in app; ensure shutdown is propagated.
+## Extending
+
+- Add a contract operation when code outside the OpenTelemetry implementation needs that behavior.
+- Implement vendor behavior under `internal/infra/observability` and wire lifecycle through app runtime.
+- Keep transport field selection in the owning middleware or interceptor.

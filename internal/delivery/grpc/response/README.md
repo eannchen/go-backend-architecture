@@ -1,12 +1,15 @@
-# internal/delivery/grpc/response
+# gRPC responses
 
-## Pattern used
+This package maps delivery and application failures to client-safe gRPC statuses.
 
-- An injectable responder maps application errors and delivery validation failures to gRPC statuses.
-- Returned errors expose safe client messages while retaining their original causes for observability.
+## Responsibilities and boundaries
 
-## How to extend
+- Context cancellation and deadline failures take precedence over application mapping.
+- Response errors expose the intended gRPC status while retaining the original cause for tracing and logging.
+- Mapping is transport-only; usecases do not import gRPC codes or status types.
 
-- Add new application-code mappings centrally when `apperr` gains a code.
-- Keep transport-specific validation messages at the service call site.
-- Add protobuf status details only when clients have a documented contract for them.
+## Extending
+
+- Add a transport mapping when the application error package gains a code.
+- Keep validation-specific safe messages at the service call site.
+- Add protobuf status details only when they are part of a documented client contract.

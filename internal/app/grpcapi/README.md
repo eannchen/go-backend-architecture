@@ -1,15 +1,15 @@
-# internal/app/grpcapi
+# gRPC application composition
 
-## Pattern used
+This package assembles and runs the standalone gRPC process.
 
-- Composes the standalone gRPC process from shared runtime dependencies.
-- Builds health repositories and usecase, custom diagnostics, standard health, optional TLS/mTLS credentials, verified caller identity, transport interceptors, and the server.
-- Maps configured incoming and response request-ID metadata keys into the transport interceptor.
-- Starts and shuts down the standard health reporter around the transport server lifecycle.
+## Responsibilities and boundaries
 
-## How to extend
+- Builds health dependencies, diagnostics and standard-health services, interceptors, credentials, and the transport server.
+- Owns interceptor order and the standard health reporter's start and shutdown sequence.
+- Wraps the standard-library `tls.Config` as gRPC credentials; certificate loading remains in infrastructure.
 
-- Add gRPC-specific constructor wiring in the matching `grpcapi_*_wiring.go` file.
-- Register generated services through delivery's service registrar.
-- Keep process-neutral resources in internal/app/runtime and protocol mapping in internal/delivery/grpc.
-- Load certificates through infra and wrap them as gRPC credentials only in this composition package.
+## Extending
+
+- Add constructor wiring to the matching `grpcapi_*_wiring.go` file.
+- Register generated services through delivery's `ServiceRegistrar`.
+- Keep shared process resources in `internal/app/runtime` and request or response mapping in `internal/delivery/grpc`.

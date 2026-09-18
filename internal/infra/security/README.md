@@ -1,12 +1,15 @@
-# internal/infra/security
+# Security infrastructure
 
-## Pattern used
+This directory implements cryptographic material loading and machine-identity extraction.
 
-- Security infrastructure loads and validates process-owned cryptographic material without exposing file I/O to delivery packages.
-- `calleridentity` maps verified certificates to transport-neutral caller identities.
-- `tlsconfig` builds standard-library client and server TLS configurations.
+## Responsibilities and boundaries
 
-## How to extend
+- `tlsconfig` builds standard-library TLS configurations from text-based PEM certificate and private-key files.
+- `calleridentity` maps verified certificates to the shared caller-identity contract.
+- Delivery inspects transport state; app composition injects security implementations and wraps TLS for its protocol.
 
-- Keep protocol-neutral TLS construction reusable and wrap it with protocol credentials in the app composition layer.
-- Add certificate identity conventions here and inject them into transport adapters from app wiring.
+## Extending
+
+- Keep file I/O, certificate parsing, and identity conventions in infrastructure.
+- Add protocol credential wrappers in app composition, not in reusable TLS code.
+- Put authorization policy in usecases or a dedicated delivery adapter.

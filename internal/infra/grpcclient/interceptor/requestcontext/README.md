@@ -1,12 +1,15 @@
-# internal/infra/grpcclient/interceptor/requestcontext
+# Outbound gRPC request context
 
-## Pattern used
+This interceptor applies optional default deadlines and request-ID propagation to outbound calls.
 
-- Applies a default deadline only when the caller has not supplied a shorter one.
-- Propagates an existing request ID only when app composition explicitly supplies a metadata key.
+## Responsibilities and boundaries
 
-## How to extend
+- Applies the configured timeout without extending an earlier caller deadline.
+- Propagates an existing request ID only when a metadata key is explicitly configured.
+- Does not generate request IDs, add credentials, or retry RPCs.
 
-- Opt into the downstream service's correlation convention rather than assuming a fixed metadata key.
-- Add bounded, transport-neutral context fields here; keep authentication credentials in a dedicated interceptor.
-- Do not add retries here because retry safety depends on the called method.
+## Extending
+
+- Opt into the downstream service's documented metadata convention.
+- Add only bounded context values that apply to every call on the connection.
+- Keep authentication in a dedicated interceptor and retry policy beside the called operation.
