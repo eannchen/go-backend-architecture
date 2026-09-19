@@ -6,6 +6,35 @@
 
 A Go backend template organized as a modular monolith with Clean Architecture. Business workflows stay independent of delivery and infrastructure, while each runnable application explicitly composes the capabilities it needs. The template includes foundations for security, data access, observability, testing, and lifecycle management, and its boundaries allow new process types to reuse the same core.
 
+## Table of Contents
+- [Go Backend Architecture](#go-backend-architecture)
+  - [Table of Contents](#table-of-contents)
+  - [Included capabilities](#included-capabilities)
+  - [Architecture](#architecture)
+    - [Multi-binary composition](#multi-binary-composition)
+    - [SOLID in this codebase](#solid-in-this-codebase)
+    - [Core design patterns](#core-design-patterns)
+  - [Delivery adapters](#delivery-adapters)
+    - [Public HTTP](#public-http)
+    - [Service-to-service gRPC](#service-to-service-grpc)
+  - [Runtime reliability](#runtime-reliability)
+  - [Observability](#observability)
+    - [Trace propagation and correlation](#trace-propagation-and-correlation)
+  - [Data design](#data-design)
+    - [SQL-first PostgreSQL](#sql-first-postgresql)
+    - [Redis caching and state](#redis-caching-and-state)
+  - [Testing and CI](#testing-and-ci)
+  - [AI-assisted engineering](#ai-assisted-engineering)
+  - [Third-party tools](#third-party-tools)
+  - [Repository map](#repository-map)
+  - [Use as a Starter](#use-as-a-starter)
+    - [Requirements](#requirements)
+    - [1. Choose the source shape](#1-choose-the-source-shape)
+    - [2. Bootstrap project identity](#2-bootstrap-project-identity)
+    - [3. Start local dependencies and the application](#3-start-local-dependencies-and-the-application)
+    - [4. Verify the project](#4-verify-the-project)
+
+
 ## Included capabilities
 
 | Capability | Included design |
@@ -61,7 +90,7 @@ SOLID is applied through package boundaries and dependency direction.
 - **I — Interface segregation:** contracts expose focused behavior required by a usecase or component instead of broad CRUD or vendor-shaped APIs.
 - **D — Dependency inversion:** usecases depend on repository and shared technical contracts; app packages inject infrastructure implementations. Delivery depends on usecase behavior rather than constructing stores or clients.
 
-### Core patterns
+### Core design patterns
 
 | Pattern | Use in this template |
 | --- | --- |
@@ -272,7 +301,7 @@ make/                        capability-owned Make targets
 tools/                       one-time profile selection and project bootstrap
 ```
 
-## Quick start
+## Use as a Starter
 
 ### Requirements
 
