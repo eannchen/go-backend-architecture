@@ -9,6 +9,7 @@ PROTO_BREAKING_BASE_REF ?= main
 PROTO_BREAKING_AGAINST ?= .git\#ref=$(PROTO_BREAKING_BASE_REF),subdir=contracts/grpc
 PROTO_GENERATED_DIR ?= internal/delivery/grpc/gen
 CONTRACT_CHECK_TARGETS += proto-check
+INTEGRATION_PACKAGES += ./internal/delivery/grpc/integration
 INSTALL_TOOLS += $(BUF_CMD)
 
 .PHONY: run-grpcapi run-grpcapi-stop test-grpc proto-generate proto-lint proto-breaking proto-generated-check proto-check proto

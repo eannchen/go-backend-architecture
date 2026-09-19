@@ -17,7 +17,7 @@ A Go backend template organized as a modular monolith with Clean Architecture. B
 | Cache and key-value state | Redis adapters for caching, sessions, OTP, OAuth state, and atomic rate limiting, with explicit composition |
 | Observability | OpenTelemetry traces, metrics, and log emission; Zap output; OTLP export; optional request-ID interoperability |
 | Testing | Layer-owned unit tests, transport workflow tests, and container-backed PostgreSQL and Redis integration tests |
-| CI | Race-enabled tests, contract linting and compatibility checks, generated-file checks, and validation of both selectable project profiles |
+| CI | Static checks, race-enabled tests, integration tests, and validation of both selectable project profiles |
 | AI-assisted engineering | Shared engineering rules for agents, Claude integration, Cursor settings, and focused subsystem documentation |
 
 ## Architecture
@@ -210,26 +210,21 @@ See [`internal/infra/db/postgres/store/README.md`](internal/infra/db/postgres/st
 
 ## Testing and CI
 
-Tests protect behavior at the layer that owns it. Higher-level suites verify integration across boundaries without repeating every assertion already owned by lower layers.
+Unit tests check one component with its dependencies controlled. Integration tests check real boundaries, such as a storage adapter with its database or a server's request path through its delivery code.
 
-| Scope | Subject kept real | Replaced or provisioned boundary |
+| Scope | What is tested | Current examples |
 | --- | --- | --- |
-| Unit | Domain, usecase, middleware/interceptor, responder, or infrastructure component | Dependencies outside the subject use focused test doubles. |
-| Adapter integration | PostgreSQL and Redis adapters | Testcontainers starts real disposable backends and each test isolates its data. |
-| HTTP workflow | Routes, handlers, usecases, repositories, and infrastructure | PostgreSQL/Redis are real; external providers are controlled. |
-| gRPC integration | Server, interceptors, services, usecases, and health reporting | In-process transport and controlled dependencies exercise protocol behavior. |
+| Unit | One domain, usecase, delivery, or infrastructure component with its dependencies controlled | Business rules, response mapping, and middleware/interceptor behavior |
+| Storage adapter integration | A real adapter against a disposable backend | PostgreSQL and Redis adapters tested with Testcontainers |
+| Transport integration | A request through the real HTTP or gRPC server stack | HTTP authentication uses real PostgreSQL and Redis with controlled external providers; gRPC health uses in-process transport with a controlled usecase |
 
-Contract-owner test packages provide canonical configurable doubles. Concurrency tests wait for observable state, channels, or controllable clocks rather than assuming scheduler timing.
+Both protocols use a real server path. A test can focus on protocol behavior with a replacement usecase, or cover a full workflow with real usecases and storage. See [`AGENTS.md`](AGENTS.md) for test-double and concurrency-test rules.
 
-| Workflow | Protects |
+| CI check | What it verifies |
 | --- | --- |
-| Build and unit tests | Formatting, vet, build, unit tests, and race detection |
-| Integration tests | Container-backed PostgreSQL, Redis, and HTTP workflow behavior |
-| OpenAPI contract | Lint, generated-file freshness, and backward compatibility |
-| Protobuf contracts | Buf lint, generated-file freshness, and wire/generated-code compatibility |
-| Template profiles | Public HTTP-only and service gRPC-only project shapes still build and test after selection |
-
-GitHub branch protection decides which successful workflow checks are required before merge; the workflow YAML defines when and how the checks run.
+| Build and race-enabled tests | Formatting, vet, build, and all untagged Go tests |
+| Integration tests | PostgreSQL and Redis adapters, HTTP authentication workflows, and in-process gRPC server behavior |
+| Template profiles | Runs the selector for HTTP-only and gRPC-only projects separately, then builds and tests each result |
 
 ## AI-assisted engineering
 
