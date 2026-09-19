@@ -4,9 +4,7 @@
 [![Code quality](https://github.com/eannchen/go-backend-architecture/actions/workflows/quality.yml/badge.svg)](https://github.com/eannchen/go-backend-architecture/actions/workflows/quality.yml)
 [![Integration tests](https://github.com/eannchen/go-backend-architecture/actions/workflows/integration.yml/badge.svg)](https://github.com/eannchen/go-backend-architecture/actions/workflows/integration.yml)
 
-A Go backend template built as a modular monolith with Clean Architecture. It keeps business behavior independent of transport and infrastructure, composes dependencies explicitly, and includes production-oriented HTTP, gRPC, data, observability, testing, and lifecycle foundations.
-
-The repository can keep both included server applications or be reduced to one with the profile selector. Its boundaries also support adding other process types—such as message consumers and scheduled workers—without moving business logic into their delivery code.
+A Go backend template organized as a modular monolith with Clean Architecture. Business workflows stay independent of delivery and infrastructure, while each runnable application explicitly composes the capabilities it needs. The template includes foundations for security, data access, observability, testing, and lifecycle management, and its boundaries allow new process types to reuse the same core.
 
 ## Included capabilities
 
@@ -15,8 +13,8 @@ The repository can keep both included server applications or be reduced to one w
 | Architecture | Clean Architecture, explicit composition roots, small contracts, and independently runnable binaries |
 | Public HTTP | OpenAPI-generated request and response models, OTP/OAuth sessions, Redis rate limiting, health endpoints, and Server-Sent Events |
 | Service gRPC | Protobuf services, standard and detailed health APIs, interceptors, TLS/mTLS caller identity, reflection controls, and outbound client building blocks |
-| PostgreSQL | SQL-first access with sqlc for static queries, Squirrel for dynamic queries, Goose migrations, and repository-owned transaction boundaries |
-| Redis | Cache, key-value state, session, OTP, OAuth state, and atomic rate-limit adapters with explicit composition |
+| Relational storage | SQL-first PostgreSQL with sqlc for static queries, Squirrel for dynamic queries, Goose migrations, and repository-owned transaction boundaries |
+| Cache and key-value state | Redis adapters for caching, sessions, OTP, OAuth state, and atomic rate limiting, with explicit composition |
 | Observability | OpenTelemetry traces, metrics, and log emission; Zap output; OTLP export; optional request-ID interoperability |
 | Testing | Layer-owned unit tests, transport workflow tests, and container-backed PostgreSQL and Redis integration tests |
 | CI | Race-enabled tests, contract linting and compatibility checks, generated-file checks, and validation of both selectable project profiles |
@@ -28,13 +26,16 @@ The dependency rule is the central design constraint: source dependencies point 
 
 ![Concentric Clean Architecture layers used by the template](docs/assets/clean-architecture.svg)
 
+The rings group code by responsibility; the arrows specify imports. Sharing a ring does not mean two packages have identical dependencies.
+
 | Layer | Responsibility |
 | --- | --- |
-| `internal/domain` | Business entities, value objects, and reusable invariants |
-| `internal/usecase` | Application workflows and business decisions |
-| `internal/repository`, `internal/logger`, `internal/observability`, `internal/security` | Contracts required by the application or shared across technical boundaries |
 | `internal/delivery` | Inbound protocol handling, transport validation, and response mapping |
+| `internal/usecase` | Application workflows and business decisions |
+| `internal/repository` | Outbound capability contracts required by usecases |
+| `internal/domain` | Business entities, value objects, and reusable invariants |
 | `internal/infra` | PostgreSQL, Redis, provider, security, logging, and telemetry implementations |
+| `internal/logger`, `internal/observability`, `internal/security` | Shared technical contracts used across layers |
 | `internal/app` and `cmd` | Concrete dependency selection, process lifecycle, and startup |
 
 Delivery converts boundary-specific input into usecase calls. Infrastructure converts application-owned operations into database, cache, network, or SDK calls. Neither adapter gives framework or vendor types to the inner layers.
