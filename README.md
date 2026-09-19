@@ -1,7 +1,7 @@
 # Go Backend Architecture
 
 ![Go Version](https://img.shields.io/github/go-mod/go-version/eannchen/go-backend-architecture)
-[![Code quality](https://github.com/eannchen/go-backend-architecture/actions/workflows/quality.yml/badge.svg)](https://github.com/eannchen/go-backend-architecture/actions/workflows/quality.yml)
+[![Build and unit tests](https://github.com/eannchen/go-backend-architecture/actions/workflows/quality.yml/badge.svg)](https://github.com/eannchen/go-backend-architecture/actions/workflows/quality.yml)
 [![Integration tests](https://github.com/eannchen/go-backend-architecture/actions/workflows/integration.yml/badge.svg)](https://github.com/eannchen/go-backend-architecture/actions/workflows/integration.yml)
 
 A Go backend template organized as a modular monolith with Clean Architecture. Business workflows stay independent of delivery and infrastructure, while each runnable application explicitly composes the capabilities it needs. The template includes foundations for security, data access, observability, testing, and lifecycle management, and its boundaries allow new process types to reuse the same core.
@@ -225,7 +225,7 @@ Contract-owner test packages provide canonical configurable doubles. Concurrency
 
 | Workflow | Protects |
 | --- | --- |
-| Code quality | Formatting, vet, build, unit tests, and race detection |
+| Build and unit tests | Formatting, vet, build, unit tests, and race detection |
 | Integration tests | Container-backed PostgreSQL, Redis, and HTTP workflow behavior |
 | OpenAPI contract | Lint, generated-file freshness, and backward compatibility |
 | Protobuf contracts | Buf lint, generated-file freshness, and wire/generated-code compatibility |
