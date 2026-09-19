@@ -140,15 +140,17 @@ See [`AGENTS.md`](AGENTS.md) for the corresponding implementation rules.
 
 ## Observability
 
-OpenTelemetry is isolated behind project-owned contracts so most packages do not depend directly on its SDK. The same instrumentation vocabulary is used across inbound HTTP, inbound gRPC, and reusable outbound gRPC interceptors.
+Tracing and metrics use interfaces in `internal/observability`, while structured logs use `internal/logger`. Their OpenTelemetry integration lives in infrastructure, so delivery adapters, usecases, and infrastructure operations can record telemetry without importing the SDK.
 
 | Signal | What it records |
 | --- | --- |
-| Traces | Request or RPC boundaries, meaningful I/O, status, bounded semantic attributes, and error details |
-| Metrics | Request/RPC counts, duration, in-flight work, and bounded outcome dimensions |
-| Logs | Structured operation fields, application and transport outcomes, request IDs, and active trace/span IDs |
+| Traces | Inbound boundaries and selected usecase, storage, or outbound operations, with outcome and error details |
+| Metrics | Transport and application operation counts and durations, with bounded dimensions |
+| Logs | Structured events from any layer, correlated with active trace/span IDs and optional request IDs |
 
 ### Trace propagation and correlation
+
+This sequence illustrates one distributed request; internal work can also have its own spans and metrics.
 
 ```mermaid
 sequenceDiagram
@@ -157,20 +159,23 @@ sequenceDiagram
     participant D as Trusted downstream
     participant O as OTLP collector / HyperDX
 
-    U->>A: traceparent and tracestate
-    A->>A: Extract parent and start server span
-    A->>D: Inject updated trace context
-    D-->>A: RPC response
-    A->>O: Export spans, metrics, and context-linked logs
+    U->>A: Request; optional traceparent and tracestate
+    A->>A: Extract parent if present; start inbound span
+    A->>A: Create child spans for selected internal work
+    opt Propagation enabled for this dependency
+        A->>D: Inject active trace context
+        D-->>A: Response
+    end
+    A->>O: Export spans, metrics, and correlated logs
 ```
 
-The OpenTelemetry SDK creates span and trace identity locally; collector availability does not determine whether IDs exist. Server instrumentation extracts a valid upstream parent, while trusted outbound instrumentation injects the active context so the downstream span joins the same trace. Propagation is opt-in for outbound dependencies because external providers should not automatically receive internal correlation metadata.
+The OpenTelemetry SDK creates trace and span IDs locally, even when the collector is unavailable. An inbound adapter extracts valid parent context when present, and spans created during internal work inherit it. For a trusted outbound dependency, optional injection lets a downstream service that extracts the context join the same trace; external providers do not automatically receive internal correlation metadata.
 
 Zap output and OTLP logs read trace and span IDs from the active OpenTelemetry span context. HyperDX can therefore navigate between a log and its trace when both signals arrive with those native IDs. Local logs remain useful when export is unavailable, but they are a diagnostic fallback—not a replacement for the spans that were not collected.
 
-`x-request-id` is a separate, optional interoperability mechanism for gateways, support workflows, or systems that do not share OpenTelemetry context. Its incoming and response names are configurable for HTTP and gRPC. Servers accept and validate it but do not generate one when absent; selected internal clients may propagate it explicitly.
+`x-request-id` is a separate, optional convention for gateways, support workflows, or systems that do not share trace context. The current HTTP and gRPC adapters accept valid caller-provided IDs under configurable keys and may return them; they do not generate an ID when absent. Selected internal clients can propagate it explicitly.
 
-Detailed errors, concrete paths, and IDs belong in traces or logs. Metric dimensions remain bounded to protect the telemetry backend from uncontrolled cardinality.
+Traces or logs can record request-specific details such as the exact path `/users/42`, an error message, or an ID when safe. Metrics instead use stable labels such as the route pattern `/users/:id` and status code; individual paths or IDs would create a separate metric series for many requests.
 
 See [`internal/observability/README.md`](internal/observability/README.md) and the transport instrumentation guides for [HTTP](internal/delivery/http/middleware/observability/README.md) and [gRPC](internal/delivery/grpc/interceptor/observability/README.md).
 
