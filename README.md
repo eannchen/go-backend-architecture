@@ -196,7 +196,7 @@ Beyond package boundaries, [`AGENTS.md`](AGENTS.md) sets implementation guidance
 
 ### Redis caching and state
 
-Redis has distinct adapters because cached copies and authoritative short-lived state have different correctness rules.
+Redis serves two roles here. Cached data can be reloaded from a primary store, while short-lived state such as sessions, OTPs, and rate-limit counters directly affects feature behavior. Separate adapters let each role define its own failure policy.
 
 | Package role | Responsibility |
 | --- | --- |
@@ -204,7 +204,7 @@ Redis has distinct adapters because cached copies and authoritative short-lived 
 | Key-value store | Owns sessions, OTPs, OAuth state, and rate-limit state whose Redis operations are part of the feature's behavior. |
 | Composed adapter | Coordinates a primary repository and supporting cache behind one repository contract. |
 
-The included user composition uses cache-aside. The boundaries also support read-through, write-through, write-behind, or explicit invalidation strategies when a feature requires them; those policies are not silently assumed by the shared Redis connection. Each composed adapter defines acceptable staleness and what happens when cache reads, writes, or invalidation fail.
+A composed adapter can implement the cache policy a feature needs—for example, read-through, write-through, write-behind, or explicit invalidation. That policy must define acceptable staleness and how cache read, write, and invalidation failures affect the operation.
 
 See [`internal/infra/db/postgres/store/README.md`](internal/infra/db/postgres/store/README.md) and [`internal/infra/composed/README.md`](internal/infra/composed/README.md) for adapter-specific guidance.
 
