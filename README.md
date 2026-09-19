@@ -183,7 +183,7 @@ See [`internal/observability/README.md`](internal/observability/README.md) and t
 
 ### SQL-first PostgreSQL
 
-SQL is kept explicit and behind repository contracts. This preserves control over query shape and database behavior without leaking PostgreSQL or generated types into business APIs.
+SQL stays behind repository contracts, keeping PostgreSQL and generated types out of business APIs. Rather than relying on an ORM to generate queries, the template writes SQL directly. This keeps joins, batching, locking, and selected columns explicit, making query behavior easier to review and important queries easier to tune with query plans. The tradeoff is more SQL and mapping code; an ORM can be reasonable for a CRUD-heavy application where convenience matters more.
 
 | Tool | Role |
 | --- | --- |
@@ -192,9 +192,7 @@ SQL is kept explicit and behind repository contracts. This preserves control ove
 | Squirrel | Parameterized construction for queries whose shape changes at runtime |
 | Goose | Ordered database migrations for existing environments |
 
-Repository operations follow usecase needs rather than generic CRUD. Related reads are shaped to avoid N+1 access; stable cacheable data may be separated from volatile data when the extra round trip has a measured consistency or reuse benefit. Multi-write workflows expose one atomic repository operation, leaving transaction handles inside the PostgreSQL adapter. Indexes and material query changes are evaluated against actual access patterns and query plans.
-
-The sqlc schema files describe the schema used for code generation; Goose migrations describe how an existing database reaches that schema. Both must evolve together, but they serve different purposes.
+Beyond package boundaries, [`AGENTS.md`](AGENTS.md) sets implementation guidance: repository operations should follow usecase needs rather than generic CRUD. Related reads should be shaped to avoid N+1 access; stable cacheable data may be separated from volatile data when the extra round trip has a measured consistency or reuse benefit. Multi-write workflows should expose one atomic repository operation, leaving transaction handles inside the PostgreSQL adapter. Indexes and material query changes should be evaluated against actual access patterns and query plans.
 
 ### Redis caching and state
 
@@ -208,7 +206,7 @@ Redis has distinct adapters because cached copies and authoritative short-lived 
 
 The included user composition uses cache-aside. The boundaries also support read-through, write-through, write-behind, or explicit invalidation strategies when a feature requires them; those policies are not silently assumed by the shared Redis connection. Each composed adapter defines acceptable staleness and what happens when cache reads, writes, or invalidation fail.
 
-See [`internal/infra/db/postgres/store/README.md`](internal/infra/db/postgres/store/README.md), [`internal/infra/composed/README.md`](internal/infra/composed/README.md), and the full data-access rules in [`AGENTS.md`](AGENTS.md).
+See [`internal/infra/db/postgres/store/README.md`](internal/infra/db/postgres/store/README.md) and [`internal/infra/composed/README.md`](internal/infra/composed/README.md) for adapter-specific guidance.
 
 ## Testing and CI
 
