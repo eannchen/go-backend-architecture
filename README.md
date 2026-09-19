@@ -24,7 +24,7 @@ A Go backend template organized as a modular monolith with Clean Architecture. B
     - [SQL-first PostgreSQL](#sql-first-postgresql)
     - [Redis caching and state](#redis-caching-and-state)
   - [Testing and CI](#testing-and-ci)
-  - [AI-assisted engineering](#ai-assisted-engineering)
+  - [AI agent setup](#ai-agent-setup)
   - [Third-party tools](#third-party-tools)
   - [Repository map](#repository-map)
   - [Use as a Starter](#use-as-a-starter)
@@ -47,7 +47,7 @@ A Go backend template organized as a modular monolith with Clean Architecture. B
 | Observability | OpenTelemetry traces, metrics, and log emission; Zap output; OTLP export; optional request-ID interoperability |
 | Testing | Layer-owned unit tests, transport workflow tests, and container-backed PostgreSQL and Redis integration tests |
 | CI | Static checks, race-enabled tests, integration tests, and validation of both selectable project profiles |
-| AI-assisted engineering | Shared engineering rules for agents, Claude integration, Cursor settings, and focused subsystem documentation |
+| AI agent setup | Shared engineering rules for Codex, Cursor, and Claude, alongside focused subsystem documentation |
 
 ## Architecture
 
@@ -255,18 +255,17 @@ Both protocols use a real server path. A test can focus on protocol behavior wit
 | Integration tests | PostgreSQL and Redis adapters, HTTP authentication workflows, and in-process gRPC server behavior |
 | Template profiles | Runs the selector for HTTP-only and gRPC-only projects separately, then builds and tests each result |
 
-## AI-assisted engineering
+## AI agent setup
 
-Agents receive the same architecture and quality constraints expected of human contributors. The setup separates project-wide engineering rules from local subsystem explanations.
+Codex and Cursor read the shared engineering rules in `AGENTS.md`; Claude imports them through `.claude/CLAUDE.md`. Subsystem READMEs explain local design and extension points without repeating those rules.
 
 | File | Purpose |
 | --- | --- |
-| [`AGENTS.md`](AGENTS.md) | Canonical project-wide rules for architecture, correctness, performance, testing, and change discipline. Codex reads applicable `AGENTS.md` files before working. |
+| [`AGENTS.md`](AGENTS.md) | Shared implementation rules for architecture, correctness, performance, testing, and change discipline, read by Codex and Cursor. |
 | [`.claude/CLAUDE.md`](.claude/CLAUDE.md) | Imports the shared rules for Claude instead of maintaining a divergent copy. |
-| [`.cursor/settings.json`](.cursor/settings.json) | Repository-local Cursor configuration for enabled tooling. |
 | Subsystem `README.md` files | Human-readable ownership, boundaries, lifecycle, and extension guidance close to the relevant code. |
 
-The rules are intentionally concrete enough to guide implementation and review, while subsystem READMEs avoid duplicating them. See the [Codex `AGENTS.md` guide](https://developers.openai.com/codex/guides/agents-md) for how Codex discovers repository instructions.
+See the [Codex `AGENTS.md` guide](https://developers.openai.com/codex/guides/agents-md) and [Cursor rules documentation](https://cursor.com/docs/rules) for how they load repository instructions.
 
 ## Third-party tools
 
