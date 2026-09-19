@@ -1,14 +1,15 @@
-# internal/usecase
+# Usecases
 
-## Pattern used
+This directory contains application workflows exposed to delivery adapters.
 
-- Interface + private impl per usecase for testability. Both in the same `<feature>_usecase.go` file.
-- Dependencies via constructors. Returns `apperr` errors.
-- Single-capability feature: `<feature>/<feature>_usecase.go` (e.g. `health/health_usecase.go`).
-- Multi-capability feature: subdirs per capability (e.g. `auth/otp/otp_usecase.go`); shared types in parent (`auth/auth_types.go`).
+## Responsibilities and boundaries
 
-## How to extend
+- A usecase coordinates domain rules and repository contracts without importing delivery or infrastructure.
+- A small workflow uses `internal/usecase/<feature>`; related workflows may use subpackages and share types in their parent package.
+- Usecases return application errors that delivery can map without exposing infrastructure details.
 
-- Create `<feature>/<feature>_usecase.go` with interface + `New(...)`.
-- For multi-capability features, add subdirs with one `<capability>_usecase.go` each; keep shared types in parent.
-- Keep framework and SQL details out.
+## Extending
+
+- Define the usecase interface and implementation in the feature package, with explicit constructor dependencies.
+- Keep shared business invariants in domain types and transport validation in delivery.
+- Add repository operations shaped around the workflow instead of chaining low-level storage calls.

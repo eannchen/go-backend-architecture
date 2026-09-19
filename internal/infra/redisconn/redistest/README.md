@@ -1,14 +1,15 @@
-# internal/infra/redisconn/redistest
+# Redis integration fixtures
 
-## Pattern used
+This package starts and manages disposable Redis instances for integration-test packages.
 
-- Integration-only helpers start a pinned disposable Redis container and return a real client.
-- Each calling package owns a separate container and explicitly closes it after `m.Run`.
-- Failed suites copy container logs before cleanup so CI keeps the diagnostics.
+## Responsibilities and boundaries
 
-## How to extend
+- Uses a pinned container image and returns a real Redis client.
+- Each calling package owns and closes its own container.
+- Failed suites can copy container logs before shutdown so CI retains diagnostics.
 
-- Reuse `RunPackage` for Redis-only suites, or `Start` when composing multiple dependencies in one package `TestMain`.
-- Do not share one container across Go packages.
-- Keep test-key cleanup in the test that created the key so isolation remains visible.
-- `RunPackage` handles failure logs; callers using `Start` must call `WriteLogs` before `Close` when their suite fails.
+## Extending
+
+- Use `RunPackage` for Redis-only suites or `Start` when composing multiple dependencies in `TestMain`.
+- Keep key cleanup in the test that created each key.
+- When using `Start`, call `WriteLogs` after failure and before `Close`.

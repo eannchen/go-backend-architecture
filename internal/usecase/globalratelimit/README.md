@@ -1,11 +1,14 @@
-# internal/usecase/globalratelimit
+# Global rate-limit usecase
 
-## Pattern used
+This package decides whether public HTTP traffic is allowed by the global per-IP policy.
 
-- Owns the global per-IP policy and key shape; the Redis algorithm remains behind a repository contract.
-- Fails closed when the client IP or Redis limiter is unavailable.
+## Responsibilities and boundaries
 
-## How to extend
+- Denies the request when the client IP is missing or the limiter is unavailable instead of allowing unmetered traffic.
+- Calls the token-bucket repository; Redis commands and HTTP response details stay outside the usecase.
 
-- Keep transport mapping in middleware and add feature-specific limits in the owning usecase.
-- Use the token bucket for burst-tolerant traffic; use the sliding-window contract for strict rolling limits.
+## Extending
+
+- Add feature-specific limits to the usecase that owns the protected operation.
+- Choose token-bucket behavior for controlled bursts and sliding-window behavior for strict rolling limits.
+- Keep HTTP status and the `Retry-After` response header in delivery middleware.

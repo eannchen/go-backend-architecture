@@ -79,7 +79,7 @@ type HealthDatabase struct {
 	UptimeSeconds int64 `json:"uptime_seconds"`
 }
 
-// HealthDependency Generic dependency status for cache, KV, and vector store.
+// HealthDependency Generic dependency status for cache and KV.
 type HealthDependency struct {
 	// Status ok when the dependency is reachable and usable; otherwise indicates failure.
 	Status string `json:"status"`
@@ -87,17 +87,14 @@ type HealthDependency struct {
 
 // HealthResponse Aggregate status of the service and its dependencies for health checks.
 type HealthResponse struct {
-	// Cache Generic dependency status for cache, KV, and vector store.
+	// Cache Generic dependency status for cache and KV.
 	Cache HealthDependency `json:"cache"`
 
 	// Database Primary database health; used to decide if the instance can serve read/write traffic.
 	Database HealthDatabase `json:"database"`
 
-	// Kvstore Generic dependency status for cache, KV, and vector store.
+	// Kvstore Generic dependency status for cache and KV.
 	Kvstore HealthDependency `json:"kvstore"`
-
-	// Vectorstore Generic dependency status for cache, KV, and vector store.
-	Vectorstore HealthDependency `json:"vectorstore"`
 }
 
 // MessageResponse Generic success message.
@@ -109,31 +106,37 @@ type MessageResponse struct {
 // OTPSendRequest Request body for sending an OTP code.
 type OTPSendRequest struct {
 	// Email Email address to send the OTP code to.
-	Email openapi_types.Email `json:"email"`
+	Email openapi_types.Email `case:"lower" json:"email" validate:"required,email,max=320"`
 }
 
 // OTPVerifyRequest Request body for verifying an OTP code.
 type OTPVerifyRequest struct {
 	// Code The OTP code received via email.
-	Code string `json:"code"`
+	Code string `case:"upper" json:"code" validate:"required"`
 
 	// Email Email address the OTP was sent to.
-	Email openapi_types.Email `json:"email"`
+	Email openapi_types.Email `case:"lower" json:"email" validate:"required,email,max=320"`
 }
+
+// InternalError Standard error payload returned when a request is invalid or the server cannot fulfill it.
+type InternalError = APIError
+
+// RequestTimeout Standard error payload returned when a request is invalid or the server cannot fulfill it.
+type RequestTimeout = APIError
 
 // OauthCallbackParams defines parameters for OauthCallback.
 type OauthCallbackParams struct {
 	// Code Authorization code returned by the OAuth provider.
-	Code string `form:"code" json:"code"`
+	Code string `form:"code" json:"code" query:"code" validate:"required"`
 
 	// State CSRF state token for validation.
-	State string `form:"state" json:"state"`
+	State string `form:"state" json:"state" query:"state" validate:"required"`
 }
 
 // GetHealthParams defines parameters for GetHealth.
 type GetHealthParams struct {
-	// Check Which check to run. live = process only; ready = process + DB, cache, KV, vector store.
-	Check *GetHealthParamsCheck `form:"check,omitempty" json:"check,omitempty"`
+	// Check Which check to run. live = process only; ready = process + DB, cache, and KV.
+	Check *GetHealthParamsCheck `form:"check,omitempty" json:"check,omitempty" query:"check" validate:"omitempty,oneof=live ready"`
 }
 
 // GetHealthParamsCheck defines parameters for GetHealth.
@@ -141,8 +144,8 @@ type GetHealthParamsCheck string
 
 // StreamHealthParams defines parameters for StreamHealth.
 type StreamHealthParams struct {
-	// Check Which check to run for each event. live = process only; ready = process + DB, cache, KV, vector store.
-	Check *StreamHealthParamsCheck `form:"check,omitempty" json:"check,omitempty"`
+	// Check Which check to run for each event. live = process only; ready = process + DB, cache, and KV.
+	Check *StreamHealthParamsCheck `form:"check,omitempty" json:"check,omitempty" query:"check" validate:"omitempty,oneof=live ready"`
 }
 
 // StreamHealthParamsCheck defines parameters for StreamHealth.

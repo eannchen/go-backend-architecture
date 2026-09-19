@@ -8,12 +8,10 @@ import (
 
 // DBHealthRepository is the canonical configurable double for repodb.DBHealthRepository.
 type DBHealthRepository struct {
-	PingFunc                  func(context.Context) error
-	PingCalls                 int
-	GetServerStatusFunc       func(context.Context) (repodb.DBServerStatus, error)
-	GetServerStatusCalls      int
-	CheckVectorExtensionFunc  func(context.Context) error
-	CheckVectorExtensionCalls int
+	PingFunc             func(context.Context) error
+	PingCalls            int
+	GetServerStatusFunc  func(context.Context) (repodb.DBServerStatus, error)
+	GetServerStatusCalls int
 }
 
 func (r *DBHealthRepository) Ping(ctx context.Context) error {
@@ -30,14 +28,6 @@ func (r *DBHealthRepository) GetServerStatus(ctx context.Context) (repodb.DBServ
 		panic("unexpected DBHealthRepository.GetServerStatus call")
 	}
 	return r.GetServerStatusFunc(ctx)
-}
-
-func (r *DBHealthRepository) CheckVectorExtension(ctx context.Context) error {
-	r.CheckVectorExtensionCalls++
-	if r.CheckVectorExtensionFunc == nil {
-		panic("unexpected DBHealthRepository.CheckVectorExtension call")
-	}
-	return r.CheckVectorExtensionFunc(ctx)
 }
 
 var _ repodb.DBHealthRepository = (*DBHealthRepository)(nil)

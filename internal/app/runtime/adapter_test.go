@@ -61,9 +61,11 @@ func TestLogEmitterToLogSink(t *testing.T) {
 
 func TestContextFieldsProvider(t *testing.T) {
 	tests := []struct {
-		name string
-		ctx  context.Context
-		want logger.Fields
+		name         string
+		ctx          context.Context
+		traceContext observability.TraceContext
+		hasTrace     bool
+		want         logger.Fields
 	}{
 		{name: "empty context", ctx: context.Background()},
 		{
@@ -73,23 +75,34 @@ func TestContextFieldsProvider(t *testing.T) {
 		},
 		{
 			name: "trace and span ids",
-			ctx:  observability.WithTrace(context.Background(), "trace-1", "span-1"),
-			want: logger.Fields{"trace.id": "trace-1", "span.id": "span-1"},
+			ctx:  context.Background(),
+			traceContext: observability.TraceContext{
+				TraceID: "trace-1",
+				SpanID:  "span-1",
+			},
+			hasTrace: true,
+			want:     logger.Fields{"trace.id": "trace-1", "span.id": "span-1"},
 		},
 		{
 			name: "all correlation ids",
-			ctx: observability.WithTrace(
-				observability.WithRequestID(context.Background(), "request-1"),
-				"trace-1",
-				"span-1",
-			),
-			want: logger.Fields{"request.id": "request-1", "trace.id": "trace-1", "span.id": "span-1"},
+			ctx:  observability.WithRequestID(context.Background(), "request-1"),
+			traceContext: observability.TraceContext{
+				TraceID: "trace-1",
+				SpanID:  "span-1",
+			},
+			hasTrace: true,
+			want:     logger.Fields{"request.id": "request-1", "trace.id": "trace-1", "span.id": "span-1"},
 		},
 	}
 
-	provider := contextFieldsProvider()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tracer := &observabilitytest.Tracer{
+				TraceContextFunc: func(context.Context) (observability.TraceContext, bool) {
+					return tt.traceContext, tt.hasTrace
+				},
+			}
+			provider := contextFieldsProvider(tracer)
 			if got := provider(tt.ctx); !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("context fields = %#v, want %#v", got, tt.want)
 			}

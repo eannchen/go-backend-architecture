@@ -1,0 +1,46 @@
+name: OpenAPI contract
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  openapi:
+    name: Validate OpenAPI contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Lint contract and verify generated files
+        run: make openapi-lint openapi-generated-check
+
+      - name: Check pull request for breaking contract changes
+        if: github.event_name == 'pull_request'
+        run: >-
+          make openapi-breaking
+          OPENAPI_BREAKING_BASE_REF='${{ github.event.pull_request.base.sha }}'
+
+      - name: Check direct push for breaking contract changes
+        if: github.event_name == 'push'
+        run: >-
+          make openapi-breaking
+          OPENAPI_BREAKING_BASE_REF='${{ github.event.before }}'

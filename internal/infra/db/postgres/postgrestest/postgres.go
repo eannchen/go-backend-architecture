@@ -21,9 +21,7 @@ import (
 )
 
 const (
-	// The production migration enables vector, so the test image must provide the
-	// same extension. Pinning the tag keeps local and CI runs reproducible.
-	postgresTestImage    = "pgvector/pgvector:0.8.6-pg18"
+	postgresTestImage    = "postgres:18"
 	postgresTestDatabase = "integration_test"
 	postgresTestUser     = "postgres"
 	postgresTestPassword = "postgres"

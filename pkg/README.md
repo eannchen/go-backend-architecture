@@ -1,9 +1,12 @@
-# pkg
+# Public packages
 
-## Pattern used
+This directory is reserved for packages intentionally imported by other Go modules.
 
-- Public reusable packages intentionally exported for use outside this module.
+## Boundaries
 
-## How to extend
+- New code belongs under `internal` unless external reuse is a supported requirement.
+- Public packages must not expose application-specific wiring or internal infrastructure types.
 
-- Prefer `internal` by default; move to `pkg` only when external reuse is required.
+## Extending
+
+- Add a package here only after defining its external API and compatibility expectations.

@@ -1,14 +1,15 @@
-# internal/infra/kvstore/redis/store
+# Redis key-value stores
 
-## Pattern used
+This package uses Redis as the primary store for sessions, one-time passwords (OTPs), OAuth authorization state, and distributed rate-limit state.
 
-- Each store owns its Redis key layout, serialization, TTL, and command coordination.
-- One store method per business operation. Redis primitives stay inside store methods.
-- Rate-limit stores use Lua so a distributed check-and-record operation is atomic.
-- Integration tests share one disposable Redis container per package and fail if a test leaks keys.
+## Responsibilities and boundaries
 
-## How to extend
+- Each store owns key format, serialization, expiry, and command coordination for one capability.
+- Lua scripts provide atomic multi-step operations such as distributed rate-limit checks.
+- Integration tests share one disposable Redis instance per package and clean every created key.
 
-- Add/update a contract in `internal/repository/kvstore/` first, then implement here.
-- Use Lua scripts for atomic multi-key flows; pipelines for batching independent commands.
-- Register `t.Cleanup` for every integration-test key and assert TTL or atomic behavior where owned by Redis.
+## Extending
+
+- Define or update the key-value contract before adding a store operation.
+- Use Lua for atomic flows and pipelines for independent batched commands.
+- Test expiry, key cleanup, serialization, and concurrency-sensitive behavior here.

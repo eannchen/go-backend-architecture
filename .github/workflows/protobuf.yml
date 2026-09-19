@@ -1,0 +1,48 @@
+name: Protobuf contracts
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  protobuf:
+    name: Validate Protobuf contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Lint contracts and verify generated files
+        run: make proto-lint proto-generated-check
+
+      - name: Check pull request for breaking contract changes
+        if: github.event_name == 'pull_request'
+        run: >-
+          make proto-breaking
+          PROTO_BREAKING_BASE_REF='${{ github.event.pull_request.base.sha }}'
+          PROTO_BREAKING_AGAINST='.git#commit=${{ github.event.pull_request.base.sha }},subdir=contracts/grpc'
+
+      - name: Check direct push for breaking contract changes
+        if: github.event_name == 'push'
+        run: >-
+          make proto-breaking
+          PROTO_BREAKING_BASE_REF='${{ github.event.before }}'
+          PROTO_BREAKING_AGAINST='.git#commit=${{ github.event.before }},subdir=contracts/grpc'

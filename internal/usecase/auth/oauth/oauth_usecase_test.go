@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
 	"github.com/eannchen/go-backend-architecture/internal/repository/db/dbtest"
 	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external/oauth"
@@ -101,7 +102,7 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 		stateErr          error
 		exchangeResult    repoexternal.OAuthUserInfo
 		exchangeErr       error
-		upsertResult      repodb.User
+		upsertResult      domainuser.User
 		upsertErr         error
 		wantIdentity      auth.Identity
 		wantCode          apperr.Code
@@ -170,8 +171,20 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 			code:              "code-1",
 			stateValid:        true,
 			exchangeResult:    repoexternal.OAuthUserInfo{ProviderUserID: "google-1", Email: "user@example.com"},
-			upsertResult:      repodb.User{ID: 77, Email: "user@example.com"},
+			upsertResult:      domainuser.User{ID: 77, Email: "user@example.com", Status: domainuser.StatusActive},
 			wantIdentity:      auth.Identity{UserID: 77, Email: "user@example.com", Method: auth.MethodOAuth},
+			wantConsumeCalls:  1,
+			wantExchangeCalls: 1,
+			wantUpsertCalls:   1,
+		},
+		{
+			name:              "rejects disabled user",
+			provider:          "google",
+			code:              "code-1",
+			stateValid:        true,
+			exchangeResult:    repoexternal.OAuthUserInfo{ProviderUserID: "google-2", Email: "disabled@example.com"},
+			upsertResult:      domainuser.User{ID: 78, Email: "disabled@example.com", Status: domainuser.StatusDisabled},
+			wantCode:          apperr.CodeForbidden,
 			wantConsumeCalls:  1,
 			wantExchangeCalls: 1,
 			wantUpsertCalls:   1,
@@ -194,7 +207,7 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 				},
 			}
 			userRepo := &dbtest.UserRepository{
-				UpsertOAuthUserFunc: func(context.Context, repodb.OAuthUserUpsert) (repodb.User, error) {
+				UpsertOAuthUserFunc: func(context.Context, repodb.OAuthUserUpsert) (domainuser.User, error) {
 					return tt.upsertResult, tt.upsertErr
 				},
 			}

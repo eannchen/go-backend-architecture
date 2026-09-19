@@ -3,12 +3,12 @@ package cache
 import (
 	"context"
 
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
+	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 )
 
 // UserCacheStore caches user lookups to reduce database load.
 type UserCacheStore interface {
-	GetByID(ctx context.Context, id int64) (user repodb.User, found bool, err error)
-	SetByID(ctx context.Context, id int64, user repodb.User) error
+	GetByID(ctx context.Context, id int64) (user domainuser.User, found bool, err error)
+	SetByID(ctx context.Context, id int64, user domainuser.User) error
 	DeleteByID(ctx context.Context, id int64) error
 }

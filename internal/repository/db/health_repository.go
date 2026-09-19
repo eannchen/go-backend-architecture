@@ -13,5 +13,4 @@ type DBServerStatus struct {
 type DBHealthRepository interface {
 	Ping(ctx context.Context) error
 	GetServerStatus(ctx context.Context) (DBServerStatus, error)
-	CheckVectorExtension(ctx context.Context) error
 }

@@ -1,13 +1,15 @@
-# internal/infra/cache/redis/store
+# Redis cache stores
 
-## Pattern used
+This package implements optional cache contracts with Redis.
 
-- Each store owns its Redis key layout, serialization, TTL, and command coordination.
-- One store method per business operation. Redis primitives (Lua, pipelines) stay inside store methods.
-- Integration tests share one disposable Redis container per package and fail if a test leaks keys.
+## Responsibilities and boundaries
 
-## How to extend
+- Each store owns its key format, serialization, expiry, and Redis command coordination.
+- Redis errors are returned to the caller; the composed adapter decides whether to bypass the cache or fail the operation.
+- Integration tests share one disposable Redis instance per package and clean every created key.
 
-- Add/update a contract in `internal/repository/cache/` first, then implement here.
-- Use Lua scripts for atomic multi-key flows; pipelines for batching independent commands.
-- Register `t.Cleanup` for every integration-test key and assert Redis-owned behavior such as TTL.
+## Extending
+
+- Define or update the cache contract before adding a store method.
+- Use pipelines for independent batches and Lua when multiple Redis operations must be atomic.
+- Test serialization, expiry, key cleanup, and Redis-specific failure behavior here.

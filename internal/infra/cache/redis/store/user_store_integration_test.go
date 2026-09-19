@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
+	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 )
 
 func TestUserCacheStoreIntegration(t *testing.T) {
@@ -24,12 +24,12 @@ func TestUserCacheStoreIntegration(t *testing.T) {
 		}
 	})
 
-	user := repodb.User{ID: id, Email: "cache@example.com"}
+	user := domainuser.User{ID: id, Email: "cache@example.com", Status: domainuser.StatusActive}
 	foundUser, found, err := store.GetByID(ctx, id)
 	if err != nil {
 		t.Fatalf("get missing user: %v", err)
 	}
-	if found || foundUser != (repodb.User{}) {
+	if found || foundUser != (domainuser.User{}) {
 		t.Fatalf("expected cache miss, got found=%v user=%+v", found, foundUser)
 	}
 

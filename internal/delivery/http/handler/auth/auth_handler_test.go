@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func newHandlerForTest(otp *authotptest.OTPAuthenticator, session *sessiontest.S
 	return NewHandler(
 		logger.NoopLogger{},
 		nil,
-		httpresponse.NewResponder(nil),
+		httpresponse.NewResponder(),
 		otp,
 		&authoauthtest.OAuthAuthenticator{},
 		session,
@@ -65,7 +66,7 @@ func TestHandlerOAuthFlowBindsCallbackToAuthorizeBrowser(t *testing.T) {
 		},
 	}
 	h := NewHandler(
-		logger.NoopLogger{}, nil, httpresponse.NewResponder(nil), &authotptest.OTPAuthenticator{}, oauth, session,
+		logger.NoopLogger{}, nil, httpresponse.NewResponder(), &authotptest.OTPAuthenticator{}, oauth, session,
 		SessionCookieConfig{Name: "session_id", TTL: 30 * time.Minute}, nil,
 	)
 	e := newEchoForTest(t)
@@ -121,6 +122,23 @@ func TestHandlerOAuthCallbackRejectsMissingBrowserBinding(t *testing.T) {
 	}
 }
 
+func TestHandlerOAuthCallbackRejectsMissingContractParameter(t *testing.T) {
+	h := newHandlerForTest(&authotptest.OTPAuthenticator{}, &sessiontest.SessionManager{})
+	e := newEchoForTest(t)
+	req := httptest.NewRequest(http.MethodGet, "/auth/oauth/google/callback?code=code", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.SetPath("/auth/oauth/:provider/callback")
+	c.SetPathValues(echo.PathValues{{Name: "provider", Value: "google"}})
+
+	if err := h.OAuthCallback(c); err != nil {
+		t.Fatalf("OAuthCallback() error = %v", err)
+	}
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("callback status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
 func newEchoForTest(t *testing.T) *echo.Echo {
 	t.Helper()
 
@@ -150,6 +168,18 @@ func TestHandlerSendOTP(t *testing.T) {
 		{
 			name:          "rejects invalid email",
 			body:          `{"email":"not-an-email"}`,
+			wantStatus:    http.StatusBadRequest,
+			wantErrorCode: "INVALID_QUERY",
+		},
+		{
+			name:          "rejects missing email required by contract",
+			body:          `{}`,
+			wantStatus:    http.StatusBadRequest,
+			wantErrorCode: "INVALID_QUERY",
+		},
+		{
+			name:          "rejects email longer than contract maximum",
+			body:          `{"email":"` + strings.Repeat("a", 310) + `@example.com"}`,
 			wantStatus:    http.StatusBadRequest,
 			wantErrorCode: "INVALID_QUERY",
 		},
@@ -299,7 +329,7 @@ func TestHandlerLogoutLogsRevokeFailureAndClearsCookie(t *testing.T) {
 	h := NewHandler(
 		log,
 		nil,
-		httpresponse.NewResponder(nil),
+		httpresponse.NewResponder(),
 		&authotptest.OTPAuthenticator{},
 		&authoauthtest.OAuthAuthenticator{},
 		session,

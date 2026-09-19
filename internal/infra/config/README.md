@@ -1,10 +1,15 @@
-# internal/infra/config
+# Runtime configuration
 
-## Pattern used
+This package loads and validates environment-backed configuration before application startup.
 
-- Environment and defaults parsed once into typed structs with validation at bootstrap.
-- Consumed by app wiring and infra constructors; not exposed to usecase or delivery as-is.
+## Responsibilities and boundaries
 
-## How to extend
+- `LoadRuntime` reads shared settings; `LoadHTTPAPI` and `LoadGRPCAPI` add the settings for their executable.
+- Configuration values are normalized and validated once, then injected into constructors.
+- HTTP and gRPC configuration and tests remain in separate files so the profile selector can remove the unused pair.
 
-- Add/change fields on config structs; update env parsing and validation in one place.
+## Extending
+
+- Put settings shared by executable types in `runtime_config.go` and transport-specific settings in the matching profile file.
+- Add defaults, normalization, validation, and tests with each new setting.
+- Do not read environment variables from delivery, usecase, or domain packages.

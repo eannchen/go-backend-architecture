@@ -62,7 +62,7 @@ func newAuthFixture(t *testing.T, email string) *authFixture {
 		TTL:        5 * time.Minute,
 	})
 	sessionManager := authsession.NewServerSessionManager(tracer, meter, sessions, integrationSessionTTL)
-	responder := httpresponse.NewResponder(nil)
+	responder := httpresponse.NewResponder()
 	sessionMiddleware := sessionmw.New(sessionManager, integrationSessionCookie, responder)
 	handler := authhttp.NewHandler(
 		log,

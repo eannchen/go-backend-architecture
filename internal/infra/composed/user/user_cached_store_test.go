@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	"github.com/eannchen/go-backend-architecture/internal/repository/cache/cachetest"
@@ -15,13 +16,13 @@ import (
 func TestCachedUserStoreGetByID(t *testing.T) {
 	tests := []struct {
 		name          string
-		cacheUser     repodb.User
+		cacheUser     domainuser.User
 		cacheFound    bool
 		cacheErr      error
-		baseUser      repodb.User
+		baseUser      domainuser.User
 		baseErr       error
 		setErr        error
-		wantUser      repodb.User
+		wantUser      domainuser.User
 		wantErr       bool
 		wantBaseCalls int
 		wantSetCalls  int
@@ -29,22 +30,22 @@ func TestCachedUserStoreGetByID(t *testing.T) {
 	}{
 		{
 			name:       "returns cache hit",
-			cacheUser:  repodb.User{ID: 1, Email: "cached@example.com"},
+			cacheUser:  domainuser.User{ID: 1, Email: "cached@example.com"},
 			cacheFound: true,
-			wantUser:   repodb.User{ID: 1, Email: "cached@example.com"},
+			wantUser:   domainuser.User{ID: 1, Email: "cached@example.com"},
 		},
 		{
 			name:          "loads and caches on miss",
-			baseUser:      repodb.User{ID: 1, Email: "db@example.com"},
-			wantUser:      repodb.User{ID: 1, Email: "db@example.com"},
+			baseUser:      domainuser.User{ID: 1, Email: "db@example.com"},
+			wantUser:      domainuser.User{ID: 1, Email: "db@example.com"},
 			wantBaseCalls: 1,
 			wantSetCalls:  1,
 		},
 		{
 			name:          "falls back when cache read fails",
 			cacheErr:      errors.New("redis get failed"),
-			baseUser:      repodb.User{ID: 1, Email: "db@example.com"},
-			wantUser:      repodb.User{ID: 1, Email: "db@example.com"},
+			baseUser:      domainuser.User{ID: 1, Email: "db@example.com"},
+			wantUser:      domainuser.User{ID: 1, Email: "db@example.com"},
 			wantBaseCalls: 1,
 			wantSetCalls:  1,
 			wantWarnCalls: 1,
@@ -57,9 +58,9 @@ func TestCachedUserStoreGetByID(t *testing.T) {
 		},
 		{
 			name:          "logs cache write failure and returns user",
-			baseUser:      repodb.User{ID: 1, Email: "db@example.com"},
+			baseUser:      domainuser.User{ID: 1, Email: "db@example.com"},
 			setErr:        errors.New("redis set failed"),
-			wantUser:      repodb.User{ID: 1, Email: "db@example.com"},
+			wantUser:      domainuser.User{ID: 1, Email: "db@example.com"},
 			wantBaseCalls: 1,
 			wantSetCalls:  1,
 			wantWarnCalls: 1,
@@ -72,15 +73,15 @@ func TestCachedUserStoreGetByID(t *testing.T) {
 				WarnFunc: func(context.Context, string, ...logger.Fields) {},
 			}
 			cache := &cachetest.UserCacheStore{
-				GetByIDFunc: func(context.Context, int64) (repodb.User, bool, error) {
+				GetByIDFunc: func(context.Context, int64) (domainuser.User, bool, error) {
 					return tt.cacheUser, tt.cacheFound, tt.cacheErr
 				},
-				SetByIDFunc: func(context.Context, int64, repodb.User) error {
+				SetByIDFunc: func(context.Context, int64, domainuser.User) error {
 					return tt.setErr
 				},
 			}
 			base := &dbtest.UserRepository{
-				GetByIDFunc: func(context.Context, int64) (repodb.User, error) {
+				GetByIDFunc: func(context.Context, int64) (domainuser.User, error) {
 					return tt.baseUser, tt.baseErr
 				},
 			}
@@ -113,11 +114,11 @@ func TestCachedUserStoreGetByID(t *testing.T) {
 
 func TestCachedUserStoreDelegatesEmailAndCreate(t *testing.T) {
 	base := &dbtest.UserRepository{
-		GetByEmailFunc: func(context.Context, string) (repodb.User, error) {
-			return repodb.User{ID: 2, Email: "user@example.com"}, nil
+		GetByEmailFunc: func(context.Context, string) (domainuser.User, error) {
+			return domainuser.User{ID: 2, Email: "user@example.com"}, nil
 		},
-		CreateByEmailFunc: func(context.Context, string) (repodb.User, error) {
-			return repodb.User{ID: 3, Email: "new@example.com"}, nil
+		CreateByEmailFunc: func(context.Context, string) (domainuser.User, error) {
+			return domainuser.User{ID: 3, Email: "new@example.com"}, nil
 		},
 	}
 	cache := &cachetest.UserCacheStore{}
@@ -143,25 +144,25 @@ func TestCachedUserStoreDelegatesEmailAndCreate(t *testing.T) {
 func TestCachedUserStoreUpsertOAuthUser(t *testing.T) {
 	tests := []struct {
 		name            string
-		baseUser        repodb.User
+		baseUser        domainuser.User
 		baseErr         error
 		deleteErr       error
-		wantUser        repodb.User
+		wantUser        domainuser.User
 		wantErr         bool
 		wantDeleteCalls int
 		wantWarnCalls   int
 	}{
 		{
 			name:            "invalidates cache after upsert",
-			baseUser:        repodb.User{ID: 9, Email: "oauth@example.com"},
-			wantUser:        repodb.User{ID: 9, Email: "oauth@example.com"},
+			baseUser:        domainuser.User{ID: 9, Email: "oauth@example.com"},
+			wantUser:        domainuser.User{ID: 9, Email: "oauth@example.com"},
 			wantDeleteCalls: 1,
 		},
 		{
 			name:            "logs cache invalidation failure and returns user",
-			baseUser:        repodb.User{ID: 9, Email: "oauth@example.com"},
+			baseUser:        domainuser.User{ID: 9, Email: "oauth@example.com"},
 			deleteErr:       errors.New("redis del failed"),
-			wantUser:        repodb.User{ID: 9, Email: "oauth@example.com"},
+			wantUser:        domainuser.User{ID: 9, Email: "oauth@example.com"},
 			wantDeleteCalls: 1,
 			wantWarnCalls:   1,
 		},
@@ -178,7 +179,7 @@ func TestCachedUserStoreUpsertOAuthUser(t *testing.T) {
 				WarnFunc: func(context.Context, string, ...logger.Fields) {},
 			}
 			base := &dbtest.UserRepository{
-				UpsertOAuthUserFunc: func(context.Context, repodb.OAuthUserUpsert) (repodb.User, error) {
+				UpsertOAuthUserFunc: func(context.Context, repodb.OAuthUserUpsert) (domainuser.User, error) {
 					return tt.baseUser, tt.baseErr
 				},
 			}

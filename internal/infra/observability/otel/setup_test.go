@@ -5,15 +5,25 @@ import (
 	"testing"
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
-func TestSetup_DisabledReturnsNoopRuntime(t *testing.T) {
-	runtime, err := Setup(context.Background(), config.OTelConfig{Enabled: false}, "accounts-api", "test")
+func TestSetup_ExportDisabledKeepsTraceContextActive(t *testing.T) {
+	runtime, err := Setup(context.Background(), config.OTelConfig{
+		ExportEnabled: false,
+	}, "accounts-api", "test")
 	if err != nil {
-		t.Fatalf("setup disabled observability: %v", err)
+		t.Fatalf("setup with export disabled: %v", err)
 	}
-	if _, ok := runtime.(observability.NoopRuntime); !ok {
-		t.Fatalf("runtime type = %T, want observability.NoopRuntime", runtime)
+	t.Cleanup(func() {
+		if err := runtime.Shutdown(context.Background()); err != nil {
+			t.Errorf("Shutdown() error = %v", err)
+		}
+	})
+
+	ctx, span := runtime.Tracer().Start(context.Background(), "test", "operation")
+	traceContext, ok := runtime.Tracer().TraceContext(ctx)
+	span.Finish(nil)
+	if !ok || traceContext.TraceID == "" || traceContext.SpanID == "" {
+		t.Fatalf("trace context = %+v, %v; want valid IDs", traceContext, ok)
 	}
 }

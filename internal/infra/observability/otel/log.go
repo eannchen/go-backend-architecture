@@ -40,6 +40,9 @@ func (e *otelLogEmitter) Emit(ctx context.Context, severity observability.Severi
 	record.SetSeverityText(severity.String())
 	record.SetBody(otellog.StringValue(message))
 	record.AddAttributes(toLogAttributes(fields)...)
+	// Passing the active span context lets the OTel SDK attach its trace and span
+	// IDs to the log record. Observability backends can then link this log to the
+	// exported span without reading the original traceparent wire value.
 	e.logger.Emit(ctx, record)
 }
 

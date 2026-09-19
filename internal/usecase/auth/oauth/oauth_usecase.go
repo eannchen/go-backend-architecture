@@ -161,6 +161,9 @@ func (a *oauthAuthenticator) HandleCallback(ctx context.Context, provider, code,
 	if err != nil {
 		return auth.Identity{}, apperr.Wrap(err, apperr.CodeInternal, "find or create oauth user")
 	}
+	if !user.CanAuthenticate() {
+		return auth.Identity{}, apperr.New(apperr.CodeForbidden, "user account cannot authenticate")
+	}
 
 	return auth.Identity{
 		UserID: user.ID,

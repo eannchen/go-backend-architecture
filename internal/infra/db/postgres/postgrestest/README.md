@@ -1,13 +1,15 @@
-# internal/infra/db/postgres/postgrestest
+# PostgreSQL integration fixtures
 
-## Pattern used
+This package starts and manages disposable PostgreSQL instances for integration-test packages.
 
-- Integration-only helpers start pinned disposable PostgreSQL with pgvector and apply the real Goose migrations.
-- The calling test package owns one instance and explicitly closes it after all package tests finish.
-- Failed suites copy container logs before cleanup so CI keeps the diagnostics.
+## Responsibilities and boundaries
 
-## How to extend
+- Uses a pinned container image and applies the project's SQL migrations with Goose.
+- The calling package owns one instance for its test process and closes it after `m.Run`.
+- Failed suites can copy container logs before shutdown so CI retains diagnostics.
 
-- Reuse `Start` from a package `TestMain`; keep application-row cleanup in the test that created the rows.
-- Use the returned pool for setup, assertions, and cleanup rather than creating another test-only connection.
-- Call `WriteLogs` only after a failed suite and before `Close`.
+## Extending
+
+- Start the fixture from package `TestMain` and reuse its pool for setup, assertions, and cleanup.
+- Keep application-row cleanup in the test that created the rows.
+- Call `WriteLogs` after a failed suite and before `Close`.

@@ -30,14 +30,13 @@ func TestGetHealthSuccess(t *testing.T) {
 				},
 				Cache:   usecasehealth.Dependency{Status: "up"},
 				KVStore: usecasehealth.Dependency{Status: "up"},
-				Vector:  usecasehealth.Dependency{Status: "up"},
 			}, nil
 		},
 	}
 	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
 
 	e := echo.New()
-	e.Validator = httpdeliverytest.NewValidator(t, RegisterValidation)
+	e.Validator = httpdeliverytest.NewValidator(t)
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
@@ -56,7 +55,7 @@ func TestGetHealthSuccess(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if got.Database.Name != "app" || got.Database.Status != "up" || got.Kvstore.Status != "up" || got.Vectorstore.Status != "up" {
+	if got.Database.Name != "app" || got.Database.Status != "up" || got.Kvstore.Status != "up" {
 		t.Fatalf("unexpected response payload: %+v", got)
 	}
 }
@@ -66,7 +65,7 @@ func TestGetHealthInvalidQuery(t *testing.T) {
 	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
 
 	e := echo.New()
-	e.Validator = httpdeliverytest.NewValidator(t, RegisterValidation)
+	e.Validator = httpdeliverytest.NewValidator(t)
 	req := httptest.NewRequest(http.MethodGet, "/health?check=bad", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
@@ -105,7 +104,7 @@ func TestGetHealthUnavailableReturnsPartialResult(t *testing.T) {
 	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
 
 	e := echo.New()
-	e.Validator = httpdeliverytest.NewValidator(t, RegisterValidation)
+	e.Validator = httpdeliverytest.NewValidator(t)
 	req := httptest.NewRequest(http.MethodGet, "/health?check=ready", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
@@ -134,7 +133,7 @@ func TestGetHealthUnexpectedErrorReturnsInternalResponse(t *testing.T) {
 	}
 	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
 	e := echo.New()
-	e.Validator = httpdeliverytest.NewValidator(t, RegisterValidation)
+	e.Validator = httpdeliverytest.NewValidator(t)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/health", nil), rec)
 

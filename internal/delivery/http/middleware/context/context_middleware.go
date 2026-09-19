@@ -2,25 +2,34 @@ package contextmw
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v5"
+	"golang.org/x/net/http/httpguts"
 
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
-const (
-	requestIDHeader = "X-Request-ID"
-	maxRequestIDLen = 128
-)
+// Config controls server deadlines and request-ID interoperability policy.
+type Config struct {
+	Timeout   time.Duration
+	RequestID RequestIDConfig
+}
+
+// RequestIDConfig separates accepting and returning an optional request ID.
+type RequestIDConfig struct {
+	IncomingHeaderKey string
+	ResponseHeaderKey string
+	RejectInvalid     bool
+}
 
 // RequestContextMiddleware enriches request context with request ID and timeout.
 type RequestContextMiddleware struct {
-	timeout     time.Duration
+	config      Config
 	responder   httpresponse.Responder
 	skipTimeout func(c *echo.Context) bool
 }
@@ -37,18 +46,27 @@ func WithTimeoutSkipper(skip func(c *echo.Context) bool) Option {
 }
 
 // NewRequestContextMiddleware creates request context middleware with optional timeout.
-func NewRequestContextMiddleware(timeout time.Duration, responder httpresponse.Responder, opts ...Option) *RequestContextMiddleware {
+func NewRequestContextMiddleware(config Config, responder httpresponse.Responder, opts ...Option) (*RequestContextMiddleware, error) {
+	var err error
+	config.RequestID.IncomingHeaderKey, err = normalizeHeaderKey(config.RequestID.IncomingHeaderKey)
+	if err != nil {
+		return nil, fmt.Errorf("normalize incoming request ID header: %w", err)
+	}
+	config.RequestID.ResponseHeaderKey, err = normalizeHeaderKey(config.RequestID.ResponseHeaderKey)
+	if err != nil {
+		return nil, fmt.Errorf("normalize response request ID header: %w", err)
+	}
 	if responder == nil {
-		responder = httpresponse.NewResponder(nil)
+		responder = httpresponse.NewResponder()
 	}
 	m := &RequestContextMiddleware{
-		timeout:   timeout,
+		config:    config,
 		responder: responder,
 	}
 	for _, opt := range opts {
 		opt(m)
 	}
-	return m
+	return m, nil
 }
 
 // Handler builds the Echo middleware function for request context propagation.
@@ -58,47 +76,57 @@ func (m *RequestContextMiddleware) Handler() echo.MiddlewareFunc {
 			req := c.Request()
 			reqCtx := req.Context()
 
-			requestID := req.Header.Get(requestIDHeader)
-			switch {
-			case requestID == "":
-				requestID = randomID()
-			case !isValidRequestID(requestID):
+			requestID, err := incomingRequestID(req, m.config.RequestID.IncomingHeaderKey)
+			if err != nil && m.config.RequestID.RejectInvalid {
+				headerKey := m.config.RequestID.IncomingHeaderKey
 				return m.responder.Error(c,
-					fmt.Errorf("invalid X-Request-ID header: %q", requestID),
+					err,
 					httpresponse.CodeInvalidRequestID,
-					"X-Request-ID must be 1-128 characters of [a-zA-Z0-9._-]",
+					fmt.Sprintf("%s must be one value of 1-128 characters from [a-zA-Z0-9._-]", headerKey),
 				)
 			}
+			if err == nil && requestID != "" {
+				reqCtx = observability.WithRequestID(reqCtx, requestID)
+				if key := m.config.RequestID.ResponseHeaderKey; key != "" {
+					c.Response().Header().Set(key, requestID)
+				}
+			}
 
-			reqCtx = observability.WithRequestID(reqCtx, requestID)
-			c.Response().Header().Set(requestIDHeader, requestID)
-
-			if m.timeout > 0 && (m.skipTimeout == nil || !m.skipTimeout(c)) {
+			if m.config.Timeout > 0 && (m.skipTimeout == nil || !m.skipTimeout(c)) {
 				var cancel context.CancelFunc
-				reqCtx, cancel = context.WithTimeout(reqCtx, m.timeout)
+				reqCtx, cancel = context.WithTimeout(reqCtx, m.config.Timeout)
 				defer cancel()
 			}
 
+			// Echo stores a mutable request pointer, so replacing it makes this derived
+			// context available both downstream and to outer middleware after it returns.
 			c.SetRequest(req.WithContext(reqCtx))
 			return next(c)
 		}
 	}
 }
 
-func isValidRequestID(id string) bool {
-	if len(id) == 0 || len(id) > maxRequestIDLen {
-		return false
+func incomingRequestID(req *http.Request, headerKey string) (string, error) {
+	if headerKey == "" {
+		return "", nil
 	}
-	for _, c := range id {
-		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.') {
-			return false
-		}
+	values := req.Header.Values(headerKey)
+	if len(values) == 0 || (len(values) == 1 && values[0] == "") {
+		return "", nil
 	}
-	return true
+	if len(values) != 1 || !observability.IsValidRequestID(values[0]) {
+		return "", fmt.Errorf("invalid %s header: %q", headerKey, values)
+	}
+	return values[0], nil
 }
 
-func randomID() string {
-	var b [16]byte
-	_, _ = rand.Read(b[:])
-	return hex.EncodeToString(b[:])
+func normalizeHeaderKey(key string) (string, error) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return "", nil
+	}
+	if !httpguts.ValidHeaderFieldName(key) {
+		return "", fmt.Errorf("invalid HTTP header name %q", key)
+	}
+	return http.CanonicalHeaderKey(key), nil
 }

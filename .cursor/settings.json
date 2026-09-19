@@ -1,7 +1,0 @@
-{
-  "plugins": {
-    "redis-development": {
-      "enabled": true
-    }
-  }
-}
