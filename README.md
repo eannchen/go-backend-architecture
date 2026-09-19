@@ -53,7 +53,7 @@ Separate binaries can be deployed and scaled independently while sharing applica
 
 ### SOLID in this codebase
 
-SOLID is applied through package boundaries and dependency direction, not by creating an interface for every struct.
+SOLID is applied through package boundaries and dependency direction.
 
 - **S — Single responsibility:** delivery maps protocols, usecases coordinate workflows, repositories define outbound needs, infrastructure integrates technologies, and app packages only compose them.
 - **O — Open/closed:** a new delivery adapter, provider, store, decorator, or binary is normally added behind an existing contract and selected in composition. A contract still changes when the application genuinely needs new behavior.
@@ -66,14 +66,14 @@ SOLID is applied through package boundaries and dependency direction, not by cre
 | Pattern | Use in this template |
 | --- | --- |
 | Composition root | `internal/app` selects concrete implementations and owns startup and shutdown order. |
-| Adapter | HTTP handlers and gRPC services map protocol input and output; stores and clients map application contracts to SQL, Redis, gRPC, or provider SDKs. |
+| Adapter | Delivery adapters translate external input and application outcomes; infrastructure adapters implement application contracts with storage or external services. |
 | Repository | Usecases request behavior through contracts shaped around their workflows, while infrastructure owns persistence and provider details. |
 | Decorator | A composed repository or cache wrapper adds caching or coordination without changing the usecase-facing contract. |
 | Strategy | Provider, security, and client policies are selected through small contracts or configuration where behavior must vary. |
 | Middleware/interceptor | Cross-cutting transport behavior is applied consistently around HTTP requests and gRPC calls. |
 | Null object | Optional behavior can use a safe no-op implementation instead of spreading nil checks through callers. |
 
-The complete dependency, placement, error, performance, and testing rules are in [`AGENTS.md`](AGENTS.md). Subsystem READMEs explain only their local ownership and extension points.
+The complete dependency, placement, error, performance, and testing rules are in [`AGENTS.md`](AGENTS.md).
 
 ## Delivery adapters
 
@@ -87,18 +87,17 @@ The HTTP application is designed for browser and public API traffic. It owns use
 | --- | --- |
 | Contract | `contracts/http/openapi.yaml` defines endpoints and portable validation; oapi-codegen produces delivery-only models. |
 | Server | Echo routes call feature handlers, which bind generated transport models and invoke usecases. |
+| Request context | Preserves caller cancellation, applies a configurable deadline except for SSE, and handles optional request IDs through configurable request and response headers. |
+| Responses | One responder maps application errors and context cancellation to stable HTTP status and JSON payload semantics. |
 | Authentication | OTP and optional Google OAuth create Redis-backed sessions with secure cookie defaults. |
 | Edge protection | Body limits, security headers, CORS allowlists, trusted-proxy client IP extraction, and Redis token-bucket rate limiting run at the origin. |
-| Responses | One responder maps application errors and context cancellation to stable HTTP status and JSON payload semantics. |
-| Streaming | A bounded health SSE example covers flush, disconnect, timeout, and goroutine ownership. |
+| Streaming | A bounded SSE example covers flush, disconnect, timeout, and goroutine ownership. |
 
 The request path is ordered deliberately:
 
 ```text
 body limit → observability → recovery → security/CORS → request context → rate limit → handler → usecase
 ```
-
-Observability surrounds recovery so a recovered panic still contributes to the request outcome. Request context runs before rate limiting and handlers so they receive the caller's context, deadline, and optional request ID.
 
 See [`internal/delivery/http/README.md`](internal/delivery/http/README.md) for package ownership and extension guidance.
 
@@ -109,9 +108,9 @@ The gRPC application is designed for independently deployed backend services. A 
 | Concern | Design |
 | --- | --- |
 | Contract | Versioned Protobuf under `contracts/grpc` defines services and messages; Buf lints compatibility and generates delivery-only Go types. |
-| Server | grpc-go services map generated messages to usecase input and use one responder for application-to-gRPC error mapping. |
-| Health | The standard gRPC health service supports infrastructure probes; the diagnostics service returns application-specific dependency details. |
-| Request context | Incoming metadata and deadlines become the context passed through services, usecases, and I/O. Request-ID acceptance and response metadata are configurable. |
+| Server | grpc-go services map generated messages to usecase input. |
+| Request context | Preserves caller cancellation and deadlines, adds a unary server timeout, and handles optional request IDs through configurable metadata keys. |
+| Responses | One responder maps application and context errors to gRPC status codes and safe messages. |
 | Caller identity | When mTLS is enabled, a verified client certificate URI can become a transport-authenticated service identity. Authorization remains a usecase decision. |
 | Outbound calls | Shared connection mechanics and opt-in interceptors are available, while each remote dependency owns its methods, deadlines, retries, metadata, and telemetry policy. |
 
@@ -121,22 +120,23 @@ The unary and stream interceptor chain follows the same ownership model as HTTP 
 request context → optional caller identity → observability → recovery → service → usecase
 ```
 
-The context interceptor must wrap the rest of the chain because it creates the derived context that downstream interceptors and services consume. Authentication and rate limiting are intentionally not universal: deployments may enforce them at a gateway or service mesh, while standalone services can add an interceptor matched to their identity and quota model.
+Both chains put recovery inside observability so recovered panics appear in telemetry. HTTP starts observability before request context because Echo lets inner middleware replace the request; outer middleware reads its updated context on return. CORS runs before the limiter so preflight requests can finish early.
+
+gRPC interceptors cannot pass an updated context back outward. Request context and optional caller identity therefore run before observability, which needs their values. Authentication and rate limiting are not universal gRPC interceptors: deployments may enforce them at a gateway or service mesh, while standalone services can add interceptors matched to their identity and quota model.
 
 See [`internal/delivery/grpc/README.md`](internal/delivery/grpc/README.md) and [`internal/infra/grpcclient/README.md`](internal/infra/grpcclient/README.md) for the server and outbound-client boundaries.
 
-## Runtime safety
+## Runtime reliability
 
-The runtime design covers failure paths that are easy to miss when code is organized only around successful requests:
+The template makes request limits, background work, and shutdown explicit.
 
-- Caller cancellation and deadlines reach database, Redis, and provider calls, allowing abandoned work to stop and preserving the caller's time limit.
-- Independently owned startup, reporter, and shutdown work receives its own root context and explicit cancellation instead of borrowing a request context.
-- Goroutines have an owner, cancellation path, bounded input, panic policy where needed, and a completion mechanism.
-- Retries are limited to documented transient failures, stop with the context, and require an idempotency decision before repeating writes.
-- Shutdown proceeds in reverse dependency order and combines independent failures instead of dropping later cleanup errors.
-- Each layer adds the context it owns; the layer making the handling decision logs an unexpected failure once.
+- Cancellation and deadlines reach storage and outbound calls, so work can stop when a caller disconnects or its time limit expires.
+- Background tasks use an application-lifecycle context, not a request context. The component that starts a goroutine controls how it stops and waits for it to finish; concurrent work is bounded.
+- Retries have bounded attempts and repeat writes only when an idempotency design makes that safe.
+- Shutdown stops components in reverse dependency order and reports cleanup failures.
+- Errors retain their original causes; unexpected failures are logged once where they are handled.
 
-These are the design highlights. [`AGENTS.md`](AGENTS.md) contains the complete implementation rules.
+See [`AGENTS.md`](AGENTS.md) for the corresponding implementation rules.
 
 ## Observability
 
