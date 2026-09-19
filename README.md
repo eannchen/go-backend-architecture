@@ -22,7 +22,7 @@ A Go backend template organized as a modular monolith with Clean Architecture. B
 
 ## Architecture
 
-The dependency rule is the central design constraint: source dependencies point toward business policy. Frameworks and infrastructure can change without becoming part of the domain or usecase APIs.
+Go imports follow the arrows in the diagram. Usecases do not import delivery or infrastructure, so changes to a server or storage adapter stay outside business code.
 
 ![Concentric Clean Architecture layers used by the template](docs/assets/clean-architecture.svg)
 
@@ -34,31 +34,22 @@ The rings group code by responsibility; the arrows specify imports. Sharing a ri
 | `internal/usecase` | Application workflows and business decisions |
 | `internal/repository` | Outbound capability contracts required by usecases |
 | `internal/domain` | Business entities, value objects, and reusable invariants |
-| `internal/infra` | PostgreSQL, Redis, provider, security, logging, and telemetry implementations |
+| `internal/infra` | Adapters for persistence, caching, external services, security, logging, and telemetry |
 | `internal/logger`, `internal/observability`, `internal/security` | Shared technical contracts used across layers |
 | `internal/app` and `cmd` | Concrete dependency selection, process lifecycle, and startup |
 
-Delivery converts boundary-specific input into usecase calls. Infrastructure converts application-owned operations into database, cache, network, or SDK calls. Neither adapter gives framework or vendor types to the inner layers.
-
 ### Multi-binary composition
 
-Each executable owns one process lifecycle and one composition root while reusing the same domain, usecases, contracts, and infrastructure adapters. The existing HTTP and gRPC applications establish the pattern; another API, message consumer, or job runner can be added as a sibling rather than folded into a transport switch inside one binary.
+Each binary has its own `cmd` entry point and `internal/app` composition root. Binaries can reuse domain, usecases, contracts, and infrastructure adapters without moving business code into delivery packages.
 
 ```mermaid
 flowchart LR
-    http[cmd/httpapi] --> httpapp[app/httpapi]
-    grpc[cmd/grpcapi] --> grpcapp[app/grpcapi]
-    future[cmd/worker or cmd/consumer] -. same pattern .-> futureapp[app/worker or app/consumer]
-
-    httpapp --> shared[Domain · usecases · contracts]
-    grpcapp --> shared
-    futureapp --> shared
-    httpapp --> resources[Shared infrastructure adapters]
-    grpcapp --> resources
-    futureapp --> resources
+    http[HTTP binary] --> core[Shared domain · usecases · contracts]
+    grpc[gRPC binary] --> core
+    future[Future worker or consumer] -.-> core
 ```
 
-This keeps deployment, scaling, configuration, startup, and shutdown ownership explicit for every process without duplicating business code.
+Separate binaries can be deployed and scaled independently while sharing application behavior. A future worker or consumer follows the same composition pattern.
 
 ### SOLID in this codebase
 
