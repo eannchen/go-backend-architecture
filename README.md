@@ -1,39 +1,24 @@
 # Go Backend Architecture
 
 ![Go Version](https://img.shields.io/github/go-mod/go-version/eannchen/go-backend-architecture)
-[![Build and unit tests](https://github.com/eannchen/go-backend-architecture/actions/workflows/quality.yml/badge.svg)](https://github.com/eannchen/go-backend-architecture/actions/workflows/quality.yml)
-[![Integration tests](https://github.com/eannchen/go-backend-architecture/actions/workflows/integration.yml/badge.svg)](https://github.com/eannchen/go-backend-architecture/actions/workflows/integration.yml)
+[![Build and unit tests](https://img.shields.io/github/actions/workflow/status/eannchen/go-backend-architecture/quality.yml?branch=main&label=Build%20and%20unit%20tests)](https://github.com/eannchen/go-backend-architecture/actions/workflows/quality.yml)
+[![Integration tests](https://img.shields.io/github/actions/workflow/status/eannchen/go-backend-architecture/integration.yml?branch=main&label=Integration%20tests)](https://github.com/eannchen/go-backend-architecture/actions/workflows/integration.yml)
 
-A modular Go backend template built with Clean Architecture. Business workflows stay independent of delivery and infrastructure, while each runnable application explicitly composes the capabilities it needs. The template includes foundations for security, data access, observability, testing, and lifecycle management, and its boundaries allow new process types to reuse the same core.
+A modular Go backend template built with Clean Architecture. Business workflows stay independent of delivery and infrastructure. Each runnable application wires the capabilities it needs, and new process types can reuse the same core. The template includes foundations for security, data access, observability, testing, and lifecycle management.
 
 ## Table of Contents
-- [Go Backend Architecture](#go-backend-architecture)
-  - [Table of Contents](#table-of-contents)
-  - [Included capabilities](#included-capabilities)
-  - [Architecture](#architecture)
-    - [Multi-binary composition](#multi-binary-composition)
-    - [SOLID in this codebase](#solid-in-this-codebase)
-    - [Core design patterns](#core-design-patterns)
-  - [Delivery adapters](#delivery-adapters)
-    - [Public HTTP](#public-http)
-    - [Service-to-service gRPC](#service-to-service-grpc)
-  - [Runtime reliability](#runtime-reliability)
-  - [Observability](#observability)
-    - [Trace propagation and correlation](#trace-propagation-and-correlation)
-  - [Data design](#data-design)
-    - [SQL-first PostgreSQL](#sql-first-postgresql)
-    - [Redis caching and state](#redis-caching-and-state)
-  - [Testing and CI](#testing-and-ci)
-  - [AI agent setup](#ai-agent-setup)
-  - [Third-party tools](#third-party-tools)
-  - [Repository map](#repository-map)
-  - [Use as a Starter](#use-as-a-starter)
-    - [Requirements](#requirements)
-    - [1. Choose the source shape](#1-choose-the-source-shape)
-    - [2. Bootstrap project identity](#2-bootstrap-project-identity)
-    - [3. Start local dependencies and the application](#3-start-local-dependencies-and-the-application)
-    - [4. Verify the project](#4-verify-the-project)
 
+- [Included capabilities](#included-capabilities)
+- [Architecture](#architecture)
+- [Delivery adapters](#delivery-adapters)
+- [Runtime reliability](#runtime-reliability)
+- [Observability](#observability)
+- [Data design](#data-design)
+- [Testing and CI](#testing-and-ci)
+- [AI agent setup](#ai-agent-setup)
+- [Third-party tools](#third-party-tools)
+- [Repository map](#repository-map)
+- [Use as a Starter](#use-as-a-starter)
 
 ## Included capabilities
 
@@ -78,7 +63,7 @@ flowchart LR
     future[Future worker or consumer] -.-> core
 ```
 
-Separate binaries can be deployed and scaled independently while sharing application behavior. A future worker or consumer follows the same composition pattern.
+Separate binaries can be deployed and scaled independently while sharing application behavior.
 
 ### SOLID in this codebase
 
@@ -106,7 +91,7 @@ The complete dependency, placement, error, performance, and testing rules are in
 
 ## Delivery adapters
 
-The full template provides a browser/public HTTP application and a service-to-service gRPC application; a selected project may retain either or both. They can share business and infrastructure capabilities while each delivery package owns its transport-specific input, output, and error handling.
+Out of the box, the template has a browser/public HTTP application and a service-to-service gRPC application; a selected project may retain either or both. They can share business and infrastructure capabilities while each delivery package owns its transport-specific input, output, and error handling.
 
 ### Public HTTP
 
@@ -179,7 +164,7 @@ Tracing and metrics use interfaces in `internal/observability`, while structured
 
 ### Trace propagation and correlation
 
-This sequence illustrates one distributed request; internal work can also have its own spans and metrics.
+The diagram follows one request across services; work inside a service can have its own spans and metrics.
 
 ```mermaid
 sequenceDiagram
@@ -221,7 +206,7 @@ SQL stays behind repository contracts, keeping PostgreSQL and generated types ou
 | Squirrel | Parameterized construction for queries whose shape changes at runtime |
 | Goose | Ordered database migrations for existing environments |
 
-Beyond package boundaries, [`AGENTS.md`](AGENTS.md) sets implementation guidance: repository operations should follow usecase needs rather than generic CRUD. Related reads should be shaped to avoid N+1 access; stable cacheable data may be separated from volatile data when the extra round trip has a measured consistency or reuse benefit. Multi-write workflows should expose one atomic repository operation, leaving transaction handles inside the PostgreSQL adapter. Indexes and material query changes should be evaluated against actual access patterns and query plans.
+[`AGENTS.md`](AGENTS.md) also gives guidance for repository operations and SQL: methods should follow usecase needs rather than generic CRUD. Related reads should be shaped to avoid N+1 access; stable cacheable data may be separated from volatile data when the extra round trip has a measured consistency or reuse benefit. Multi-write workflows should expose one atomic repository operation, leaving transaction handles inside the PostgreSQL adapter. Indexes and material query changes should be evaluated against actual access patterns and query plans.
 
 ### Redis caching and state
 
@@ -257,7 +242,7 @@ See [`AGENTS.md`](AGENTS.md) for test-double and concurrency-test rules.
 
 ## AI agent setup
 
-The setup keeps one source of engineering rules, with a small tool-specific entry point where needed.
+The repository keeps coding guidance in one place so agents follow the same conventions.
 
 | File | Purpose |
 | --- | --- |
