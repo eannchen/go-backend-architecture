@@ -173,8 +173,8 @@ sequenceDiagram
     participant D as Trusted downstream
     participant O as OTLP collector / HyperDX
 
-    U->>A: Request; optional traceparent and tracestate
-    A->>A: Extract parent if present; start inbound span
+    U->>A: Request with optional traceparent and tracestate
+    A->>A: Extract parent if present, then start inbound span
     A->>A: Create child spans for selected internal work
     opt Propagation enabled for this dependency
         A->>D: Inject active trace context
