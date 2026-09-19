@@ -4,7 +4,7 @@
 [![Build and unit tests](https://github.com/eannchen/go-backend-architecture/actions/workflows/quality.yml/badge.svg)](https://github.com/eannchen/go-backend-architecture/actions/workflows/quality.yml)
 [![Integration tests](https://github.com/eannchen/go-backend-architecture/actions/workflows/integration.yml/badge.svg)](https://github.com/eannchen/go-backend-architecture/actions/workflows/integration.yml)
 
-A Go backend template organized as a modular monolith with Clean Architecture. Business workflows stay independent of delivery and infrastructure, while each runnable application explicitly composes the capabilities it needs. The template includes foundations for security, data access, observability, testing, and lifecycle management, and its boundaries allow new process types to reuse the same core.
+A modular Go backend template built with Clean Architecture. Business workflows stay independent of delivery and infrastructure, while each runnable application explicitly composes the capabilities it needs. The template includes foundations for security, data access, observability, testing, and lifecycle management, and its boundaries allow new process types to reuse the same core.
 
 ## Table of Contents
 - [Go Backend Architecture](#go-backend-architecture)
@@ -106,11 +106,11 @@ The complete dependency, placement, error, performance, and testing rules are in
 
 ## Delivery adapters
 
-The full template provides a browser/public HTTP application and a service-to-service gRPC application; a selected project may retain either or both. They share business and infrastructure capabilities but keep protocol models and response semantics in their own delivery packages.
+The full template provides a browser/public HTTP application and a service-to-service gRPC application; a selected project may retain either or both. They can share business and infrastructure capabilities while each delivery package owns its transport-specific input, output, and error handling.
 
 ### Public HTTP
 
-The HTTP application is designed for browser and public API traffic. It owns user-facing authentication, origin-facing protection, JSON response semantics, and streaming behavior.
+The HTTP application is designed for browser and public API traffic. It owns user-facing authentication, server-side protections, JSON response semantics, and streaming behavior.
 
 | Concern | Design |
 | --- | --- |
@@ -136,7 +136,7 @@ The gRPC application is designed for independently deployed backend services. A 
 
 | Concern | Design |
 | --- | --- |
-| Contract | Versioned Protobuf under `contracts/grpc` defines services and messages; Buf lints compatibility and generates delivery-only Go types. |
+| Contract | Versioned Protobuf under `contracts/grpc` defines services and messages; Buf lints the contract, checks breaking changes, and generates delivery-only Go types. |
 | Server | grpc-go services map generated messages to usecase input. |
 | Request context | Preserves caller cancellation and deadlines, adds a unary server timeout, and handles optional request IDs through configurable metadata keys. |
 | Responses | One responder maps application and context errors to gRPC status codes and safe messages. |
@@ -247,7 +247,7 @@ Unit tests check one component with its dependencies controlled. Integration tes
 | Storage adapter integration | A real adapter against a disposable backend | PostgreSQL and Redis adapters tested with Testcontainers |
 | Transport integration | A request through the real HTTP or gRPC server stack | HTTP authentication uses real PostgreSQL and Redis with controlled external providers; gRPC health uses in-process transport with a controlled usecase |
 
-Both protocols use a real server path. A test can focus on protocol behavior with a replacement usecase, or cover a full workflow with real usecases and storage. See [`AGENTS.md`](AGENTS.md) for test-double and concurrency-test rules.
+See [`AGENTS.md`](AGENTS.md) for test-double and concurrency-test rules.
 
 | CI check | What it verifies |
 | --- | --- |
@@ -257,7 +257,7 @@ Both protocols use a real server path. A test can focus on protocol behavior wit
 
 ## AI agent setup
 
-Codex and Cursor read the shared engineering rules in `AGENTS.md`; Claude imports them through `.claude/CLAUDE.md`. Subsystem READMEs explain local design and extension points without repeating those rules.
+The setup keeps one source of engineering rules, with a small tool-specific entry point where needed.
 
 | File | Purpose |
 | --- | --- |
@@ -372,7 +372,7 @@ The local stack exposes PostgreSQL on `5432`, Redis on `6379`, HyperDX on `8081`
 make check             # formatting, vet, and build
 make test              # unit tests
 make test-race         # unit tests with race detection
-make test-integration  # disposable PostgreSQL and Redis integration tests
+make test-integration  # HTTP, gRPC, and storage integration tests
 make ci                # complete sequence once the project has a contract baseline
 ```
 

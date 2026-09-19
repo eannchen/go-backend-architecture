@@ -1,6 +1,6 @@
 # Project
 
-Go backend organized as a modular monolith with Clean Architecture. Keep business decisions independent of transport, storage, and framework details. Prefer explicit dependencies, small contracts, and code whose ownership is clear from its package.
+Modular Go backend organized with Clean Architecture. Keep business decisions independent of transport, storage, and framework details. Prefer explicit dependencies, small contracts, and code whose ownership is clear from its package.
 
 The codebase may contain any combination of capabilities. Apply capability-specific rules only when the related source or contract is present, or when the requested change adds that capability. Do not restore a removed capability merely to follow an inapplicable rule.
 
