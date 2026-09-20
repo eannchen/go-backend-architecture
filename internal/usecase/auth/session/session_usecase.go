@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
@@ -25,6 +26,7 @@ type SessionManager interface {
 }
 
 type serverSessionManager struct {
+	log         logger.Logger
 	tracer      observability.Tracer
 	sessionRepo repokvstore.SessionRepository
 	ttl         time.Duration
@@ -34,10 +36,14 @@ type serverSessionManager struct {
 // NewServerSessionManager creates a server-side session manager.
 func NewServerSessionManager(
 	tracer observability.Tracer,
+	log logger.Logger,
 	meter observability.Meter,
 	sessionRepo repokvstore.SessionRepository,
 	ttl time.Duration,
 ) SessionManager {
+	if log == nil {
+		log = logger.NoopLogger{}
+	}
 	if tracer == nil {
 		tracer = observability.NoopTracer{}
 	}
@@ -45,6 +51,7 @@ func NewServerSessionManager(
 		meter = observability.NoopMeter{}
 	}
 	return &serverSessionManager{
+		log:         log,
 		tracer:      tracer,
 		sessionRepo: sessionRepo,
 		ttl:         ttl,
@@ -103,7 +110,9 @@ func (m *serverSessionManager) Validate(ctx context.Context, token string) (sess
 	}
 
 	if time.Now().After(data.ExpiresAt) {
-		_ = m.sessionRepo.Delete(ctx, token)
+		if deleteErr := m.sessionRepo.Delete(ctx, token); deleteErr != nil {
+			m.log.Warn(ctx, "session repository cleanup failed; expired session rejected", logger.FromPairs("error", deleteErr))
+		}
 		return auth.Session{}, apperr.New(apperr.CodeUnauthorized, "session expired")
 	}
 
