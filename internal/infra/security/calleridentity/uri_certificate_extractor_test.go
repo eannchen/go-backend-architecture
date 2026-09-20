@@ -8,6 +8,7 @@ import (
 	securityidentity "github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 )
 
+// TestURICertificateExtractorExtract requires exactly one URI identity; the interceptor verifies the certificate before calling this extractor.
 func TestURICertificateExtractorExtract(t *testing.T) {
 	tests := []struct {
 		name        string

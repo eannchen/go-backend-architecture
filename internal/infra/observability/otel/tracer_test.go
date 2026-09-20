@@ -17,6 +17,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
+// TestSpanFinish_SetsStatusAndRecordsErrors checks span completion records status and errors for diagnostics.
 func TestSpanFinish_SetsStatusAndRecordsErrors(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -60,6 +61,7 @@ func TestSpanFinish_SetsStatusAndRecordsErrors(t *testing.T) {
 	}
 }
 
+// TestTracerStartRecordsInternalKind checks ordinary spans use internal span kind.
 func TestTracerStartRecordsInternalKind(t *testing.T) {
 	recorder := installSpanRecorder(t)
 	_, span := NewTracer("accounts-api").Start(context.Background(), "usecase", "account.get")
@@ -71,6 +73,7 @@ func TestTracerStartRecordsInternalKind(t *testing.T) {
 	}
 }
 
+// TestTracerStartServer_RecordsKindAttributesAndExposesContext checks server spans carry attributes and expose the started context.
 func TestTracerStartServer_RecordsKindAttributesAndExposesContext(t *testing.T) {
 	recorder := installSpanRecorder(t)
 	tracer := NewTracer("accounts-api")
@@ -102,6 +105,7 @@ func TestTracerStartServer_RecordsKindAttributesAndExposesContext(t *testing.T) 
 	}
 }
 
+// TestTracerStartClientRecordsClientKind checks outbound calls create client-kind spans.
 func TestTracerStartClientRecordsClientKind(t *testing.T) {
 	recorder := installSpanRecorder(t)
 	_, span := NewTracer("accounts-api").StartClient(context.Background(), "grpc-client", "/test.Service/Check")
@@ -113,6 +117,7 @@ func TestTracerStartClientRecordsClientKind(t *testing.T) {
 	}
 }
 
+// TestTracerExtractContinuesRemoteTrace checks extraction continues a remote parent trace.
 func TestTracerExtractContinuesRemoteTrace(t *testing.T) {
 	carrier := propagation.MapCarrier{
 		"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
@@ -129,6 +134,7 @@ func TestTracerExtractContinuesRemoteTrace(t *testing.T) {
 	}
 }
 
+// TestTracerExtractsRemoteParentFromTextCarrier checks a text carrier can supply the remote trace parent.
 func TestTracerExtractsRemoteParentFromTextCarrier(t *testing.T) {
 	recorder := installSpanRecorder(t)
 	carrier := propagation.MapCarrier{
@@ -148,6 +154,7 @@ func TestTracerExtractsRemoteParentFromTextCarrier(t *testing.T) {
 	}
 }
 
+// TestTracerInjectsCurrentSpanIntoTextCarrier checks injection writes the current span context to a text carrier.
 func TestTracerInjectsCurrentSpanIntoTextCarrier(t *testing.T) {
 	recorder := installSpanRecorder(t)
 	ctx, span := NewTracer("test").StartClient(context.Background(), "grpc-client", "/test.Service/Check")

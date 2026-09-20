@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
+// TestMiddlewareRejectsDeclaredOversizedBody checks an oversized Content-Length is rejected before reading the body.
 func TestMiddlewareRejectsDeclaredOversizedBody(t *testing.T) {
 	const maxBytes = 16
 	e := echo.New()
@@ -27,6 +28,7 @@ func TestMiddlewareRejectsDeclaredOversizedBody(t *testing.T) {
 	}
 }
 
+// TestMiddlewareBoundsChunkedBody checks streamed requests cannot bypass the limit by omitting Content-Length.
 func TestMiddlewareBoundsChunkedBody(t *testing.T) {
 	const maxBytes = 16
 	e := echo.New()
@@ -49,6 +51,7 @@ func TestMiddlewareBoundsChunkedBody(t *testing.T) {
 	}
 }
 
+// TestMiddlewareAllowsBodyAtLimit checks a body exactly at the configured limit remains valid.
 func TestMiddlewareAllowsBodyAtLimit(t *testing.T) {
 	const maxBytes = 16
 	e := echo.New()

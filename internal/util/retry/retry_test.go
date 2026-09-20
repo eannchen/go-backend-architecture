@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// TestDo_SucceedsAfterRetries checks transient failures retry until an attempt succeeds.
 func TestDo_SucceedsAfterRetries(t *testing.T) {
 	attempts := 0
 
@@ -28,6 +29,7 @@ func TestDo_SucceedsAfterRetries(t *testing.T) {
 	}
 }
 
+// TestDo_ReturnsLastError checks exhausted retries return the final failure.
 func TestDo_ReturnsLastError(t *testing.T) {
 	wantErr := errors.New("boom")
 
@@ -39,6 +41,7 @@ func TestDo_ReturnsLastError(t *testing.T) {
 	}
 }
 
+// TestDo_StopsWhenShouldRetryReturnsFalse checks retry policy can stop attempts for nontransient errors.
 func TestDo_StopsWhenShouldRetryReturnsFalse(t *testing.T) {
 	wantErr := errors.New("do not retry")
 	attempts := 0
@@ -60,6 +63,7 @@ func TestDo_StopsWhenShouldRetryReturnsFalse(t *testing.T) {
 	}
 }
 
+// TestDo_CallsOnRetry checks retry callbacks observe each scheduled retry.
 func TestDo_CallsOnRetry(t *testing.T) {
 	var calls int
 	var gotDelay time.Duration
@@ -85,6 +89,7 @@ func TestDo_CallsOnRetry(t *testing.T) {
 	}
 }
 
+// TestDo_StopsOnCanceledContext checks cancellation stops further attempts and preserves the context failure.
 func TestDo_StopsOnCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -103,6 +108,7 @@ func TestDo_StopsOnCanceledContext(t *testing.T) {
 	}
 }
 
+// TestSleep_ReturnsFalseWhenContextEnds checks backoff waiting exits promptly when context ends.
 func TestSleep_ReturnsFalseWhenContextEnds(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

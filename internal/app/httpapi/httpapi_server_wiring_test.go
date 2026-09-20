@@ -19,6 +19,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/repository/kvstore/kvstoretest"
 )
 
+// TestBuildServerAppliesEnvironmentHTTPProtection checks environment settings enable the expected HTTP protections on the assembled server.
 func TestBuildServerAppliesEnvironmentHTTPProtection(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -86,6 +87,8 @@ func TestBuildServerAppliesEnvironmentHTTPProtection(t *testing.T) {
 	}
 }
 
+// TestBuildServerEstablishesRequestContextBeforeRateLimitingAndSkipsPreflight
+// checks middleware order and keeps preflight requests outside the rate limit.
 func TestBuildServerEstablishesRequestContextBeforeRateLimitingAndSkipsPreflight(t *testing.T) {
 	wiring := newWiring(config.HTTPAPIConfig{
 		RuntimeConfig: config.RuntimeConfig{AppEnv: "test"},
@@ -131,6 +134,7 @@ func TestBuildServerEstablishesRequestContextBeforeRateLimitingAndSkipsPreflight
 	}
 }
 
+// TestIsLocalAppEnv defines which environment names receive local-only behavior.
 func TestIsLocalAppEnv(t *testing.T) {
 	tests := []struct {
 		name string
@@ -153,6 +157,7 @@ func TestIsLocalAppEnv(t *testing.T) {
 	}
 }
 
+// TestBuildIPExtractor checks trusted proxy settings select the correct client IP for downstream policies.
 func TestBuildIPExtractor(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -193,6 +198,7 @@ func TestBuildIPExtractor(t *testing.T) {
 	}
 }
 
+// TestBuildIPExtractorRejectsInvalidCIDR rejects malformed trusted proxy ranges before the server starts.
 func TestBuildIPExtractorRejectsInvalidCIDR(t *testing.T) {
 	_, err := buildIPExtractor([]string{"not-a-cidr"})
 	if err == nil {

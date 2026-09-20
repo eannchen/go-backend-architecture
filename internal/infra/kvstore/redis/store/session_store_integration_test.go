@@ -12,6 +12,7 @@ import (
 	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 )
 
+// TestSessionStoreIntegration checks session creation, lookup, and deletion against real Redis storage.
 func TestSessionStoreIntegration(t *testing.T) {
 	client := requireRedisTestClient(t)
 

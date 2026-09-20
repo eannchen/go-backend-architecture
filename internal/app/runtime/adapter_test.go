@@ -10,6 +10,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
 )
 
+// TestToObservabilitySeverity checks runtime log levels keep their meaning when mapped to observability severity.
 func TestToObservabilitySeverity(t *testing.T) {
 	tests := []struct {
 		name string
@@ -32,6 +33,7 @@ func TestToObservabilitySeverity(t *testing.T) {
 	}
 }
 
+// TestLogEmitterToLogSink checks emitted structured logs reach the runtime sink with their context intact.
 func TestLogEmitterToLogSink(t *testing.T) {
 	type contextKey string
 	ctx := context.WithValue(context.Background(), contextKey("request"), "request-1")
@@ -59,6 +61,7 @@ func TestLogEmitterToLogSink(t *testing.T) {
 	}
 }
 
+// TestContextFieldsProvider checks context fields are available to logs without changing the caller context.
 func TestContextFieldsProvider(t *testing.T) {
 	tests := []struct {
 		name         string

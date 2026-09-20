@@ -6,6 +6,7 @@ import (
 	"testing"
 )
 
+// TestStep checks step errors retain the operation name and wrapped cause.
 func TestStep(t *testing.T) {
 	base := errors.New("close failed")
 
@@ -21,12 +22,14 @@ func TestStep(t *testing.T) {
 	}
 }
 
+// TestStep_NilError checks a successful step stays nil instead of manufacturing an error.
 func TestStep_NilError(t *testing.T) {
 	if err := Step("shutdown cache", nil); err != nil {
 		t.Fatalf("expected nil, got %v", err)
 	}
 }
 
+// TestJoin checks independent cleanup failures are joined without losing causes.
 func TestJoin(t *testing.T) {
 	base := errors.New("primary failure")
 	cleanup := errors.New("cleanup failure")

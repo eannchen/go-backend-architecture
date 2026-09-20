@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// TestOTPAuthenticationFlow checks the OTP route, usecase, storage, and cookie response work together against real dependencies.
 func TestOTPAuthenticationFlow(t *testing.T) {
 	const email = "auth-flow@example.com"
 

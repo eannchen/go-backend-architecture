@@ -18,10 +18,12 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
 )
 
+// TestAccessLogAcceptsNilLogger checks access logging can be disabled without breaking requests.
 func TestAccessLogAcceptsNilLogger(t *testing.T) {
 	NewAccessLog(nil).Record(context.Background(), requestOutcome{})
 }
 
+// TestRequestMetricsRecordsBoundedRouteAndError checks metrics use bounded route and error values to avoid uncontrolled series growth.
 func TestRequestMetricsRecordsBoundedRouteAndError(t *testing.T) {
 	meter := observabilitytest.NewRecordingMeter()
 	NewRequestMetrics(meter).Record(context.Background(), requestOutcome{
@@ -55,6 +57,7 @@ func TestRequestMetricsRecordsBoundedRouteAndError(t *testing.T) {
 	}
 }
 
+// TestMiddlewareUsesOneOutcomeForTracingMetricsAndAccessLog checks tracing, metrics, and access logs all report the same request outcome.
 func TestMiddlewareUsesOneOutcomeForTracingMetricsAndAccessLog(t *testing.T) {
 	cause := errors.New("validation dependency failed")
 	appErr := apperr.Wrap(cause, apperr.CodeInvalidArgument, "invalid request", apperr.Fields("field", "name"))

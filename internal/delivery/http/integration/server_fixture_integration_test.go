@@ -22,6 +22,7 @@ type serverFixture struct {
 	server http.Handler
 }
 
+// newServerFixture serves requests through the production HTTP routing and middleware setup.
 func newServerFixture(
 	t *testing.T,
 	validatorRegistrars []httpdelivery.ValidationRegistrar,

@@ -45,6 +45,7 @@ func newHandlerForTest(otp *authotptest.OTPAuthenticator, session *sessiontest.S
 	)
 }
 
+// TestHandlerOAuthFlowBindsCallbackToAuthorizeBrowser checks the OAuth callback is bound to the browser that started authorization.
 func TestHandlerOAuthFlowBindsCallbackToAuthorizeBrowser(t *testing.T) {
 	oauth := &authoauthtest.OAuthAuthenticator{
 		AuthorizeFunc: func(context.Context, string) (authoauth.Authorization, error) {
@@ -105,6 +106,7 @@ func TestHandlerOAuthFlowBindsCallbackToAuthorizeBrowser(t *testing.T) {
 	}
 }
 
+// TestHandlerOAuthCallbackRejectsMissingBrowserBinding checks callbacks without browser binding cannot complete authentication.
 func TestHandlerOAuthCallbackRejectsMissingBrowserBinding(t *testing.T) {
 	h := newHandlerForTest(&authotptest.OTPAuthenticator{}, &sessiontest.SessionManager{})
 	e := newEchoForTest(t)
@@ -122,6 +124,7 @@ func TestHandlerOAuthCallbackRejectsMissingBrowserBinding(t *testing.T) {
 	}
 }
 
+// TestHandlerOAuthCallbackRejectsMissingContractParameter checks missing callback parameters fail at the HTTP contract boundary.
 func TestHandlerOAuthCallbackRejectsMissingContractParameter(t *testing.T) {
 	h := newHandlerForTest(&authotptest.OTPAuthenticator{}, &sessiontest.SessionManager{})
 	e := newEchoForTest(t)
@@ -148,6 +151,7 @@ func newEchoForTest(t *testing.T) *echo.Echo {
 	return e
 }
 
+// TestHandlerSendOTP checks OTP requests map accepted input and usecase outcomes to HTTP responses.
 func TestHandlerSendOTP(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -235,6 +239,7 @@ func TestHandlerSendOTP(t *testing.T) {
 	}
 }
 
+// TestHandlerVerifyOTPSetsCookieAndReturnsAuthResponse checks successful OTP verification sets the session cookie and public auth response.
 func TestHandlerVerifyOTPSetsCookieAndReturnsAuthResponse(t *testing.T) {
 	otp := &authotptest.OTPAuthenticator{
 		VerifyCodeFunc: func(_ context.Context, _, _ string) (auth.Identity, error) {
@@ -289,6 +294,7 @@ func TestHandlerVerifyOTPSetsCookieAndReturnsAuthResponse(t *testing.T) {
 	}
 }
 
+// TestHandlerLogoutClearsCookieWithoutIncomingSession checks logout clears the cookie even when the request carries no session.
 func TestHandlerLogoutClearsCookieWithoutIncomingSession(t *testing.T) {
 	otp := &authotptest.OTPAuthenticator{}
 	session := &sessiontest.SessionManager{}
@@ -318,6 +324,7 @@ func TestHandlerLogoutClearsCookieWithoutIncomingSession(t *testing.T) {
 	}
 }
 
+// TestHandlerLogoutLogsRevokeFailureAndClearsCookie checks a revoke failure is logged while the client cookie is still cleared.
 func TestHandlerLogoutLogsRevokeFailureAndClearsCookie(t *testing.T) {
 	wantErr := errors.New("redis unavailable")
 	log := &loggertest.Logger{
@@ -356,6 +363,7 @@ func TestHandlerLogoutLogsRevokeFailureAndClearsCookie(t *testing.T) {
 	}
 }
 
+// TestHandlerMeReturnsSessionFromContext checks the current-user endpoint reads the authenticated session from request context.
 func TestHandlerMeReturnsSessionFromContext(t *testing.T) {
 	otp := &authotptest.OTPAuthenticator{}
 	session := &sessiontest.SessionManager{}
@@ -387,6 +395,7 @@ func TestHandlerMeReturnsSessionFromContext(t *testing.T) {
 	}
 }
 
+// TestHandlerOAuthCallbackInvalidQueryReturnsBadRequest checks malformed callback queries receive a bad-request response.
 func TestHandlerOAuthCallbackInvalidQueryReturnsBadRequest(t *testing.T) {
 	otp := &authotptest.OTPAuthenticator{}
 	session := &sessiontest.SessionManager{}

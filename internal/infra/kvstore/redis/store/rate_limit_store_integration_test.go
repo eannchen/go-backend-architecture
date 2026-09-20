@@ -11,6 +11,7 @@ import (
 	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 )
 
+// TestTokenBucketStoreIntegration checks token-bucket decisions and updates are atomic in Redis.
 func TestTokenBucketStoreIntegration(t *testing.T) {
 	const refillInterval = time.Minute
 
@@ -50,6 +51,7 @@ func TestTokenBucketStoreIntegration(t *testing.T) {
 	}
 }
 
+// TestSlidingWindowStoreTieredIntegration checks tiered sliding-window limits work across real Redis state.
 func TestSlidingWindowStoreTieredIntegration(t *testing.T) {
 	client := requireRedisTestClient(t)
 	key := "integration:" + strconv.FormatInt(time.Now().UnixNano(), 10)

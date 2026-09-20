@@ -10,6 +10,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )
 
+// TestSessionContextRoundTrip checks authenticated session data survives a request-context round trip.
 func TestSessionContextRoundTrip(t *testing.T) {
 	e := echo.New()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/me", nil), httptest.NewRecorder())

@@ -9,6 +9,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
+// TestDBHealthStore_Ping checks database readiness uses a real PostgreSQL connection.
 func TestDBHealthStore_Ping(t *testing.T) {
 	store := NewDBHealthStore(requirePostgresTestPool(t), observability.NoopTracer{})
 
@@ -17,6 +18,7 @@ func TestDBHealthStore_Ping(t *testing.T) {
 	}
 }
 
+// TestDBHealthStore_GetServerStatus checks server status is read and mapped from the real database.
 func TestDBHealthStore_GetServerStatus(t *testing.T) {
 	store := NewDBHealthStore(requirePostgresTestPool(t), observability.NoopTracer{})
 

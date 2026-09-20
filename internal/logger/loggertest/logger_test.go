@@ -8,6 +8,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 )
 
+// TestLoggerWarn_RecordsConfiguredCall checks the test logger records warning messages, errors, and fields for assertions.
 func TestLoggerWarn_RecordsConfiguredCall(t *testing.T) {
 	warned := false
 	log := &Logger{
@@ -29,6 +30,7 @@ func TestLoggerWarn_RecordsConfiguredCall(t *testing.T) {
 	}
 }
 
+// TestLoggerWarn_PanicsWhenUnconfigured checks an unconfigured warning fails loudly instead of hiding a missing test setup.
 func TestLoggerWarn_PanicsWhenUnconfigured(t *testing.T) {
 	defer func() {
 		if recover() == nil {
@@ -39,6 +41,7 @@ func TestLoggerWarn_PanicsWhenUnconfigured(t *testing.T) {
 	new(Logger).Warn(context.Background(), "unexpected")
 }
 
+// TestLoggerWarn_RecordsConcurrentCalls checks concurrent warnings are recorded safely for multithreaded tests.
 func TestLoggerWarn_RecordsConcurrentCalls(t *testing.T) {
 	log := &Logger{
 		WarnFunc: func(context.Context, string, ...logger.Fields) {},

@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
+// TestStartSSEWritesEventAndCommentFrames checks SSE events and comments use the required wire framing.
 func TestStartSSEWritesEventAndCommentFrames(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/stream", nil)
@@ -42,6 +43,7 @@ func TestStartSSEWritesEventAndCommentFrames(t *testing.T) {
 	}
 }
 
+// TestStartSSERejectsNonFlushingWriter checks streaming fails clearly when the writer cannot flush.
 func TestStartSSERejectsNonFlushingWriter(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/stream", nil)
@@ -56,6 +58,7 @@ func TestStartSSERejectsNonFlushingWriter(t *testing.T) {
 	}
 }
 
+// TestStartSSESupportsWrappedFlusher checks a wrapped response writer still exposes flushing to the stream.
 func TestStartSSESupportsWrappedFlusher(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/stream", nil)
@@ -69,6 +72,7 @@ func TestStartSSESupportsWrappedFlusher(t *testing.T) {
 	}
 }
 
+// TestSSEStreamEvent_ReturnsMarshalError checks event serialization errors reach the caller.
 func TestSSEStreamEvent_ReturnsMarshalError(t *testing.T) {
 	stream := &SSEStream{w: httptest.NewRecorder(), flusher: httptest.NewRecorder()}
 
@@ -79,6 +83,7 @@ func TestSSEStreamEvent_ReturnsMarshalError(t *testing.T) {
 	}
 }
 
+// TestSSEStreamWrite_ReturnsWriterError checks write failures stop the stream and reach the caller.
 func TestSSEStreamWrite_ReturnsWriterError(t *testing.T) {
 	wantErr := errors.New("write failed")
 	w := &failingFlushingWriter{header: make(http.Header), err: wantErr}

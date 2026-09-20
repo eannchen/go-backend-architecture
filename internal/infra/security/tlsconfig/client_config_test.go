@@ -9,6 +9,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/infra/security/tlsconfig/tlsconfigtest"
 )
 
+// TestLoadClientLoadsTrustAndIdentity checks client trust roots and identity certificates load into TLS settings.
 func TestLoadClientLoadsTrustAndIdentity(t *testing.T) {
 	authority := tlsconfigtest.NewCertificateAuthority(t)
 	certificateFile, privateKeyFile := tlsconfigtest.WriteCertificateFiles(t, "client", authority.IssueClientCertificate(t, "diagnostics-client"))
@@ -27,6 +28,7 @@ func TestLoadClientLoadsTrustAndIdentity(t *testing.T) {
 	}
 }
 
+// TestLoadClientRejectsIncompleteIdentity checks a partial client identity is rejected instead of silently falling back.
 func TestLoadClientRejectsIncompleteIdentity(t *testing.T) {
 	_, err := LoadClient(ClientConfig{ClientCertFile: "/tmp/client.pem"})
 	if err == nil || !strings.Contains(err.Error(), "configured together") {
@@ -34,6 +36,7 @@ func TestLoadClientRejectsIncompleteIdentity(t *testing.T) {
 	}
 }
 
+// TestLoadClientRejectsInvalidRootCA checks malformed root certificates fail before dialing.
 func TestLoadClientRejectsInvalidRootCA(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "invalid-ca.pem")
 	if err := os.WriteFile(path, []byte("not a certificate"), 0o600); err != nil {

@@ -24,6 +24,7 @@ func setValidHTTPAPIEnv(t *testing.T) {
 	t.Setenv("RATE_LIMIT_GLOBAL_IP_REFILL_INTERVAL", "250ms")
 }
 
+// TestLoadHTTPAPIReadsLimitsAndRequestIDPolicy checks HTTP limits and request ID policy load from profile settings.
 func TestLoadHTTPAPIReadsLimitsAndRequestIDPolicy(t *testing.T) {
 	setValidHTTPAPIEnv(t)
 	t.Setenv("HTTP_MAX_REQUEST_BODY_BYTES", "2097152")
@@ -44,6 +45,7 @@ func TestLoadHTTPAPIReadsLimitsAndRequestIDPolicy(t *testing.T) {
 	}
 }
 
+// TestLoadHTTPAPIRejectsInvalidProfileSettings checks invalid HTTP settings fail before server startup.
 func TestLoadHTTPAPIRejectsInvalidProfileSettings(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -74,6 +76,7 @@ func TestLoadHTTPAPIRejectsInvalidProfileSettings(t *testing.T) {
 	}
 }
 
+// TestLoadHTTPAPIRequiresSecureCookiesOutsideLocal checks nonlocal deployments cannot use insecure session cookies.
 func TestLoadHTTPAPIRequiresSecureCookiesOutsideLocal(t *testing.T) {
 	setValidHTTPAPIEnv(t)
 	t.Setenv("APP_ENV", "production")

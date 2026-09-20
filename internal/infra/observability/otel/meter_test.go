@@ -13,6 +13,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
+// TestMetricScopeName checks metric instruments share the intended instrumentation scope.
 func TestMetricScopeName(t *testing.T) {
 	got := metricScopeName("accounts-api")
 	if got != "accounts-api/metrics" {
@@ -20,6 +21,7 @@ func TestMetricScopeName(t *testing.T) {
 	}
 }
 
+// TestMeterCounter_CachesByName checks repeated counter lookup reuses one instrument.
 func TestMeterCounter_CachesByName(t *testing.T) {
 	m := NewMeter(noop.NewMeterProvider(), "svc")
 
@@ -30,6 +32,7 @@ func TestMeterCounter_CachesByName(t *testing.T) {
 	}
 }
 
+// TestMeterInstruments_CacheByName checks repeated instrument lookup reuses the matching instrument.
 func TestMeterInstruments_CacheByName(t *testing.T) {
 	m := NewMeter(noop.NewMeterProvider(), "svc")
 
@@ -41,6 +44,7 @@ func TestMeterInstruments_CacheByName(t *testing.T) {
 	}
 }
 
+// TestMeterInstruments_RecordValuesAttributesAndOptions checks recorded values, attributes, and options reach the underlying meter.
 func TestMeterInstruments_RecordValuesAttributesAndOptions(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
@@ -82,6 +86,7 @@ func TestMeterInstruments_RecordValuesAttributesAndOptions(t *testing.T) {
 	}
 }
 
+// TestMeterCounter_CachesByNameUnderConcurrency checks concurrent counter lookup does not create duplicate instruments.
 func TestMeterCounter_CachesByNameUnderConcurrency(t *testing.T) {
 	m := NewMeter(noop.NewMeterProvider(), "svc")
 

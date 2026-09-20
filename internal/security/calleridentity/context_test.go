@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestIdentityRoundTripsThroughContext checks verified caller identity can be passed through context safely.
 func TestIdentityRoundTripsThroughContext(t *testing.T) {
 	want := Identity{Subject: "spiffe://example.internal/service/catalog", AuthenticationType: AuthenticationTypeMTLS}
 
@@ -14,6 +15,7 @@ func TestIdentityRoundTripsThroughContext(t *testing.T) {
 	}
 }
 
+// TestFromContextReportsMissingIdentity checks absent identity is reported explicitly to authorization callers.
 func TestFromContextReportsMissingIdentity(t *testing.T) {
 	if got, ok := FromContext(context.Background()); ok {
 		t.Fatalf("FromContext() = (%+v, true), want no identity", got)

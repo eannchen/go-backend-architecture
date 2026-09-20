@@ -19,6 +19,7 @@ const (
 	testResponseRequestIDMetadataKey = "response-id"
 )
 
+// TestUnaryPropagatesRequestIDAndDeadline checks valid request metadata and server timeouts reach unary handlers.
 func TestUnaryPropagatesRequestIDAndDeadline(t *testing.T) {
 	interceptor := newTestInterceptor(t, conventionalConfig(time.Minute)).Unary()
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(testRequestIDMetadataKey, "request-01"))
@@ -42,6 +43,7 @@ func TestUnaryPropagatesRequestIDAndDeadline(t *testing.T) {
 	}
 }
 
+// TestUnaryPreservesEarlierClientDeadline checks a shorter client deadline is never extended by server policy.
 func TestUnaryPreservesEarlierClientDeadline(t *testing.T) {
 	clientDeadline := 20 * time.Millisecond
 	ctx, cancel := context.WithTimeout(context.Background(), clientDeadline)
@@ -60,6 +62,7 @@ func TestUnaryPreservesEarlierClientDeadline(t *testing.T) {
 	}
 }
 
+// TestUnaryDoesNotGenerateRequestIDWhenMissing checks a missing request ID stays absent rather than inventing caller metadata.
 func TestUnaryDoesNotGenerateRequestIDWhenMissing(t *testing.T) {
 	transport := &recordingServerTransportStream{}
 	ctx := googlegrpc.NewContextWithServerTransportStream(context.Background(), transport)
@@ -77,6 +80,7 @@ func TestUnaryDoesNotGenerateRequestIDWhenMissing(t *testing.T) {
 	}
 }
 
+// TestUnaryIgnoresInvalidOrRepeatedRequestIDByDefault checks default policy ignores unusable request IDs while still serving the call.
 func TestUnaryIgnoresInvalidOrRepeatedRequestIDByDefault(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -107,6 +111,7 @@ func TestUnaryIgnoresInvalidOrRepeatedRequestIDByDefault(t *testing.T) {
 	}
 }
 
+// TestUnaryRejectsInvalidRequestIDWhenConfigured checks strict policy rejects invalid request IDs before invoking the handler.
 func TestUnaryRejectsInvalidRequestIDWhenConfigured(t *testing.T) {
 	config := conventionalConfig(0)
 	config.RequestID.RejectInvalid = true
@@ -125,6 +130,7 @@ func TestUnaryRejectsInvalidRequestIDWhenConfigured(t *testing.T) {
 	}
 }
 
+// TestNewRejectsInvalidMetadataKey checks invalid metadata keys fail during construction rather than at request time.
 func TestNewRejectsInvalidMetadataKey(t *testing.T) {
 	_, err := New(Config{RequestID: RequestIDConfig{IncomingMetadataKey: "request id"}}, nil)
 	if err == nil {
@@ -132,6 +138,7 @@ func TestNewRejectsInvalidMetadataKey(t *testing.T) {
 	}
 }
 
+// TestUnaryReturnsHandlerErrorUnchanged checks ordinary handler failures pass through without interception changes.
 func TestUnaryReturnsHandlerErrorUnchanged(t *testing.T) {
 	handlerErr := errors.Join(errors.New("operation timed out"), context.DeadlineExceeded)
 	ctx := googlegrpc.NewContextWithServerTransportStream(context.Background(), &recordingServerTransportStream{})
@@ -143,6 +150,7 @@ func TestUnaryReturnsHandlerErrorUnchanged(t *testing.T) {
 	}
 }
 
+// TestUnaryTimeoutCancelsHandlerAndReturnsItsError checks timeout cancellation reaches the handler and its error is returned.
 func TestUnaryTimeoutCancelsHandlerAndReturnsItsError(t *testing.T) {
 	ctx := googlegrpc.NewContextWithServerTransportStream(context.Background(), &recordingServerTransportStream{})
 	_, err := newTestInterceptor(t, Config{Timeout: time.Millisecond}).Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(ctx context.Context, _ any) (any, error) {
@@ -154,6 +162,7 @@ func TestUnaryTimeoutCancelsHandlerAndReturnsItsError(t *testing.T) {
 	}
 }
 
+// TestStreamPropagatesRequestIDWithoutAddingDeadline checks stream handlers receive request ID without imposing a unary deadline.
 func TestStreamPropagatesRequestIDWithoutAddingDeadline(t *testing.T) {
 	base := &testServerStream{ctx: metadata.NewIncomingContext(context.Background(), metadata.Pairs(testRequestIDMetadataKey, "stream-01"))}
 	err := newTestInterceptor(t, conventionalConfig(time.Millisecond)).Stream()(nil, base, &googlegrpc.StreamServerInfo{}, func(_ any, stream googlegrpc.ServerStream) error {
@@ -173,6 +182,7 @@ func TestStreamPropagatesRequestIDWithoutAddingDeadline(t *testing.T) {
 	}
 }
 
+// TestStreamReturnsHandlerErrorUnchanged checks stream handler failures pass through unchanged.
 func TestStreamReturnsHandlerErrorUnchanged(t *testing.T) {
 	handlerErr := errors.New("service mapped error")
 	base := &testServerStream{ctx: context.Background()}

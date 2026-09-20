@@ -24,6 +24,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 )
 
+// TestServerRegistersAndServesServices checks registered services can actually handle calls on the assembled server.
 func TestServerRegistersAndServesServices(t *testing.T) {
 	standardHealth := grpcstandardhealth.NewServer()
 	standardHealth.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
@@ -77,6 +78,7 @@ func TestServerRegistersAndServesServices(t *testing.T) {
 	}
 }
 
+// TestServerRegistersReflectionWhenEnabled checks reflection is exposed only when enabled.
 func TestServerRegistersReflectionWhenEnabled(t *testing.T) {
 	listener := bufconn.Listen(1 << 20)
 	server := newServer(
@@ -102,6 +104,7 @@ func TestServerRegistersReflectionWhenEnabled(t *testing.T) {
 	}
 }
 
+// TestServerForcesStopWhenGracefulShutdownExpires checks a stuck graceful stop is bounded by context and ultimately forces shutdown.
 func TestServerForcesStopWhenGracefulShutdownExpires(t *testing.T) {
 	standardHealth := grpcstandardhealth.NewServer()
 	standardHealth.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
@@ -159,6 +162,7 @@ func TestServerForcesStopWhenGracefulShutdownExpires(t *testing.T) {
 	}
 }
 
+// TestNewServerRejectsNegativeMessageLimits checks negative message size limits fail fast.
 func TestNewServerRejectsNegativeMessageLimits(t *testing.T) {
 	tests := []ServerConfig{
 		{Address: "127.0.0.1:0", MaxRecvMessageBytes: -1},
@@ -171,6 +175,7 @@ func TestNewServerRejectsNegativeMessageLimits(t *testing.T) {
 	}
 }
 
+// TestServerEnforcesMessageLimits checks configured message limits are enforced on real calls.
 func TestServerEnforcesMessageLimits(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -241,6 +246,7 @@ func TestServerEnforcesMessageLimits(t *testing.T) {
 	}
 }
 
+// TestServerTLSAcceptsTrustedRootAndRejectsUntrustedRoot checks server TLS trusts the configured root and rejects other roots.
 func TestServerTLSAcceptsTrustedRootAndRejectsUntrustedRoot(t *testing.T) {
 	authority := tlsconfigtest.NewCertificateAuthority(t)
 	listener := startSecureHealthServer(t, &tls.Config{
@@ -267,6 +273,7 @@ func TestServerTLSAcceptsTrustedRootAndRejectsUntrustedRoot(t *testing.T) {
 	})
 }
 
+// TestServerMTLSRequiresTrustedClientCertificate checks mutual TLS requires a trusted client certificate.
 func TestServerMTLSRequiresTrustedClientCertificate(t *testing.T) {
 	authority := tlsconfigtest.NewCertificateAuthority(t)
 	listener := startSecureHealthServer(t, &tls.Config{

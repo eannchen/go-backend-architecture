@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
+// TestErrorOutcomeReadWrite checks an error outcome stored on a request can be recovered by later middleware.
 func TestErrorOutcomeReadWrite(t *testing.T) {
 	e := echo.New()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())
@@ -36,6 +37,7 @@ func TestErrorOutcomeReadWrite(t *testing.T) {
 	}
 }
 
+// TestMissingErrorOutcomeReturnsFalse checks a request with no stored outcome is distinguishable from an empty outcome.
 func TestMissingErrorOutcomeReturnsFalse(t *testing.T) {
 	e := echo.New()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), httptest.NewRecorder())

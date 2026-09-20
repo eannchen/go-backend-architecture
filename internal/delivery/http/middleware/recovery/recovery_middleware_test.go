@@ -16,6 +16,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 )
 
+// TestMiddlewareRecoversPanicWithStandardInternalResponse checks a handler panic becomes the standard internal-error response.
 func TestMiddlewareRecoversPanicWithStandardInternalResponse(t *testing.T) {
 	log := &loggertest.Logger{ErrorFunc: func(context.Context, string, error, ...logger.Fields) {}}
 	e := echo.New()
@@ -53,6 +54,7 @@ func TestMiddlewareRecoversPanicWithStandardInternalResponse(t *testing.T) {
 	assertPanicLog(t, log)
 }
 
+// TestMiddlewarePreservesPanicErrorCause checks recovery retains the panic error for diagnostics.
 func TestMiddlewarePreservesPanicErrorCause(t *testing.T) {
 	cause := errors.New("repository panic")
 	e := echo.New()
@@ -69,6 +71,7 @@ func TestMiddlewarePreservesPanicErrorCause(t *testing.T) {
 	}
 }
 
+// TestMiddlewareDoesNotOverwriteCommittedResponse checks recovery leaves an already committed response intact.
 func TestMiddlewareDoesNotOverwriteCommittedResponse(t *testing.T) {
 	log := &loggertest.Logger{ErrorFunc: func(context.Context, string, error, ...logger.Fields) {}}
 	e := echo.New()
@@ -95,6 +98,7 @@ func TestMiddlewareDoesNotOverwriteCommittedResponse(t *testing.T) {
 	assertPanicLog(t, log)
 }
 
+// TestMiddlewarePreservesAbortHandlerPanic checks an abort-handler panic keeps its intended control-flow semantics.
 func TestMiddlewarePreservesAbortHandlerPanic(t *testing.T) {
 	e := echo.New()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/abort", nil), httptest.NewRecorder())
@@ -110,6 +114,7 @@ func TestMiddlewarePreservesAbortHandlerPanic(t *testing.T) {
 	_ = handler(c)
 }
 
+// TestMiddlewareReturnsOrdinaryHandlerErrorUnchanged checks ordinary handler errors pass through without being treated as panics.
 func TestMiddlewareReturnsOrdinaryHandlerErrorUnchanged(t *testing.T) {
 	handlerErr := errors.New("mapped handler error")
 	e := echo.New()

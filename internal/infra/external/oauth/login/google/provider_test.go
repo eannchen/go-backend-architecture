@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestParseUserInfo checks provider JSON maps to the user identity fields expected by the application.
 func TestParseUserInfo(t *testing.T) {
 	tests := []struct {
 		name    string

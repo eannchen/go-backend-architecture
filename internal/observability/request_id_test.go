@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestIsValidRequestID defines which request ID shapes are accepted before propagation.
 func TestIsValidRequestID(t *testing.T) {
 	tests := []struct {
 		name  string

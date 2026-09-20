@@ -27,6 +27,7 @@ func TestMain(m *testing.M) {
 	os.Exit(runIntegrationTests(m))
 }
 
+// runIntegrationTests shares container startup across tests and closes every dependency after the suite.
 func runIntegrationTests(m *testing.M) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -71,6 +72,7 @@ func runIntegrationTests(m *testing.M) int {
 	return exitCode
 }
 
+// verifyTestDataCleanup makes leaked rows or keys fail the suite, even when individual assertions pass.
 func verifyTestDataCleanup(exitCode int) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

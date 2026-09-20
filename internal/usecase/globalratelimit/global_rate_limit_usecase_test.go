@@ -12,6 +12,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/repository/kvstore/kvstoretest"
 )
 
+// TestAllowIP checks IP rate-limit decisions and dependency failures map to usecase outcomes.
 func TestAllowIP(t *testing.T) {
 	tests := []struct {
 		name, ip string

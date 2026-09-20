@@ -47,6 +47,7 @@ func (s *recordingStandardHealthServer) shutdownCount() int {
 	return s.shutdownCalls
 }
 
+// TestReporterRefreshesOverallAndServiceStatus checks usecase results update both overall and per-service gRPC health status.
 func TestReporterRefreshesOverallAndServiceStatus(t *testing.T) {
 	readinessErr := error(nil)
 	uc := &healthtest.Usecase{
@@ -77,6 +78,7 @@ func TestReporterRefreshesOverallAndServiceStatus(t *testing.T) {
 	assertStatuses(t, server.serviceStatuses("diagnostics.v1.DiagnosticsService"), healthpb.HealthCheckResponse_NOT_SERVING, healthpb.HealthCheckResponse_SERVING, healthpb.HealthCheckResponse_NOT_SERVING)
 }
 
+// TestReporterStartsImmediatelyAndRefreshesPeriodically checks the reporter publishes an initial state and refreshes it on schedule.
 func TestReporterStartsImmediatelyAndRefreshesPeriodically(t *testing.T) {
 	checkCalls := make(chan struct{}, 2)
 	uc := &healthtest.Usecase{
@@ -110,6 +112,7 @@ func TestReporterStartsImmediatelyAndRefreshesPeriodically(t *testing.T) {
 	}
 }
 
+// TestReporterShutdownHonorsContextWhileRefreshIsBlocked checks shutdown respects its context even when a refresh is blocked.
 func TestReporterShutdownHonorsContextWhileRefreshIsBlocked(t *testing.T) {
 	checkStarted := make(chan struct{})
 	releaseCheck := make(chan struct{})
@@ -142,6 +145,7 @@ func TestReporterShutdownHonorsContextWhileRefreshIsBlocked(t *testing.T) {
 	}
 }
 
+// TestNewReporterRejectsInvalidRefreshInterval checks invalid polling intervals fail at construction.
 func TestNewReporterRejectsInvalidRefreshInterval(t *testing.T) {
 	_, err := NewReporter(
 		ReporterConfig{},

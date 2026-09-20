@@ -7,6 +7,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 )
 
+// TestSetup_ExportDisabledKeepsTraceContextActive checks disabled export still leaves trace context propagation available.
 func TestSetup_ExportDisabledKeepsTraceContextActive(t *testing.T) {
 	runtime, err := Setup(context.Background(), config.OTelConfig{
 		ExportEnabled: false,

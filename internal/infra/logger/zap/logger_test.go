@@ -20,6 +20,7 @@ type sinkCall struct {
 	fields   logger.Fields
 }
 
+// TestNew_RejectsInvalidLevels checks unsupported log levels fail during logger construction.
 func TestNew_RejectsInvalidLevels(t *testing.T) {
 	tests := []struct {
 		name string
@@ -38,6 +39,7 @@ func TestNew_RejectsInvalidLevels(t *testing.T) {
 	}
 }
 
+// TestLoggerSink_FiltersAndMergesFields checks level filtering and merged fields produce the expected structured log.
 func TestLoggerSink_FiltersAndMergesFields(t *testing.T) {
 	log, _ := newObservedLogger(zapcore.WarnLevel)
 	log.SetContextFieldsProvider(func(context.Context) logger.Fields {
@@ -66,6 +68,7 @@ func TestLoggerSink_FiltersAndMergesFields(t *testing.T) {
 	}
 }
 
+// TestLoggerError_SendsErrorAndApplicationCaller checks error logs include the error and the application call site.
 func TestLoggerError_SendsErrorAndApplicationCaller(t *testing.T) {
 	log, observed := newObservedLogger(zapcore.DebugLevel)
 	wantErr := errors.New("database unavailable")

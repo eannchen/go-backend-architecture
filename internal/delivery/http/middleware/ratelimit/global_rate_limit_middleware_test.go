@@ -15,6 +15,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit/globalratelimittest"
 )
 
+// TestGlobalRateLimitMiddleware checks rate-limit decisions become the expected HTTP response and downstream calls.
 func TestGlobalRateLimitMiddleware(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -89,6 +90,7 @@ func TestGlobalRateLimitMiddleware(t *testing.T) {
 	}
 }
 
+// TestRetryAfterSeconds checks retry delays are rounded into valid Retry-After seconds.
 func TestRetryAfterSeconds(t *testing.T) {
 	tests := []struct {
 		duration time.Duration

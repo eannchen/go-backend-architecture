@@ -24,6 +24,7 @@ func setValidGRPCAPIEnv(t *testing.T) {
 	t.Setenv("GRPC_SERVER_TLS_REQUIRE_CLIENT_CERT", "false")
 }
 
+// TestLoadGRPCAPIReadsLimitsRequestIDAndTLS checks message limits, request ID policy, and TLS settings load into typed gRPC configuration.
 func TestLoadGRPCAPIReadsLimitsRequestIDAndTLS(t *testing.T) {
 	setValidGRPCAPIEnv(t)
 	t.Setenv("GRPC_REQUEST_TIMEOUT", "3s")
@@ -53,6 +54,7 @@ func TestLoadGRPCAPIReadsLimitsRequestIDAndTLS(t *testing.T) {
 	}
 }
 
+// TestLoadGRPCAPIRejectsInvalidProfileSettings checks invalid gRPC profile settings fail during configuration loading.
 func TestLoadGRPCAPIRejectsInvalidProfileSettings(t *testing.T) {
 	tests := []struct {
 		name    string

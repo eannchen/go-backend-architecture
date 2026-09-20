@@ -15,6 +15,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )
 
+// TestServerSessionManagerCreate checks session creation stores the session and maps dependency failures.
 func TestServerSessionManagerCreate(t *testing.T) {
 	t.Parallel()
 
@@ -80,6 +81,7 @@ func TestServerSessionManagerCreate(t *testing.T) {
 	}
 }
 
+// TestServerSessionManagerValidate checks validation accepts usable sessions and rejects missing or expired ones.
 func TestServerSessionManagerValidate(t *testing.T) {
 	t.Parallel()
 
@@ -168,6 +170,8 @@ func TestServerSessionManagerValidate(t *testing.T) {
 	}
 }
 
+// TestServerSessionManagerValidateLogsExpiredSessionCleanupFailure confirms that
+// failed cleanup is visible without exposing the token or accepting an expired session.
 func TestServerSessionManagerValidateLogsExpiredSessionCleanupFailure(t *testing.T) {
 	token := "private-session-token"
 	deleteErr := errors.New("redis unavailable")
@@ -206,6 +210,7 @@ func TestServerSessionManagerValidateLogsExpiredSessionCleanupFailure(t *testing
 	}
 }
 
+// TestServerSessionManagerRevoke checks revocation handles existing and missing sessions with the intended error mapping.
 func TestServerSessionManagerRevoke(t *testing.T) {
 	t.Parallel()
 

@@ -11,6 +11,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 )
 
+// TestResponderMapsApplicationErrors checks application errors map to the intended gRPC status and public details.
 func TestResponderMapsApplicationErrors(t *testing.T) {
 	tests := []struct {
 		name string
@@ -49,6 +50,7 @@ func TestResponderMapsApplicationErrors(t *testing.T) {
 	}
 }
 
+// TestResponderMapsContextErrors checks canceled and expired contexts map to the corresponding transport statuses.
 func TestResponderMapsContextErrors(t *testing.T) {
 	tests := []struct {
 		name string
@@ -74,6 +76,7 @@ func TestResponderMapsContextErrors(t *testing.T) {
 	}
 }
 
+// TestResponderHidesUnknownError checks unexpected failures do not leak internal details to clients.
 func TestResponderHidesUnknownError(t *testing.T) {
 	cause := errors.New("database password leaked")
 
@@ -90,6 +93,7 @@ func TestResponderHidesUnknownError(t *testing.T) {
 	}
 }
 
+// TestResponderErrorUsesExplicitTransportStatus checks an explicit transport status takes precedence when responding.
 func TestResponderErrorUsesExplicitTransportStatus(t *testing.T) {
 	cause := errors.New("invalid enum")
 
@@ -106,6 +110,7 @@ func TestResponderErrorUsesExplicitTransportStatus(t *testing.T) {
 	}
 }
 
+// TestResponseErrorClassifiesClientStatuses checks status classification distinguishes client failures for reporting.
 func TestResponseErrorClassifiesClientStatuses(t *testing.T) {
 	tests := []struct {
 		code codes.Code

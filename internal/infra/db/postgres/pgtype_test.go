@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// TestTimeToDate_UsesOriginalCalendarDate checks date conversion preserves the original calendar day across time zones.
 func TestTimeToDate_UsesOriginalCalendarDate(t *testing.T) {
 	loc, err := time.LoadLocation("Asia/Taipei")
 	if err != nil {

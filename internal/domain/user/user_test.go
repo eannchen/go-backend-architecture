@@ -2,6 +2,7 @@ package user
 
 import "testing"
 
+// TestUserCanAuthenticate checks the user authentication invariant for supported account states.
 func TestUserCanAuthenticate(t *testing.T) {
 	tests := []struct {
 		name   string

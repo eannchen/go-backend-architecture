@@ -14,6 +14,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 )
 
+// TestResponderAppErrorUsesInternalForNonAppError checks unknown errors become safe internal responses.
 func TestResponderAppErrorUsesInternalForNonAppError(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
@@ -40,6 +41,7 @@ func TestResponderAppErrorUsesInternalForNonAppError(t *testing.T) {
 	}
 }
 
+// TestResponderAppErrorCopiesAppErrorFields checks public application error fields survive response mapping.
 func TestResponderAppErrorCopiesAppErrorFields(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
@@ -79,6 +81,7 @@ func TestResponderAppErrorCopiesAppErrorFields(t *testing.T) {
 	}
 }
 
+// TestResponderAppErrorPrioritizesContextErrors checks context failures take precedence over an application error during response mapping.
 func TestResponderAppErrorPrioritizesContextErrors(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -141,6 +144,7 @@ func TestResponderAppErrorPrioritizesContextErrors(t *testing.T) {
 	}
 }
 
+// TestResponderAppErrorWithPayloadDoesNotReturnPayloadAfterDeadline checks an expired deadline cannot return a success payload.
 func TestResponderAppErrorWithPayloadDoesNotReturnPayloadAfterDeadline(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
@@ -163,6 +167,7 @@ func TestResponderAppErrorWithPayloadDoesNotReturnPayloadAfterDeadline(t *testin
 	}
 }
 
+// TestResponderErrorWritesBody checks responder errors serialize the expected status and body.
 func TestResponderErrorWritesBody(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
@@ -191,6 +196,7 @@ func TestResponderErrorWritesBody(t *testing.T) {
 	}
 }
 
+// TestResponderInvalidQueryStoresInternalDetailsOnly checks invalid-query diagnostics stay internal while clients get a safe response.
 func TestResponderInvalidQueryStoresInternalDetailsOnly(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
@@ -221,6 +227,7 @@ func TestResponderInvalidQueryStoresInternalDetailsOnly(t *testing.T) {
 	}
 }
 
+// TestCodeToHTTPStatus checks application codes select their documented HTTP statuses.
 func TestCodeToHTTPStatus(t *testing.T) {
 	tests := []struct {
 		code Code
@@ -249,6 +256,7 @@ func TestCodeToHTTPStatus(t *testing.T) {
 	}
 }
 
+// TestResponderAppErrorWithPayload_UsesErrorStatusAndMetadata checks error responses with payloads retain the error status and metadata.
 func TestResponderAppErrorWithPayload_UsesErrorStatusAndMetadata(t *testing.T) {
 	tests := []struct {
 		name        string

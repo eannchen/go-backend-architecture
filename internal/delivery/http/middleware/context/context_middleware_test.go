@@ -12,6 +12,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
+// TestRequestContextMiddlewareTimeoutSkipper checks selected routes can bypass request timeout policy.
 func TestRequestContextMiddlewareTimeoutSkipper(t *testing.T) {
 	const streamPath = "/stream"
 
@@ -69,6 +70,7 @@ func TestRequestContextMiddlewareTimeoutSkipper(t *testing.T) {
 	}
 }
 
+// TestRequestContextMiddlewareHandlesInvalidRequestIDByPolicy checks invalid request IDs follow the configured accept-or-reject policy.
 func TestRequestContextMiddlewareHandlesInvalidRequestIDByPolicy(t *testing.T) {
 	tests := []string{
 		"contains spaces",
@@ -115,6 +117,7 @@ func TestRequestContextMiddlewareHandlesInvalidRequestIDByPolicy(t *testing.T) {
 	}
 }
 
+// TestRequestContextMiddlewareEmptyKeysDisableRequestID checks empty header keys disable request ID extraction.
 func TestRequestContextMiddlewareEmptyKeysDisableRequestID(t *testing.T) {
 	mw := newTestMiddleware(t, Config{})
 	e := echo.New()
@@ -136,6 +139,7 @@ func TestRequestContextMiddlewareEmptyKeysDisableRequestID(t *testing.T) {
 	}
 }
 
+// TestNewRequestContextMiddlewareRejectsInvalidHeaderKey checks invalid header configuration fails before serving traffic.
 func TestNewRequestContextMiddlewareRejectsInvalidHeaderKey(t *testing.T) {
 	_, err := NewRequestContextMiddleware(Config{RequestID: RequestIDConfig{IncomingHeaderKey: "request id"}}, nil)
 	if err == nil {

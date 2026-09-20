@@ -24,6 +24,8 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
 
+// TestBuildServerWiresServicesRequestContextAndRecovery checks the assembled
+// server connects services, request context, and panic recovery.
 func TestBuildServerWiresServicesRequestContextAndRecovery(t *testing.T) {
 	const requestIDKey = "correlation-id"
 
@@ -123,6 +125,7 @@ func TestBuildServerWiresServicesRequestContextAndRecovery(t *testing.T) {
 	<-requestContexts
 }
 
+// TestBuildServerPublishesVerifiedMTLSCallerIdentity checks verified mutual TLS identity reaches the service through the configured interceptor chain.
 func TestBuildServerPublishesVerifiedMTLSCallerIdentity(t *testing.T) {
 	const subject = "spiffe://example.internal/service/catalog"
 

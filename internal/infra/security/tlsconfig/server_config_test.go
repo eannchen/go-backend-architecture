@@ -10,6 +10,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/infra/security/tlsconfig/tlsconfigtest"
 )
 
+// TestLoadServerConfiguresTLSAndRequiredClientCertificates checks server TLS can require trusted client certificates.
 func TestLoadServerConfiguresTLSAndRequiredClientCertificates(t *testing.T) {
 	authority := tlsconfigtest.NewCertificateAuthority(t)
 	serverCertificate := authority.IssueServerCertificate(t, "localhost")
@@ -35,6 +36,7 @@ func TestLoadServerConfiguresTLSAndRequiredClientCertificates(t *testing.T) {
 	}
 }
 
+// TestLoadServerVerifiesOptionalClientCertificates checks optional client certificates are verified when presented.
 func TestLoadServerVerifiesOptionalClientCertificates(t *testing.T) {
 	authority := tlsconfigtest.NewCertificateAuthority(t)
 	certificateFile, privateKeyFile := tlsconfigtest.WriteCertificateFiles(t, "server", authority.IssueServerCertificate(t, "localhost"))
@@ -52,6 +54,7 @@ func TestLoadServerVerifiesOptionalClientCertificates(t *testing.T) {
 	}
 }
 
+// TestLoadServerRejectsInvalidFiles checks missing or malformed certificate files fail during setup.
 func TestLoadServerRejectsInvalidFiles(t *testing.T) {
 	authority := tlsconfigtest.NewCertificateAuthority(t)
 	certificateFile, privateKeyFile := tlsconfigtest.WriteCertificateFiles(t, "server", authority.IssueServerCertificate(t, "localhost"))

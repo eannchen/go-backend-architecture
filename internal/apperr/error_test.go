@@ -8,6 +8,7 @@ import (
 	"testing"
 )
 
+// TestDetailsString checks structured details have a stable string form for reporting.
 func TestDetailsString(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -27,6 +28,7 @@ func TestDetailsString(t *testing.T) {
 	}
 }
 
+// TestDetailsStringFallsBackForUnsupportedJSONValue checks unsupported detail values still produce a usable string instead of breaking error reporting.
 func TestDetailsStringFallsBackForUnsupportedJSONValue(t *testing.T) {
 	got := Details{"callback": func() {}}.String()
 	if !strings.Contains(got, "callback") {
@@ -34,6 +36,7 @@ func TestDetailsStringFallsBackForUnsupportedJSONValue(t *testing.T) {
 	}
 }
 
+// TestErrorIsClientError checks the client-error classification used by transport responders.
 func TestErrorIsClientError(t *testing.T) {
 	tests := []struct {
 		name string
@@ -60,6 +63,7 @@ func TestErrorIsClientError(t *testing.T) {
 	}
 }
 
+// TestErrorFormattingAndWrapping checks formatted errors retain their message, wrapped cause, and matching behavior.
 func TestErrorFormattingAndWrapping(t *testing.T) {
 	cause := errors.New("database unavailable")
 	tests := []struct {
@@ -96,6 +100,7 @@ func TestErrorFormattingAndWrapping(t *testing.T) {
 	}
 }
 
+// TestConstructorsKeepDetails checks constructors preserve details needed by responders and logs.
 func TestConstructorsKeepDetails(t *testing.T) {
 	want := Details{"field": "email"}
 	tests := []struct {
@@ -119,6 +124,7 @@ func TestConstructorsKeepDetails(t *testing.T) {
 	}
 }
 
+// TestFields checks error fields expose the expected structured metadata.
 func TestFields(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -147,6 +153,7 @@ func TestFields(t *testing.T) {
 	}
 }
 
+// TestAs checks wrapped application errors can be recovered through the standard error chain.
 func TestAs(t *testing.T) {
 	want := New(CodeConflict, "already exists")
 	wrapped := fmt.Errorf("create user: %w", want)

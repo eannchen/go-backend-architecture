@@ -16,6 +16,7 @@ import (
 	securityidentity "github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 )
 
+// TestUnaryPublishesVerifiedURIIdentity checks a verified certificate URI becomes caller identity for unary handlers.
 func TestUnaryPublishesVerifiedURIIdentity(t *testing.T) {
 	certificate := &x509.Certificate{}
 	ctx := verifiedTLSContext(certificate)
@@ -36,6 +37,7 @@ func TestUnaryPublishesVerifiedURIIdentity(t *testing.T) {
 	}
 }
 
+// TestUnaryDoesNotTrustPresentedUnverifiedCertificate checks a presented certificate without verification cannot establish caller identity.
 func TestUnaryDoesNotTrustPresentedUnverifiedCertificate(t *testing.T) {
 	certificate := &x509.Certificate{}
 	ctx := peer.NewContext(context.Background(), &peer.Peer{AuthInfo: credentials.TLSInfo{
@@ -54,6 +56,7 @@ func TestUnaryDoesNotTrustPresentedUnverifiedCertificate(t *testing.T) {
 	}
 }
 
+// TestUnaryRejectsCertificateIdentityExtractionFailure checks identity extraction failure rejects the call before a handler can trust it.
 func TestUnaryRejectsCertificateIdentityExtractionFailure(t *testing.T) {
 	ctx := verifiedTLSContext(&x509.Certificate{})
 	interceptor := newTestInterceptor(t, func(*x509.Certificate) (securityidentity.Identity, error) {
@@ -73,6 +76,7 @@ func TestUnaryRejectsCertificateIdentityExtractionFailure(t *testing.T) {
 	}
 }
 
+// TestStreamPublishesVerifiedURIIdentity checks stream handlers receive the same verified identity as unary handlers.
 func TestStreamPublishesVerifiedURIIdentity(t *testing.T) {
 	ctx := verifiedTLSContext(&x509.Certificate{})
 	stream := testServerStream{ctx: ctx}
@@ -90,6 +94,7 @@ func TestStreamPublishesVerifiedURIIdentity(t *testing.T) {
 	}
 }
 
+// TestNewRejectsMissingCertificateExtractor checks the interceptor cannot start without its certificate identity extractor.
 func TestNewRejectsMissingCertificateExtractor(t *testing.T) {
 	if _, err := New(nil, nil); err == nil {
 		t.Fatal("New() error = nil, want missing extractor error")

@@ -23,6 +23,7 @@ type healthFixture struct {
 	*serverFixture
 }
 
+// newHealthFixture connects both health transports to the real database and Redis adapters.
 func newHealthFixture(t *testing.T) *healthFixture {
 	t.Helper()
 

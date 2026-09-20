@@ -35,6 +35,7 @@ const (
 	requestIDMetadataKey = "x-request-id"
 )
 
+// TestDetailedAndStandardHealthServicesCoexist checks the custom diagnostics service and standard gRPC health service can both be served.
 func TestDetailedAndStandardHealthServicesCoexist(t *testing.T) {
 	result := healthyReadyResult()
 	var checkErr error

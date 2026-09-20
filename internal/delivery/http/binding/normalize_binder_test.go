@@ -17,6 +17,7 @@ type nestedValue struct {
 
 type namedString string
 
+// TestNormalizeStrings checks string normalization follows field tags rather than changing unrelated values.
 func TestNormalizeStrings(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -105,6 +106,7 @@ func namedStringPointer(value namedString) *namedString {
 	return &value
 }
 
+// TestNormalizeBinder_UsesDefaultBinderThenNormalizes checks normalization runs after the standard binder has populated request fields.
 func TestNormalizeBinder_UsesDefaultBinderThenNormalizes(t *testing.T) {
 	e := echo.New()
 	e.Binder = NewNormalizeBinder(nil)
@@ -123,6 +125,7 @@ func TestNormalizeBinder_UsesDefaultBinderThenNormalizes(t *testing.T) {
 	}
 }
 
+// TestNormalizeBinder_DoesNotNormalizeAfterBindingFailure checks binding errors stop normalization so invalid input is not silently rewritten.
 func TestNormalizeBinder_DoesNotNormalizeAfterBindingFailure(t *testing.T) {
 	wantErr := errors.New("bind failed")
 	binder := NewNormalizeBinder(binderFunc(func(*echo.Context, any) error { return wantErr }))

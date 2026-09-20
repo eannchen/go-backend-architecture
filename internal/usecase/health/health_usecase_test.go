@@ -12,6 +12,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/repository/kvstore/kvstoretest"
 )
 
+// TestCheckReadySuccess checks readiness combines successful dependency checks into a healthy result.
 func TestCheckReadySuccess(t *testing.T) {
 	db := &dbtest.DBHealthRepository{
 		PingFunc: func(context.Context) error { return nil },
@@ -43,6 +44,7 @@ func TestCheckReadySuccess(t *testing.T) {
 	}
 }
 
+// TestCheckLiveSkipsDependencies checks liveness stays available without probing external dependencies.
 func TestCheckLiveSkipsDependencies(t *testing.T) {
 	db := &dbtest.DBHealthRepository{}
 	cache := &cachetest.CacheHealthStore{}
@@ -61,6 +63,7 @@ func TestCheckLiveSkipsDependencies(t *testing.T) {
 	}
 }
 
+// TestCheckInvalidMode checks unsupported health modes fail before probing dependencies.
 func TestCheckInvalidMode(t *testing.T) {
 	uc := New(nil, nil, &dbtest.DBHealthRepository{}, &cachetest.CacheHealthStore{}, &kvstoretest.KVHealthStore{})
 
@@ -77,6 +80,7 @@ func TestCheckInvalidMode(t *testing.T) {
 	}
 }
 
+// TestCheckCacheFailure checks cache failure makes readiness unavailable with useful detail.
 func TestCheckCacheFailure(t *testing.T) {
 	db := &dbtest.DBHealthRepository{
 		PingFunc: func(context.Context) error { return nil },
@@ -104,6 +108,7 @@ func TestCheckCacheFailure(t *testing.T) {
 	}
 }
 
+// TestNewWithNilTracerDoesNotPanic checks missing optional tracing does not break health checks.
 func TestNewWithNilTracerDoesNotPanic(t *testing.T) {
 	uc := New(nil, nil, &dbtest.DBHealthRepository{}, &cachetest.CacheHealthStore{}, &kvstoretest.KVHealthStore{})
 
