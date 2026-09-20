@@ -103,10 +103,17 @@ func TestServerSessionManagerValidate(t *testing.T) {
 			wantCode: apperr.CodeUnauthorized,
 		},
 		{
-			name:         "wraps missing token",
+			name:         "missing stored session",
 			token:        "missing-token",
-			getErr:       errors.New("not found"),
+			getErr:       repokvstore.ErrSessionNotFound,
 			wantCode:     apperr.CodeUnauthorized,
+			wantGetCalls: 1,
+		},
+		{
+			name:         "store unavailable",
+			token:        "existing-token",
+			getErr:       errors.New("redis unavailable"),
+			wantCode:     apperr.CodeUnavailable,
 			wantGetCalls: 1,
 		},
 		{

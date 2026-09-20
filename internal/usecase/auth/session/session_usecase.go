@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
@@ -95,7 +96,10 @@ func (m *serverSessionManager) Validate(ctx context.Context, token string) (sess
 
 	data, err := m.sessionRepo.GetByToken(ctx, token)
 	if err != nil {
-		return auth.Session{}, apperr.Wrap(err, apperr.CodeUnauthorized, "invalid or expired session")
+		if errors.Is(err, repokvstore.ErrSessionNotFound) {
+			return auth.Session{}, apperr.Wrap(err, apperr.CodeUnauthorized, "invalid or expired session")
+		}
+		return auth.Session{}, apperr.Wrap(err, apperr.CodeUnavailable, "session store unavailable")
 	}
 
 	if time.Now().After(data.ExpiresAt) {

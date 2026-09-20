@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -48,6 +49,9 @@ func (s *SessionStore) Create(ctx context.Context, session repokvstore.SessionDa
 func (s *SessionStore) GetByToken(ctx context.Context, token string) (repokvstore.SessionData, error) {
 	data, err := s.client.Get(ctx, sessionKeyPrefix+token).Bytes()
 	if err != nil {
+		if errors.Is(err, goredis.Nil) {
+			return repokvstore.SessionData{}, fmt.Errorf("get session: %w", errors.Join(repokvstore.ErrSessionNotFound, err))
+		}
 		return repokvstore.SessionData{}, fmt.Errorf("get session: %w", err)
 	}
 	var v sessionJSON

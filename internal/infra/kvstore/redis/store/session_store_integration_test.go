@@ -4,6 +4,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -46,7 +47,7 @@ func TestSessionStoreIntegration(t *testing.T) {
 	if err := store.Delete(ctx, token); err != nil {
 		t.Fatalf("delete session: %v", err)
 	}
-	if _, err := store.GetByToken(ctx, token); err == nil {
-		t.Fatal("expected error after delete, got nil")
+	if _, err := store.GetByToken(ctx, token); !errors.Is(err, repokvstore.ErrSessionNotFound) {
+		t.Fatalf("error after delete = %v, want ErrSessionNotFound", err)
 	}
 }
