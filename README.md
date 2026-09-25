@@ -23,7 +23,7 @@ A modular Go backend template built with Clean Architecture. Business workflows 
 ## Included capabilities
 
 - **Architecture**: Clean Architecture with clear layer boundaries, explicit dependency wiring, focused interfaces, and independently runnable binaries
-- **Public HTTP**: OpenAPI-generated request and response models, OTP/OAuth sessions, Redis rate limiting, health endpoints, and Server-Sent Events
+- **Public HTTP**: OpenAPI-generated request and response models, OTP/OAuth sessions, CORS and security headers, Redis rate limiting, health endpoints, and Server-Sent Events
 - **Service gRPC**: Protobuf services, standard and detailed health APIs, interceptors, TLS/mTLS caller identity, reflection controls, and outbound client building blocks
 - **Relational storage**: SQL-first PostgreSQL with sqlc for static queries, Squirrel for dynamic queries, Goose migrations, and repository-owned transaction boundaries
 - **Cache and key-value state**: Redis adapters for caching, sessions, OTP, OAuth state, and atomic rate limiting, with explicit composition
