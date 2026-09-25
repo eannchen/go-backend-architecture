@@ -2,6 +2,7 @@ package observability
 
 import "testing"
 
+// TestParseServerEndpointUsesLogicalGRPCTarget checks endpoint labels use the logical gRPC target instead of an unstable socket address.
 func TestParseServerEndpointUsesLogicalGRPCTarget(t *testing.T) {
 	tests := []struct {
 		name        string

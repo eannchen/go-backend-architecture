@@ -17,6 +17,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth/session/sessiontest"
 )
 
+// TestSessionMiddlewareRejectsMissingCredentials checks missing credentials stop protected requests before the handler runs.
 func TestSessionMiddlewareRejectsMissingCredentials(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -59,6 +60,7 @@ func TestSessionMiddlewareRejectsMissingCredentials(t *testing.T) {
 	}
 }
 
+// TestSessionMiddlewareReturnsValidationError checks session validation failures become the expected HTTP error.
 func TestSessionMiddlewareReturnsValidationError(t *testing.T) {
 	session := &sessiontest.SessionManager{
 		ValidateFunc: func(context.Context, string) (auth.Session, error) {
@@ -88,6 +90,7 @@ func TestSessionMiddlewareReturnsValidationError(t *testing.T) {
 	}
 }
 
+// TestSessionMiddlewareSetsSessionContext checks a validated session is available to downstream handlers.
 func TestSessionMiddlewareSetsSessionContext(t *testing.T) {
 	wantSession := auth.Session{
 		Token:     "token-1",

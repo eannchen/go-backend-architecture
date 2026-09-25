@@ -2,9 +2,11 @@ package session
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
@@ -24,6 +26,7 @@ type SessionManager interface {
 }
 
 type serverSessionManager struct {
+	log         logger.Logger
 	tracer      observability.Tracer
 	sessionRepo repokvstore.SessionRepository
 	ttl         time.Duration
@@ -33,10 +36,14 @@ type serverSessionManager struct {
 // NewServerSessionManager creates a server-side session manager.
 func NewServerSessionManager(
 	tracer observability.Tracer,
+	log logger.Logger,
 	meter observability.Meter,
 	sessionRepo repokvstore.SessionRepository,
 	ttl time.Duration,
 ) SessionManager {
+	if log == nil {
+		log = logger.NoopLogger{}
+	}
 	if tracer == nil {
 		tracer = observability.NoopTracer{}
 	}
@@ -44,6 +51,7 @@ func NewServerSessionManager(
 		meter = observability.NoopMeter{}
 	}
 	return &serverSessionManager{
+		log:         log,
 		tracer:      tracer,
 		sessionRepo: sessionRepo,
 		ttl:         ttl,
@@ -95,11 +103,16 @@ func (m *serverSessionManager) Validate(ctx context.Context, token string) (sess
 
 	data, err := m.sessionRepo.GetByToken(ctx, token)
 	if err != nil {
-		return auth.Session{}, apperr.Wrap(err, apperr.CodeUnauthorized, "invalid or expired session")
+		if errors.Is(err, repokvstore.ErrSessionNotFound) {
+			return auth.Session{}, apperr.Wrap(err, apperr.CodeUnauthorized, "invalid or expired session")
+		}
+		return auth.Session{}, apperr.Wrap(err, apperr.CodeUnavailable, "session store unavailable")
 	}
 
 	if time.Now().After(data.ExpiresAt) {
-		_ = m.sessionRepo.Delete(ctx, token)
+		if deleteErr := m.sessionRepo.Delete(ctx, token); deleteErr != nil {
+			m.log.Warn(ctx, "session repository cleanup failed; expired session rejected", logger.FromPairs("error", deleteErr))
+		}
 		return auth.Session{}, apperr.New(apperr.CodeUnauthorized, "session expired")
 	}
 

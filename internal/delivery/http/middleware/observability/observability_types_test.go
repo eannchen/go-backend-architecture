@@ -2,6 +2,7 @@ package observabilitymw
 
 import "testing"
 
+// TestRequestInfoUsesBoundedMethodAndOmitsUnknownRoute checks method and route labels stay bounded when no named route matches.
 func TestRequestInfoUsesBoundedMethodAndOmitsUnknownRoute(t *testing.T) {
 	method, original := normalizeRequestMethod("CUSTOM")
 	request := requestInfo{

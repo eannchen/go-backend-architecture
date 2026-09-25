@@ -109,6 +109,7 @@ internal/delivery/grpc/service/<feature>/             # when gRPC is present
 - Add regression coverage in the package where a defect originated: persistence behavior in the adapter test, response behavior in delivery, and business behavior in the usecase or domain test.
 - Keep unit tests beside their source. Name integration files `<subject>_integration_test.go` and guard them with the `integration` build tag.
 - Use table-driven tests when cases share one arrange/act/assert flow. Keep stateful and multi-step workflows explicit.
+- For every new or substantively changed test function, add a short comment stating the behavior it protects and why it matters. Explain non-obvious setup or assertions where needed; do not narrate routine code.
 - Add one canonical configurable double under the contract owner's `xxxtest` package when first needed. Use `<Method>Func` for behavior and `<Method>Calls` for observations; unconfigured calls panic.
 - Use a real disposable backend for infrastructure integration tests. Prefer Testcontainers when the dependency has a suitable container image. Start one instance of each required backend per package, terminate it explicitly, and clean each test's data. Fail rather than skip when the backend is unavailable.
 - Do not use a fixed sleep to assume concurrent work has finished. Wait for a channel signal, use a controllable clock, or wait for a real state change with a timeout.

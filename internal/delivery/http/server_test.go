@@ -23,6 +23,7 @@ func newRouteRegistrar() *httpdeliverytest.RouteRegistrar {
 	}
 }
 
+// TestNewServerRegistersRoutes checks route registrars are installed on the assembled HTTP server.
 func TestNewServerRegistersRoutes(t *testing.T) {
 	server, err := NewServer(ServerConfig{Address: ":0"}, logger.NoopLogger{}, nil, nil, nil, nil, newRouteRegistrar())
 	if err != nil {
@@ -38,6 +39,7 @@ func TestNewServerRegistersRoutes(t *testing.T) {
 	}
 }
 
+// TestNewServerSkipsNilMiddleware checks absent optional middleware does not break construction.
 func TestNewServerSkipsNilMiddleware(t *testing.T) {
 	called := false
 	mw := func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -64,6 +66,7 @@ func TestNewServerSkipsNilMiddleware(t *testing.T) {
 	}
 }
 
+// TestNewServerSkipsNilRegistrar checks absent optional registrars do not break construction.
 func TestNewServerSkipsNilRegistrar(t *testing.T) {
 	server, err := NewServer(ServerConfig{Address: ":0"}, logger.NoopLogger{}, nil, nil, nil, nil, newRouteRegistrar(), nil)
 	if err != nil {
@@ -79,6 +82,7 @@ func TestNewServerSkipsNilRegistrar(t *testing.T) {
 	}
 }
 
+// TestNewServerValidationRegistrarFailure checks invalid validation registration fails during server setup.
 func TestNewServerValidationRegistrarFailure(t *testing.T) {
 	failingRegistrar := func(v *validator.Validate) error {
 		return errors.New("registration failed")
@@ -90,6 +94,7 @@ func TestNewServerValidationRegistrarFailure(t *testing.T) {
 	}
 }
 
+// TestNewServerAppliesPreMiddleware checks pre-middleware runs before route-specific middleware.
 func TestNewServerAppliesPreMiddleware(t *testing.T) {
 	preMiddleware := func(echo.HandlerFunc) echo.HandlerFunc {
 		return func(*echo.Context) error {
@@ -110,6 +115,7 @@ func TestNewServerAppliesPreMiddleware(t *testing.T) {
 	}
 }
 
+// TestNewServerUsesSafeSizeDefaults checks safe request-size defaults apply when none are configured.
 func TestNewServerUsesSafeSizeDefaults(t *testing.T) {
 	server, err := NewServer(ServerConfig{Address: ":0"}, logger.NoopLogger{}, nil, nil, nil, nil, newRouteRegistrar())
 	if err != nil {

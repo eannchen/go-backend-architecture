@@ -15,6 +15,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 )
 
+// TestUnaryRecoversPanic checks unary panics become controlled server failures instead of escaping the request.
 func TestUnaryRecoversPanic(t *testing.T) {
 	log := &loggertest.Logger{ErrorFunc: func(context.Context, string, error, ...logger.Fields) {}}
 	_, err := New(log, nil).Unary()(context.Background(), nil, &googlegrpc.UnaryServerInfo{FullMethod: "/test.Service/Panic"}, func(context.Context, any) (any, error) {
@@ -32,6 +33,7 @@ func TestUnaryRecoversPanic(t *testing.T) {
 	}
 }
 
+// TestStreamRecoversPanic checks stream panics receive the same recovery behavior as unary calls.
 func TestStreamRecoversPanic(t *testing.T) {
 	log := &loggertest.Logger{ErrorFunc: func(context.Context, string, error, ...logger.Fields) {}}
 	err := New(log, nil).Stream()(nil, recoveryServerStream{}, &googlegrpc.StreamServerInfo{FullMethod: "/test.Service/Watch"}, func(any, googlegrpc.ServerStream) error {

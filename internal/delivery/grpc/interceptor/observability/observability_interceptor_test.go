@@ -16,6 +16,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 )
 
+// TestUnaryRecordsTraceLogAndMetrics checks a unary call produces correlated tracing, logging, and bounded metrics.
 func TestUnaryRecordsTraceLogAndMetrics(t *testing.T) {
 	tracer := &recordingTracer{span: &recordingSpan{}}
 	meter := newRecordingMeter()
@@ -48,6 +49,7 @@ func TestUnaryRecordsTraceLogAndMetrics(t *testing.T) {
 	}
 }
 
+// TestUnaryAddsCallerIdentityToTraceAndLogButNotMetrics checks caller identity appears in diagnostic records without becoming a metric label.
 func TestUnaryAddsCallerIdentityToTraceAndLogButNotMetrics(t *testing.T) {
 	tracer := &recordingTracer{span: &recordingSpan{}}
 	meter := newRecordingMeter()
@@ -78,6 +80,7 @@ func TestUnaryAddsCallerIdentityToTraceAndLogButNotMetrics(t *testing.T) {
 	}
 }
 
+// TestUnaryRecordsOriginalServerFailure checks server failures preserve the original cause in observability records.
 func TestUnaryRecordsOriginalServerFailure(t *testing.T) {
 	cause := errors.New("database connection failed")
 	tracer := &recordingTracer{span: &recordingSpan{}}
@@ -119,6 +122,7 @@ func TestUnaryRecordsOriginalServerFailure(t *testing.T) {
 	}
 }
 
+// TestUnaryRecordsApplicationErrorDetailsWithoutAddingThemToMetrics checks application error details remain in diagnostics without creating unbounded metric labels.
 func TestUnaryRecordsApplicationErrorDetailsWithoutAddingThemToMetrics(t *testing.T) {
 	cause := errors.New("name lookup failed")
 	appErr := apperr.Wrap(
@@ -180,6 +184,7 @@ func TestUnaryRecordsApplicationErrorDetailsWithoutAddingThemToMetrics(t *testin
 	}
 }
 
+// TestStreamWrapsContextAndTracksActiveStream checks stream context and active-stream accounting last for the stream lifetime.
 func TestStreamWrapsContextAndTracksActiveStream(t *testing.T) {
 	tracer := &recordingTracer{span: &recordingSpan{}}
 	meter := newRecordingMeter()

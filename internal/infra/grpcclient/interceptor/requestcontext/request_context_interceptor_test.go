@@ -15,6 +15,7 @@ import (
 
 const testRequestIDMetadataKey = "correlation-id"
 
+// TestUnaryAppliesDeadlineWithoutRequestIDMetadataByDefault checks default deadlines apply without adding request ID metadata.
 func TestUnaryAppliesDeadlineWithoutRequestIDMetadataByDefault(t *testing.T) {
 	err := newTestInterceptor(t, Config{Timeout: time.Second}).Unary()(context.Background(), "/test.Service/Check", nil, nil, nil, func(ctx context.Context, _ string, _, _ any, _ *googlegrpc.ClientConn, _ ...googlegrpc.CallOption) error {
 		if _, ok := ctx.Deadline(); !ok {
@@ -34,6 +35,7 @@ func TestUnaryAppliesDeadlineWithoutRequestIDMetadataByDefault(t *testing.T) {
 	}
 }
 
+// TestUnaryPropagatesConfiguredRequestID checks configured request IDs propagate to outbound unary calls.
 func TestUnaryPropagatesConfiguredRequestID(t *testing.T) {
 	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("authorization", "Bearer token"))
 	ctx = observability.WithRequestID(ctx, "request-123")
@@ -52,6 +54,7 @@ func TestUnaryPropagatesConfiguredRequestID(t *testing.T) {
 	}
 }
 
+// TestUnaryDoesNotGenerateRequestIDForBackgroundCall checks background calls do not invent request IDs.
 func TestUnaryDoesNotGenerateRequestIDForBackgroundCall(t *testing.T) {
 	err := newTestInterceptor(t, Config{Timeout: time.Second, RequestIDMetadataKey: testRequestIDMetadataKey}).Unary()(context.Background(), "/test.Service/Check", nil, nil, nil, func(ctx context.Context, _ string, _, _ any, _ *googlegrpc.ClientConn, _ ...googlegrpc.CallOption) error {
 		requestID := observability.RequestIDFromContext(ctx)
@@ -66,6 +69,7 @@ func TestUnaryDoesNotGenerateRequestIDForBackgroundCall(t *testing.T) {
 	}
 }
 
+// TestUnaryPreservesEarlierCallerDeadline checks a shorter caller deadline is preserved.
 func TestUnaryPreservesEarlierCallerDeadline(t *testing.T) {
 	callerDeadline := time.Now().Add(50 * time.Millisecond)
 	ctx, cancel := context.WithDeadline(context.Background(), callerDeadline)
@@ -83,6 +87,7 @@ func TestUnaryPreservesEarlierCallerDeadline(t *testing.T) {
 	}
 }
 
+// TestStreamKeepsContextUntilReceiveCompletes checks stream context stays live until receiving finishes.
 func TestStreamKeepsContextUntilReceiveCompletes(t *testing.T) {
 	base := &testClientStream{ctx: context.Background(), recvErr: io.EOF}
 	stream, err := newTestInterceptor(t, Config{Timeout: time.Second}).Stream()(context.Background(), &googlegrpc.StreamDesc{ServerStreams: true}, nil, "/test.Service/Watch", func(ctx context.Context, _ *googlegrpc.StreamDesc, _ *googlegrpc.ClientConn, _ string, _ ...googlegrpc.CallOption) (googlegrpc.ClientStream, error) {
@@ -103,6 +108,7 @@ func TestStreamKeepsContextUntilReceiveCompletes(t *testing.T) {
 	}
 }
 
+// TestStreamCancelsContextAfterSendFailure checks send failures cancel the stream context promptly.
 func TestStreamCancelsContextAfterSendFailure(t *testing.T) {
 	wantErr := errors.New("send failed")
 	base := &testClientStream{ctx: context.Background(), sendErr: wantErr}
@@ -121,6 +127,7 @@ func TestStreamCancelsContextAfterSendFailure(t *testing.T) {
 	}
 }
 
+// TestNewRejectsInvalidMetadataKey checks invalid metadata keys fail when creating the interceptor.
 func TestNewRejectsInvalidMetadataKey(t *testing.T) {
 	if _, err := New(Config{RequestIDMetadataKey: "request id"}); err == nil {
 		t.Fatal("New() error = nil, want invalid metadata key error")

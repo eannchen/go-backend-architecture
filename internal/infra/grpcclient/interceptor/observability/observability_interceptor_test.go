@@ -17,6 +17,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
 )
 
+// TestUnaryInjectsTraceAndRecordsOutcome checks unary calls propagate trace context and record their outcome.
 func TestUnaryInjectsTraceAndRecordsOutcome(t *testing.T) {
 	span := newTestSpan()
 	tracer := &observabilitytest.Tracer{
@@ -63,6 +64,7 @@ func TestUnaryInjectsTraceAndRecordsOutcome(t *testing.T) {
 	}
 }
 
+// TestUnaryRecordsRemoteFailure checks remote failures are reported with their original cause.
 func TestUnaryRecordsRemoteFailure(t *testing.T) {
 	wireErr := status.Error(codes.Unavailable, "dependency unavailable")
 	span := newTestSpan()
@@ -104,6 +106,7 @@ func TestUnaryRecordsRemoteFailure(t *testing.T) {
 	}
 }
 
+// TestStreamFinishesOnEOF checks stream completion on EOF closes its observability lifecycle.
 func TestStreamFinishesOnEOF(t *testing.T) {
 	span := newTestSpan()
 	tracer := &observabilitytest.Tracer{
@@ -139,6 +142,7 @@ func TestStreamFinishesOnEOF(t *testing.T) {
 	}
 }
 
+// TestUnaryCapabilitiesAreOptIn checks tracing, metrics, and logs remain opt-in.
 func TestUnaryCapabilitiesAreOptIn(t *testing.T) {
 	wantErr := status.Error(codes.NotFound, "missing")
 	invokerCalls := 0
@@ -156,6 +160,7 @@ func TestUnaryCapabilitiesAreOptIn(t *testing.T) {
 	}
 }
 
+// TestUnaryCapabilitiesCanBeSelectedIndependently checks each observability capability can be enabled without the others.
 func TestUnaryCapabilitiesCanBeSelectedIndependently(t *testing.T) {
 	t.Run("tracing only", func(t *testing.T) {
 		span := newTestSpan()
@@ -189,6 +194,7 @@ func TestUnaryCapabilitiesCanBeSelectedIndependently(t *testing.T) {
 	})
 }
 
+// TestCompletionLogPolicyCanSkipAnOutcome checks completion-log policy can suppress selected outcomes without changing the call.
 func TestCompletionLogPolicyCanSkipAnOutcome(t *testing.T) {
 	log := &loggertest.Logger{
 		DebugFunc:        func(context.Context, string, ...logger.Fields) {},

@@ -11,6 +11,7 @@ import (
 	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 )
 
+// TestOAuthStateStoreIntegration checks OAuth state storage and consumption against real Redis expiration and key behavior.
 func TestOAuthStateStoreIntegration(t *testing.T) {
 	client := requireRedisTestClient(t)
 

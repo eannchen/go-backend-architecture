@@ -8,6 +8,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/infra/security/tlsconfig/tlsconfigtest"
 )
 
+// TestBuildTransportCredentials covers plaintext, TLS, and invalid certificate settings so transport security follows configuration.
 func TestBuildTransportCredentials(t *testing.T) {
 	t.Run("plaintext", func(t *testing.T) {
 		transportCredentials, err := (wiring{}).buildTransportCredentials()

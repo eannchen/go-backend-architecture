@@ -10,6 +10,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 )
 
+// TestRunLifecycle checks startup and shutdown order and failure handling for owned runtime resources.
 func TestRunLifecycle(t *testing.T) {
 	startErr := errors.New("listen failed")
 	shutdownErr := errors.New("shutdown failed")

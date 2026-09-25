@@ -26,6 +26,7 @@ func (e *recordingLogExporter) Export(_ context.Context, records []sdklog.Record
 func (*recordingLogExporter) Shutdown(context.Context) error   { return nil }
 func (*recordingLogExporter) ForceFlush(context.Context) error { return nil }
 
+// TestOtelLogEmitter_EmitsStructuredRecord checks structured fields become an OpenTelemetry log record.
 func TestOtelLogEmitter_EmitsStructuredRecord(t *testing.T) {
 	exporter := &recordingLogExporter{}
 	provider := sdklog.NewLoggerProvider(sdklog.WithProcessor(sdklog.NewSimpleProcessor(exporter)))
@@ -56,6 +57,7 @@ func TestOtelLogEmitter_EmitsStructuredRecord(t *testing.T) {
 	}
 }
 
+// TestToLogValue checks supported Go values convert into the intended telemetry value types.
 func TestToLogValue(t *testing.T) {
 	now := time.Date(2026, time.August, 29, 12, 30, 0, 123, time.UTC)
 	tests := []struct {

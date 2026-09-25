@@ -8,10 +8,12 @@ import (
 	repoobjectstorage "github.com/eannchen/go-backend-architecture/internal/repository/external/objectstorage"
 )
 
+// TestStoreImplementsObjectStorage checks the R2 adapter satisfies the object-storage contract at compile time.
 func TestStoreImplementsObjectStorage(t *testing.T) {
 	var _ repoobjectstorage.ObjectStorage = (*Store)(nil)
 }
 
+// TestNewRequiresConfigFields checks missing required storage settings fail during construction.
 func TestNewRequiresConfigFields(t *testing.T) {
 	valid := Config{
 		AccountID:       "account-id",

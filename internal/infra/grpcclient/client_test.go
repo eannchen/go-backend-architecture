@@ -21,6 +21,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
+// TestClientDoesNotApplyUnselectedMetadataPolicies checks optional metadata policies stay disabled unless selected by configuration.
 func TestClientDoesNotApplyUnselectedMetadataPolicies(t *testing.T) {
 	listener := bufconn.Listen(1 << 20)
 	var receivedMetadata metadata.MD
@@ -71,6 +72,7 @@ func TestClientDoesNotApplyUnselectedMetadataPolicies(t *testing.T) {
 	}
 }
 
+// TestClientConnectsWithTLSAndMutualTLS checks TLS and mutual TLS client settings work with real connections.
 func TestClientConnectsWithTLSAndMutualTLS(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -139,6 +141,7 @@ func TestClientConnectsWithTLSAndMutualTLS(t *testing.T) {
 	}
 }
 
+// TestClientReportsLazyConnectionFailureWithinCallerDeadline checks a lazy connection failure respects the caller deadline.
 func TestClientReportsLazyConnectionFailureWithinCallerDeadline(t *testing.T) {
 	wantErr := errors.New("dial failed")
 	client, err := New(validConfig(), insecure.NewCredentials(), WithContextDialer(func(context.Context, string) (net.Conn, error) {
@@ -161,6 +164,7 @@ func TestClientReportsLazyConnectionFailureWithinCallerDeadline(t *testing.T) {
 	}
 }
 
+// TestNewValidatesConfiguration checks invalid client settings fail before a connection is used.
 func TestNewValidatesConfiguration(t *testing.T) {
 	tests := []struct {
 		name        string

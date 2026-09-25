@@ -14,6 +14,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
 
+// TestGetHealthMapsReadyResult checks readiness data is translated to the detailed gRPC response.
 func TestGetHealthMapsReadyResult(t *testing.T) {
 	uc := &healthtest.Usecase{
 		CheckFunc: func(_ context.Context, mode usecasehealth.CheckMode) (usecasehealth.Result, error) {
@@ -47,6 +48,7 @@ func TestGetHealthMapsReadyResult(t *testing.T) {
 	}
 }
 
+// TestGetHealthMapsLiveMode checks liveness selects the correct usecase mode.
 func TestGetHealthMapsLiveMode(t *testing.T) {
 	uc := &healthtest.Usecase{
 		CheckFunc: func(_ context.Context, mode usecasehealth.CheckMode) (usecasehealth.Result, error) {
@@ -71,6 +73,7 @@ func TestGetHealthMapsLiveMode(t *testing.T) {
 	}
 }
 
+// TestGetHealthReturnsUnavailableAsDetailedResult checks dependency unavailability remains a detailed health result for callers.
 func TestGetHealthReturnsUnavailableAsDetailedResult(t *testing.T) {
 	uc := &healthtest.Usecase{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
@@ -94,6 +97,7 @@ func TestGetHealthReturnsUnavailableAsDetailedResult(t *testing.T) {
 	}
 }
 
+// TestGetHealthReturnsWrappedContextErrorsAsStatuses checks wrapped context failures become cancellation or deadline statuses.
 func TestGetHealthReturnsWrappedContextErrorsAsStatuses(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -128,6 +132,7 @@ func TestGetHealthReturnsWrappedContextErrorsAsStatuses(t *testing.T) {
 	}
 }
 
+// TestGetHealthDoesNotMaskReturnedErrorWhenContextIsCanceled checks a returned usecase failure is not hidden by later context cancellation.
 func TestGetHealthDoesNotMaskReturnedErrorWhenContextIsCanceled(t *testing.T) {
 	returnedErr := errors.New("database failed")
 	uc := &healthtest.Usecase{
@@ -148,6 +153,7 @@ func TestGetHealthDoesNotMaskReturnedErrorWhenContextIsCanceled(t *testing.T) {
 	}
 }
 
+// TestGetHealthRejectsUnknownMode checks unknown modes are rejected at the transport boundary.
 func TestGetHealthRejectsUnknownMode(t *testing.T) {
 	uc := &healthtest.Usecase{}
 
@@ -162,6 +168,7 @@ func TestGetHealthRejectsUnknownMode(t *testing.T) {
 	}
 }
 
+// TestGetHealthHidesUnexpectedErrors checks unexpected usecase failures are hidden behind a safe server status.
 func TestGetHealthHidesUnexpectedErrors(t *testing.T) {
 	uc := &healthtest.Usecase{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {

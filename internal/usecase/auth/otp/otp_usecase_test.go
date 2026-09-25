@@ -18,6 +18,8 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )
 
+// TestOTPAuthenticatorSendCode checks that stored codes are hashed, delivery
+// failures trigger cleanup, and dependency failures become application errors.
 func TestOTPAuthenticatorSendCode(t *testing.T) {
 	t.Parallel()
 
@@ -139,6 +141,7 @@ func TestOTPAuthenticatorSendCode(t *testing.T) {
 	}
 }
 
+// TestOTPAuthenticatorVerifyCode checks code verification enforces validity and creates the expected authenticated session.
 func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 	t.Parallel()
 

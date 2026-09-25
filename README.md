@@ -22,17 +22,24 @@ A modular Go backend template built with Clean Architecture. Business workflows 
 
 ## Included capabilities
 
-| Capability | Included design |
-| --- | --- |
-| Architecture | Clean Architecture, explicit composition roots, small contracts, and independently runnable binaries |
-| Public HTTP | OpenAPI-generated request and response models, OTP/OAuth sessions, Redis rate limiting, health endpoints, and Server-Sent Events |
-| Service gRPC | Protobuf services, standard and detailed health APIs, interceptors, TLS/mTLS caller identity, reflection controls, and outbound client building blocks |
-| Relational storage | SQL-first PostgreSQL with sqlc for static queries, Squirrel for dynamic queries, Goose migrations, and repository-owned transaction boundaries |
-| Cache and key-value state | Redis adapters for caching, sessions, OTP, OAuth state, and atomic rate limiting, with explicit composition |
-| Observability | OpenTelemetry traces, metrics, and log emission; Zap output; OTLP export; optional request-ID interoperability |
-| Testing | Layer-owned unit tests, transport workflow tests, and container-backed PostgreSQL and Redis integration tests |
-| CI | Static checks, race-enabled tests, integration tests, and validation of both selectable project profiles |
-| AI agent setup | Shared engineering rules for Codex, Cursor, and Claude, alongside focused subsystem documentation |
+- **Architecture**
+  Clean Architecture, explicit composition roots, small contracts, and independently runnable binaries
+- **Public HTTP**
+  OpenAPI-generated request and response models, OTP/OAuth sessions, Redis rate limiting, health endpoints, and Server-Sent Events
+- **Service gRPC**
+  Protobuf services, standard and detailed health APIs, interceptors, TLS/mTLS caller identity, reflection controls, and outbound client building blocks
+- **Relational storage**
+  SQL-first PostgreSQL with sqlc for static queries, Squirrel for dynamic queries, Goose migrations, and repository-owned transaction boundaries
+- **Cache and key-value state**
+  Redis adapters for caching, sessions, OTP, OAuth state, and atomic rate limiting, with explicit composition
+- **Observability**
+  OpenTelemetry traces, metrics, and log emission; Zap output; OTLP export; optional request-ID interoperability
+- **Testing**
+  Layer-owned unit tests, transport workflow tests, and container-backed PostgreSQL and Redis integration tests
+- **CI**
+  Static checks, race-enabled tests, integration tests, and validation of both selectable project profiles
+- **AI agent setup**
+  Shared engineering rules for Codex, Claude, and Cursor, plus an optional phased TDD workflow
 
 ## Architecture
 
@@ -244,13 +251,21 @@ See [`AGENTS.md`](AGENTS.md) for test-double and concurrency-test rules.
 
 The repository keeps coding guidance in one place so agents follow the same conventions.
 
+### Rules
+
 | File | Purpose |
 | --- | --- |
 | [`AGENTS.md`](AGENTS.md) | Shared implementation rules for architecture, correctness, performance, testing, and change discipline, read by Codex and Cursor. |
 | [`.claude/CLAUDE.md`](.claude/CLAUDE.md) | Imports the shared rules for Claude instead of maintaining a divergent copy. |
-| Subsystem `README.md` files | Human-readable ownership, boundaries, lifecycle, and extension guidance close to the relevant code. |
 
-See the [Codex `AGENTS.md` guide](https://developers.openai.com/codex/guides/agents-md) and [Cursor rules documentation](https://cursor.com/docs/rules) for how they load repository instructions.
+### Skills
+
+| File | Purpose |
+| --- | --- |
+| [`.agents/skills/tdd-change/SKILL.md`](.agents/skills/tdd-change/SKILL.md) | Canonical TDD workflow loaded by Codex and available to Cursor by file reference. |
+| [`.claude/skills/tdd-change/SKILL.md`](.claude/skills/tdd-change/SKILL.md) | Links the canonical workflow for Claude. |
+
+Invoke `$tdd-change` in Codex or `/tdd-change` in Claude with `Red only`, `Green only`, `Refactor only`, or `Complete cycle`. Green requires the failing tests from Red; Refactor requires passing tests. The skill follows `AGENTS.md`, including the capabilities that remain after profile selection.
 
 ## Third-party tools
 

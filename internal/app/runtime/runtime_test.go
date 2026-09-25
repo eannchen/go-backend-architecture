@@ -9,6 +9,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
 )
 
+// TestRuntimeShutdownAttemptsEveryResourceAndJoinsErrors checks one shutdown failure does not prevent other resources from closing and all failures remain inspectable.
 func TestRuntimeShutdownAttemptsEveryResourceAndJoinsErrors(t *testing.T) {
 	observabilityErr := errors.New("observability shutdown failed")
 	loggerErr := errors.New("logger sync failed")

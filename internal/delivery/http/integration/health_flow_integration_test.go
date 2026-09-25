@@ -4,6 +4,7 @@ package integration
 
 import "testing"
 
+// TestHealthFlow checks liveness stays independent of storage and readiness reaches the real database and cache.
 func TestHealthFlow(t *testing.T) {
 	fixture := newHealthFixture(t)
 

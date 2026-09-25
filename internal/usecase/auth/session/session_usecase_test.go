@@ -3,15 +3,19 @@ package session
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 	"github.com/eannchen/go-backend-architecture/internal/repository/kvstore/kvstoretest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )
 
+// TestServerSessionManagerCreate checks session creation stores the session and maps dependency failures.
 func TestServerSessionManagerCreate(t *testing.T) {
 	t.Parallel()
 
@@ -43,7 +47,7 @@ func TestServerSessionManagerCreate(t *testing.T) {
 				},
 			}
 			ttl := 20 * time.Minute
-			mgr := NewServerSessionManager(nil, nil, repo, ttl)
+			mgr := NewServerSessionManager(nil, nil, nil, repo, ttl)
 			identity := auth.Identity{UserID: 42, Email: "test@example.com", Method: auth.MethodOTP}
 
 			got, err := mgr.Create(context.Background(), identity)
@@ -77,6 +81,7 @@ func TestServerSessionManagerCreate(t *testing.T) {
 	}
 }
 
+// TestServerSessionManagerValidate checks validation accepts usable sessions and rejects missing or expired ones.
 func TestServerSessionManagerValidate(t *testing.T) {
 	t.Parallel()
 
@@ -103,10 +108,17 @@ func TestServerSessionManagerValidate(t *testing.T) {
 			wantCode: apperr.CodeUnauthorized,
 		},
 		{
-			name:         "wraps missing token",
+			name:         "missing stored session",
 			token:        "missing-token",
-			getErr:       errors.New("not found"),
+			getErr:       repokvstore.ErrSessionNotFound,
 			wantCode:     apperr.CodeUnauthorized,
+			wantGetCalls: 1,
+		},
+		{
+			name:         "store unavailable",
+			token:        "existing-token",
+			getErr:       errors.New("redis unavailable"),
+			wantCode:     apperr.CodeUnavailable,
 			wantGetCalls: 1,
 		},
 		{
@@ -136,7 +148,7 @@ func TestServerSessionManagerValidate(t *testing.T) {
 				},
 				DeleteFunc: func(context.Context, string) error { return nil },
 			}
-			mgr := NewServerSessionManager(nil, nil, repo, 15*time.Minute)
+			mgr := NewServerSessionManager(nil, nil, nil, repo, 15*time.Minute)
 
 			got, err := mgr.Validate(context.Background(), tt.token)
 
@@ -158,6 +170,47 @@ func TestServerSessionManagerValidate(t *testing.T) {
 	}
 }
 
+// TestServerSessionManagerValidateLogsExpiredSessionCleanupFailure confirms that
+// failed cleanup is visible without exposing the token or accepting an expired session.
+func TestServerSessionManagerValidateLogsExpiredSessionCleanupFailure(t *testing.T) {
+	token := "private-session-token"
+	deleteErr := errors.New("redis unavailable")
+	repo := &kvstoretest.SessionRepository{
+		GetByTokenFunc: func(context.Context, string) (repokvstore.SessionData, error) {
+			return repokvstore.SessionData{Token: token, ExpiresAt: time.Now().Add(-time.Minute)}, nil
+		},
+		DeleteFunc: func(context.Context, string) error { return deleteErr },
+	}
+	log := &loggertest.Logger{WarnFunc: func(context.Context, string, ...logger.Fields) {}}
+	mgr := NewServerSessionManager(nil, log, nil, repo, time.Minute)
+
+	_, err := mgr.Validate(context.Background(), token)
+
+	assertAppCode(t, err, apperr.CodeUnauthorized)
+	if repo.DeleteCalls != 1 || repo.DeleteToken != token {
+		t.Fatalf("delete calls = %d, token = %q; want one cleanup attempt", repo.DeleteCalls, repo.DeleteToken)
+	}
+	if len(log.WarnCalls) != 1 {
+		t.Fatalf("warning calls = %d, want 1", len(log.WarnCalls))
+	}
+	warning := log.WarnCalls[0]
+	if !strings.Contains(warning.Message, "session") || !strings.Contains(warning.Message, "cleanup") || strings.Contains(warning.Message, token) {
+		t.Fatalf("warning message = %q, want session cleanup context without token", warning.Message)
+	}
+	if len(warning.Fields) != 1 {
+		t.Fatalf("warning field groups = %d, want 1", len(warning.Fields))
+	}
+	fields := warning.Fields[0]
+	if len(fields) != 1 {
+		t.Fatalf("warning fields = %#v, want only the cleanup error", fields)
+	}
+	gotErr, ok := fields["error"].(error)
+	if !ok || !errors.Is(gotErr, deleteErr) {
+		t.Fatalf("warning error = %v, want %v", gotErr, deleteErr)
+	}
+}
+
+// TestServerSessionManagerRevoke checks revocation handles existing and missing sessions with the intended error mapping.
 func TestServerSessionManagerRevoke(t *testing.T) {
 	t.Parallel()
 
@@ -179,7 +232,7 @@ func TestServerSessionManagerRevoke(t *testing.T) {
 					return tt.repoErr
 				},
 			}
-			mgr := NewServerSessionManager(nil, nil, repo, 15*time.Minute)
+			mgr := NewServerSessionManager(nil, nil, nil, repo, 15*time.Minute)
 
 			err := mgr.Revoke(context.Background(), "token-1")
 

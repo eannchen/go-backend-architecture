@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// TestNewSelectionPlanOwnsOneTransport checks a selected profile owns only its chosen transport paths.
 func TestNewSelectionPlanOwnsOneTransport(t *testing.T) {
 	publicPlan, err := newSelectionPlan(publicHTTPProfile)
 	if err != nil {
@@ -25,6 +26,7 @@ func TestNewSelectionPlanOwnsOneTransport(t *testing.T) {
 	}
 }
 
+// TestCombineFilesPreservesFragmentOrder checks generated contract fragments retain their intended order.
 func TestCombineFilesPreservesFragmentOrder(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "common", "COMMON=true\n")
@@ -39,6 +41,7 @@ func TestCombineFilesPreservesFragmentOrder(t *testing.T) {
 	}
 }
 
+// TestApplySelectionGeneratesOutputsAndRemovesOwnedPaths checks selection writes chosen outputs and removes paths owned by the other transport.
 func TestApplySelectionGeneratesOutputsAndRemovesOwnedPaths(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "common.env", "COMMON=true\n")

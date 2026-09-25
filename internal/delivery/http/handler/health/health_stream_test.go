@@ -29,6 +29,7 @@ func streamConfig() StreamConfig {
 	}
 }
 
+// TestStreamHealthWritesInitialHealthEvent checks streaming health sends an initial event with the current result.
 func TestStreamHealthWritesInitialHealthEvent(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -70,6 +71,7 @@ func TestStreamHealthWritesInitialHealthEvent(t *testing.T) {
 	}
 }
 
+// TestStreamHealthRejectsInvalidQueryBeforeOpeningStream checks invalid queries are rejected before response headers start a stream.
 func TestStreamHealthRejectsInvalidQueryBeforeOpeningStream(t *testing.T) {
 	uc := &healthtest.Usecase{}
 	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
@@ -92,6 +94,7 @@ func TestStreamHealthRejectsInvalidQueryBeforeOpeningStream(t *testing.T) {
 	}
 }
 
+// TestStreamHealthEmitsDependencyFailureAndLogsWarning checks dependency failure is sent to subscribers and recorded as a warning.
 func TestStreamHealthEmitsDependencyFailureAndLogsWarning(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -122,6 +125,7 @@ func TestStreamHealthEmitsDependencyFailureAndLogsWarning(t *testing.T) {
 	}
 }
 
+// TestStreamHealthStopsAfterEventWriteFailure checks a failed event write stops the stream instead of continuing to write.
 func TestStreamHealthStopsAfterEventWriteFailure(t *testing.T) {
 	wantErr := errors.New("client connection closed")
 	uc := &healthtest.Usecase{

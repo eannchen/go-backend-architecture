@@ -24,6 +24,7 @@ func setValidRuntimeEnv(t *testing.T) {
 	t.Setenv("SHUTDOWN_GRACE_PERIOD", "10s")
 }
 
+// TestLoadRuntimeDisablesOnlyOTelExport checks disabling telemetry export leaves the rest of runtime configuration intact.
 func TestLoadRuntimeDisablesOnlyOTelExport(t *testing.T) {
 	setValidRuntimeEnv(t)
 	t.Setenv("OTEL_EXPORT_ENABLED", "false")
@@ -37,6 +38,7 @@ func TestLoadRuntimeDisablesOnlyOTelExport(t *testing.T) {
 	}
 }
 
+// TestLoadRuntimeTrimsRequiredFields checks required fields are trimmed before validation and use.
 func TestLoadRuntimeTrimsRequiredFields(t *testing.T) {
 	setValidRuntimeEnv(t)
 	t.Setenv("SERVICE_NAME", "  accounts-api  ")
@@ -52,6 +54,7 @@ func TestLoadRuntimeTrimsRequiredFields(t *testing.T) {
 	}
 }
 
+// TestLoadRuntimeRejectsInvalidSharedSettings checks invalid shared settings fail at startup rather than during requests.
 func TestLoadRuntimeRejectsInvalidSharedSettings(t *testing.T) {
 	tests := []struct {
 		name    string

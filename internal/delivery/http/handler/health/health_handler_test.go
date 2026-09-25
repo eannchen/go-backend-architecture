@@ -18,6 +18,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
 
+// TestGetHealthSuccess checks successful health results map to the public HTTP response.
 func TestGetHealthSuccess(t *testing.T) {
 	uc := &healthtest.Usecase{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
@@ -60,6 +61,7 @@ func TestGetHealthSuccess(t *testing.T) {
 	}
 }
 
+// TestGetHealthInvalidQuery checks malformed health queries fail before invoking the usecase.
 func TestGetHealthInvalidQuery(t *testing.T) {
 	uc := &healthtest.Usecase{}
 	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
@@ -91,6 +93,7 @@ func TestGetHealthInvalidQuery(t *testing.T) {
 	}
 }
 
+// TestGetHealthUnavailableReturnsPartialResult checks unavailable dependencies still return the partial diagnostic result.
 func TestGetHealthUnavailableReturnsPartialResult(t *testing.T) {
 	uc := &healthtest.Usecase{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
@@ -125,6 +128,7 @@ func TestGetHealthUnavailableReturnsPartialResult(t *testing.T) {
 	}
 }
 
+// TestGetHealthUnexpectedErrorReturnsInternalResponse checks unexpected failures receive a safe internal-error response.
 func TestGetHealthUnexpectedErrorReturnsInternalResponse(t *testing.T) {
 	uc := &healthtest.Usecase{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {

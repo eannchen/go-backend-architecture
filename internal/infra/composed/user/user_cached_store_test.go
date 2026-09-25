@@ -13,6 +13,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/repository/db/dbtest"
 )
 
+// TestCachedUserStoreGetByID checks cache hits, misses, and failures follow the user lookup policy.
 func TestCachedUserStoreGetByID(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -112,6 +113,7 @@ func TestCachedUserStoreGetByID(t *testing.T) {
 	}
 }
 
+// TestCachedUserStoreDelegatesEmailAndCreate checks uncached email lookup and create operations reach the backing repository.
 func TestCachedUserStoreDelegatesEmailAndCreate(t *testing.T) {
 	base := &dbtest.UserRepository{
 		GetByEmailFunc: func(context.Context, string) (domainuser.User, error) {
@@ -141,6 +143,7 @@ func TestCachedUserStoreDelegatesEmailAndCreate(t *testing.T) {
 	}
 }
 
+// TestCachedUserStoreUpsertOAuthUser checks OAuth upserts keep the backing store and cache behavior consistent.
 func TestCachedUserStoreUpsertOAuthUser(t *testing.T) {
 	tests := []struct {
 		name            string

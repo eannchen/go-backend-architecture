@@ -43,7 +43,7 @@ func (d wiring) buildUsecases(repos appRepositories) appUsecases {
 	return appUsecases{
 		health: usecasehealth.New(d.tracer, d.meter, repos.dbHealthRepo, repos.cacheHealthStore, repos.kvHealthStore),
 		sessionManager: authsession.NewServerSessionManager(
-			d.tracer, d.meter, repos.sessionRepo, d.cfg.Auth.Session.TTL,
+			d.tracer, d.log, d.meter, repos.sessionRepo, d.cfg.Auth.Session.TTL,
 		),
 		otpAuth: authotp.NewOTPAuthenticator(
 			d.log, d.tracer, d.meter,

@@ -2,6 +2,7 @@ package grpcmetadata
 
 import "testing"
 
+// TestNormalizeKeyNormalizesValidKeys checks valid metadata keys are normalized for reliable matching.
 func TestNormalizeKeyNormalizesValidKeys(t *testing.T) {
 	tests := []struct {
 		name string
@@ -26,6 +27,7 @@ func TestNormalizeKeyNormalizesValidKeys(t *testing.T) {
 	}
 }
 
+// TestNormalizeKeyRejectsInvalidKeys checks invalid keys fail before they enter gRPC metadata.
 func TestNormalizeKeyRejectsInvalidKeys(t *testing.T) {
 	for _, key := range []string{"request id", "request/id", "grpc-timeout"} {
 		t.Run(key, func(t *testing.T) {

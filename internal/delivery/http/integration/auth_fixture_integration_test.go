@@ -41,6 +41,7 @@ type authFixture struct {
 	emailSender *emailtest.EmailSender
 }
 
+// newAuthFixture wires the real OTP, user, and session adapters while keeping email delivery observable in the test.
 func newAuthFixture(t *testing.T, email string) *authFixture {
 	t.Helper()
 
@@ -61,7 +62,7 @@ func newAuthFixture(t *testing.T, email string) *authFixture {
 		CodeLength: 6,
 		TTL:        5 * time.Minute,
 	})
-	sessionManager := authsession.NewServerSessionManager(tracer, meter, sessions, integrationSessionTTL)
+	sessionManager := authsession.NewServerSessionManager(tracer, log, meter, sessions, integrationSessionTTL)
 	responder := httpresponse.NewResponder()
 	sessionMiddleware := sessionmw.New(sessionManager, integrationSessionCookie, responder)
 	handler := authhttp.NewHandler(

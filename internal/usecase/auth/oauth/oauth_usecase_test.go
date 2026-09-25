@@ -18,6 +18,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )
 
+// TestOAuthAuthenticatorAuthorize checks authorization creates the state and redirect needed for a safe OAuth flow.
 func TestOAuthAuthenticatorAuthorize(t *testing.T) {
 	t.Parallel()
 
@@ -91,6 +92,7 @@ func TestOAuthAuthenticatorAuthorize(t *testing.T) {
 	}
 }
 
+// TestOAuthAuthenticatorHandleCallback checks callbacks validate state, resolve the user, and create an application session.
 func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 	t.Parallel()
 
@@ -246,6 +248,7 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 	}
 }
 
+// TestOAuthAuthenticatorHandleCallbackRejectsMismatchedBrowserBinding checks a callback from another browser cannot consume the OAuth state.
 func TestOAuthAuthenticatorHandleCallbackRejectsMismatchedBrowserBinding(t *testing.T) {
 	stateRepo := &kvstoretest.OAuthStateRepository{
 		ConsumeFunc: func(context.Context, string) (repokvstore.OAuthStateData, bool, error) {

@@ -6,6 +6,7 @@ import (
 	"testing"
 )
 
+// TestErrorCauseChain checks one wrapped cause is represented in diagnostic error chains.
 func TestErrorCauseChain(t *testing.T) {
 	root := errors.New("root")
 	wrapper := fmt.Errorf("wrapped: %w", root)
@@ -14,6 +15,7 @@ func TestErrorCauseChain(t *testing.T) {
 	}
 }
 
+// TestErrorCauseChainIncludesJoinedCauses checks joined failures retain all independent causes for diagnostics.
 func TestErrorCauseChainIncludesJoinedCauses(t *testing.T) {
 	joined := errors.Join(errors.New("first"), errors.New("second"))
 	if got := ErrorCauseChain(joined); got != "first\nsecond; first; second" {

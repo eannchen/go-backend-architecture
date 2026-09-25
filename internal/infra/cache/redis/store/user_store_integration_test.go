@@ -11,6 +11,7 @@ import (
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 )
 
+// TestUserCacheStoreIntegration checks user cache reads and writes against real Redis serialization and key behavior.
 func TestUserCacheStoreIntegration(t *testing.T) {
 	client := requireRedisTestClient(t)
 
