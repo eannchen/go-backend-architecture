@@ -8,48 +8,38 @@ A modular Go backend template built with Clean Architecture. Business workflows 
 
 ## Table of Contents
 
-- [Go Backend Architecture](#go-backend-architecture)
-  - [Table of Contents](#table-of-contents)
-  - [Included capabilities](#included-capabilities)
-  - [Architecture](#architecture)
-    - [Multi-binary composition](#multi-binary-composition)
-    - [SOLID in this codebase](#solid-in-this-codebase)
-    - [Core design patterns](#core-design-patterns)
-  - [Delivery adapters](#delivery-adapters)
-    - [Public HTTP](#public-http)
-    - [Service-to-service gRPC](#service-to-service-grpc)
-  - [Runtime reliability](#runtime-reliability)
-  - [Observability](#observability)
-    - [Trace propagation and correlation](#trace-propagation-and-correlation)
-  - [Data design](#data-design)
-    - [SQL-first PostgreSQL](#sql-first-postgresql)
-    - [Redis caching and state](#redis-caching-and-state)
-  - [Testing and CI](#testing-and-ci)
-  - [AI agent setup](#ai-agent-setup)
-    - [Rules](#rules)
-    - [Skills](#skills)
-  - [Third-party tools](#third-party-tools)
-  - [Repository map](#repository-map)
-  - [Use as a Starter](#use-as-a-starter)
-    - [Requirements](#requirements)
-    - [1. Choose the source shape](#1-choose-the-source-shape)
-    - [2. Bootstrap project identity](#2-bootstrap-project-identity)
-    - [3. Start local dependencies and the application](#3-start-local-dependencies-and-the-application)
-    - [4. Verify the project](#4-verify-the-project)
+- [Included capabilities](#included-capabilities)
+- [Architecture](#architecture)
+- [Delivery adapters](#delivery-adapters)
+- [Runtime reliability](#runtime-reliability)
+- [Observability](#observability)
+- [Data design](#data-design)
+- [Testing and CI](#testing-and-ci)
+- [AI agent setup](#ai-agent-setup)
+- [Third-party tools](#third-party-tools)
+- [Repository map](#repository-map)
+- [Use as a Starter](#use-as-a-starter)
 
 ## Included capabilities
 
-| Capability | Included design |
-| --- | --- |
-| Architecture | Clean Architecture, explicit composition roots, small contracts, and independently runnable binaries |
-| Public HTTP | OpenAPI-generated request and response models, OTP/OAuth sessions, Redis rate limiting, health endpoints, and Server-Sent Events |
-| Service gRPC | Protobuf services, standard and detailed health APIs, interceptors, TLS/mTLS caller identity, reflection controls, and outbound client building blocks |
-| Relational storage | SQL-first PostgreSQL with sqlc for static queries, Squirrel for dynamic queries, Goose migrations, and repository-owned transaction boundaries |
-| Cache and key-value state | Redis adapters for caching, sessions, OTP, OAuth state, and atomic rate limiting, with explicit composition |
-| Observability | OpenTelemetry traces, metrics, and log emission; Zap output; OTLP export; optional request-ID interoperability |
-| Testing | Layer-owned unit tests, transport workflow tests, and container-backed PostgreSQL and Redis integration tests |
-| CI | Static checks, race-enabled tests, integration tests, and validation of both selectable project profiles |
-| AI agent setup | Shared engineering rules for Codex, Claude, and Cursor, plus an optional phased TDD workflow |
+- **Architecture**
+  Clean Architecture, explicit composition roots, small contracts, and independently runnable binaries
+- **Public HTTP**
+  OpenAPI-generated request and response models, OTP/OAuth sessions, Redis rate limiting, health endpoints, and Server-Sent Events
+- **Service gRPC**
+  Protobuf services, standard and detailed health APIs, interceptors, TLS/mTLS caller identity, reflection controls, and outbound client building blocks
+- **Relational storage**
+  SQL-first PostgreSQL with sqlc for static queries, Squirrel for dynamic queries, Goose migrations, and repository-owned transaction boundaries
+- **Cache and key-value state**
+  Redis adapters for caching, sessions, OTP, OAuth state, and atomic rate limiting, with explicit composition
+- **Observability**
+  OpenTelemetry traces, metrics, and log emission; Zap output; OTLP export; optional request-ID interoperability
+- **Testing**
+  Layer-owned unit tests, transport workflow tests, and container-backed PostgreSQL and Redis integration tests
+- **CI**
+  Static checks, race-enabled tests, integration tests, and validation of both selectable project profiles
+- **AI agent setup**
+  Shared engineering rules for Codex, Claude, and Cursor, plus an optional phased TDD workflow
 
 ## Architecture
 
