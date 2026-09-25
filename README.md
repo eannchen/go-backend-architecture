@@ -22,24 +22,15 @@ A modular Go backend template built with Clean Architecture. Business workflows 
 
 ## Included capabilities
 
-- **Architecture**
-  Clean Architecture, explicit composition roots, small contracts, and independently runnable binaries
-- **Public HTTP**
-  OpenAPI-generated request and response models, OTP/OAuth sessions, Redis rate limiting, health endpoints, and Server-Sent Events
-- **Service gRPC**
-  Protobuf services, standard and detailed health APIs, interceptors, TLS/mTLS caller identity, reflection controls, and outbound client building blocks
-- **Relational storage**
-  SQL-first PostgreSQL with sqlc for static queries, Squirrel for dynamic queries, Goose migrations, and repository-owned transaction boundaries
-- **Cache and key-value state**
-  Redis adapters for caching, sessions, OTP, OAuth state, and atomic rate limiting, with explicit composition
-- **Observability**
-  OpenTelemetry traces, metrics, and log emission; Zap output; OTLP export; optional request-ID interoperability
-- **Testing**
-  Layer-owned unit tests, transport workflow tests, and container-backed PostgreSQL and Redis integration tests
-- **CI**
-  Static checks, race-enabled tests, integration tests, and validation of both selectable project profiles
-- **AI agent setup**
-  Shared engineering rules for Codex, Claude, and Cursor, plus an optional phased TDD workflow
+- **Architecture**: Clean Architecture with clear layer boundaries, explicit dependency wiring, focused interfaces, and independently runnable binaries
+- **Public HTTP**: OpenAPI-generated request and response models, OTP/OAuth sessions, Redis rate limiting, health endpoints, and Server-Sent Events
+- **Service gRPC**: Protobuf services, standard and detailed health APIs, interceptors, TLS/mTLS caller identity, reflection controls, and outbound client building blocks
+- **Relational storage**: SQL-first PostgreSQL with sqlc for static queries, Squirrel for dynamic queries, Goose migrations, and repository-owned transaction boundaries
+- **Cache and key-value state**: Redis adapters for caching, sessions, OTP, OAuth state, and atomic rate limiting, with explicit composition
+- **Observability**: OpenTelemetry traces, metrics, and log emission; Zap output; OTLP export; optional request-ID interoperability
+- **Testing**: Layer-owned unit tests, transport workflow tests, and container-backed PostgreSQL and Redis integration tests
+- **CI**: Static checks, race-enabled tests, integration tests, and validation of both selectable project profiles
+- **AI agent setup**: Guidance for Codex, Claude, Cursor, and GitHub Copilot, plus an optional phased TDD workflow
 
 ## Architecture
 
@@ -257,15 +248,16 @@ The repository keeps coding guidance in one place so agents follow the same conv
 | --- | --- |
 | [`AGENTS.md`](AGENTS.md) | Shared implementation rules for architecture, correctness, performance, testing, and change discipline, read by Codex and Cursor. |
 | [`.claude/CLAUDE.md`](.claude/CLAUDE.md) | Imports the shared rules for Claude instead of maintaining a divergent copy. |
+| [`.github/copilot-instructions.md`](.github/copilot-instructions.md) | Tells GitHub Copilot to consult `AGENTS.md` for the shared rules. |
 
 ### Skills
 
 | File | Purpose |
 | --- | --- |
-| [`.agents/skills/tdd-change/SKILL.md`](.agents/skills/tdd-change/SKILL.md) | Canonical TDD workflow loaded by Codex and available to Cursor by file reference. |
+| [`.agents/skills/tdd-change/SKILL.md`](.agents/skills/tdd-change/SKILL.md) | Canonical TDD workflow available to Codex, Cursor, and GitHub Copilot. |
 | [`.claude/skills/tdd-change/SKILL.md`](.claude/skills/tdd-change/SKILL.md) | Links the canonical workflow for Claude. |
 
-Invoke `$tdd-change` in Codex or `/tdd-change` in Claude with `Red only`, `Green only`, `Refactor only`, or `Complete cycle`. Green requires the failing tests from Red; Refactor requires passing tests. The skill follows `AGENTS.md`, including the capabilities that remain after profile selection.
+Invoke `$tdd-change` in Codex or `/tdd-change` in Claude, Cursor, or GitHub Copilot with `Red only`, `Green only`, `Refactor only`, or `Complete cycle`. Green requires the failing tests from Red; Refactor requires passing tests. The skill follows `AGENTS.md`, including the capabilities that remain after profile selection.
 
 ## Third-party tools
 
