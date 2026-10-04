@@ -19,6 +19,9 @@ func TestLoadKafkaWorkerReadsSettingsAndReusesRuntime(t *testing.T) {
 	t.Setenv("KAFKA_BROKERS", " localhost:9092 , localhost:19092 ")
 	t.Setenv("KAFKA_TOPIC", " notifications.requested.v1 ")
 	t.Setenv("KAFKA_GROUP_ID", " notification-sender-v1 ")
+	t.Setenv("KAFKA_PARTITION_STRATEGY", " key ")
+	t.Setenv("KAFKA_READ_TIMEOUT", " 2s ")
+	t.Setenv("KAFKA_WRITE_TIMEOUT", "3s")
 
 	wantRuntime, err := LoadRuntime()
 	if err != nil {
@@ -47,7 +50,7 @@ func TestLoadKafkaWorkerReadsSettingsAndReusesRuntime(t *testing.T) {
 // TestLoadKafkaWorkerUsesLocalDefaults protects a runnable local setup when Kafka environment variables are unset.
 func TestLoadKafkaWorkerUsesLocalDefaults(t *testing.T) {
 	setValidRuntimeEnv(t)
-	for _, key := range []string{"KAFKA_BROKERS", "KAFKA_TOPIC", "KAFKA_GROUP_ID"} {
+	for _, key := range []string{"KAFKA_BROKERS", "KAFKA_TOPIC", "KAFKA_GROUP_ID", "KAFKA_PARTITION_STRATEGY", "KAFKA_READ_TIMEOUT", "KAFKA_WRITE_TIMEOUT"} {
 		// Register restoration before unsetting so inherited environment values cannot affect the defaults.
 		t.Setenv(key, "")
 		if err := os.Unsetenv(key); err != nil {
@@ -89,6 +92,9 @@ func TestLoadKafkaWorkerRejectsEmptySubscriptionSettings(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			setValidRuntimeEnv(t)
+			t.Setenv("KAFKA_PARTITION_STRATEGY", "round-robin")
+			t.Setenv("KAFKA_READ_TIMEOUT", "10s")
+			t.Setenv("KAFKA_WRITE_TIMEOUT", "10s")
 			t.Setenv("KAFKA_BROKERS", "localhost:9092")
 			t.Setenv("KAFKA_TOPIC", "notifications.requested.v1")
 			t.Setenv("KAFKA_GROUP_ID", "notification-sender-v1")
@@ -99,5 +105,19 @@ func TestLoadKafkaWorkerRejectsEmptySubscriptionSettings(t *testing.T) {
 				t.Fatalf("LoadKafkaWorker() error = %v, want an error identifying %s", err, tt.key)
 			}
 		})
+	}
+}
+
+// TestLoadKafkaWorkerIgnoresPublisherPolicies protects consumer-only startup while preserving the shared runtime configuration.
+func TestLoadKafkaWorkerIgnoresPublisherPolicies(t *testing.T) {
+	setValidRuntimeEnv(t)
+	t.Setenv("KAFKA_BROKERS", "localhost:9092")
+	t.Setenv("KAFKA_TOPIC", "events.v1")
+	t.Setenv("KAFKA_GROUP_ID", "processing-v1")
+	t.Setenv("KAFKA_PARTITION_STRATEGY", "unknown")
+	t.Setenv("KAFKA_READ_TIMEOUT", "invalid")
+	t.Setenv("KAFKA_WRITE_TIMEOUT", "invalid")
+	if _, err := LoadKafkaWorker(); err != nil {
+		t.Fatalf("LoadKafkaWorker() error = %v", err)
 	}
 }
