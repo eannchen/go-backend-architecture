@@ -1,4 +1,4 @@
-package kafkaclient
+package kafka
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/segmentio/kafka-go"
+	kafkago "github.com/segmentio/kafka-go"
 )
 
 // TestNewReaderSubscriptionPolicy protects group-based work sharing, injected fetch bounds, and synchronous explicit commits.
@@ -29,9 +29,9 @@ func TestNewReaderSubscriptionPolicy(t *testing.T) {
 			if got.MinBytes != cfg.FetchMinBytes || got.MaxBytes != cfg.FetchMaxBytes || got.MaxWait != cfg.FetchMaxWait || got.ReadBatchTimeout != cfg.ReadBatchTimeout || got.QueueCapacity != cfg.QueueCapacity {
 				t.Fatalf("fetch settings differ: %+v", got)
 			}
-			want := kafka.FirstOffset
+			want := kafkago.FirstOffset
 			if start == config.KafkaStartLatest {
-				want = kafka.LastOffset
+				want = kafkago.LastOffset
 			}
 			if got.StartOffset != want || got.CommitInterval != 0 {
 				t.Fatalf("offset/commit policy = %d/%v, want %d/0", got.StartOffset, got.CommitInterval, want)
@@ -52,7 +52,7 @@ func TestReaderPreservesCancellation(t *testing.T) {
 	if _, err := reader.FetchMessage(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("fetch error = %v, want cancellation", err)
 	}
-	if err := reader.CommitMessages(ctx, kafka.Message{Topic: "events.v1", Partition: 0, Offset: 10}); !errors.Is(err, context.Canceled) {
+	if err := reader.CommitMessages(ctx, kafkago.Message{Topic: "events.v1", Partition: 0, Offset: 10}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("commit error = %v, want cancellation", err)
 	}
 }
@@ -75,7 +75,7 @@ func TestReaderCloseStopsOperations(t *testing.T) {
 	// Repeat to catch the SDK's select race between a closed subscription and a
 	// still-writable buffered commit queue. The wrapper must always reject it.
 	for range 20 {
-		if err := reader.CommitMessages(ctx, kafka.Message{Topic: "events.v1", Partition: 0, Offset: 10}); !errors.Is(err, io.ErrClosedPipe) {
+		if err := reader.CommitMessages(ctx, kafkago.Message{Topic: "events.v1", Partition: 0, Offset: 10}); !errors.Is(err, io.ErrClosedPipe) {
 			t.Fatalf("closed commit error = %v, want closed pipe", err)
 		}
 	}

@@ -1,4 +1,4 @@
-package kafkaclient
+package kafka
 
 import (
 	"context"
@@ -7,14 +7,14 @@ import (
 	"sync/atomic"
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/segmentio/kafka-go"
+	kafkago "github.com/segmentio/kafka-go"
 )
 
 // Reader owns a group subscription and exposes explicit fetching and committing.
 // SDK message types must not cross into usecase or repository contracts.
 // ReadMessage is deliberately absent because it commits automatically in group mode.
 type Reader struct {
-	reader *kafka.Reader
+	reader *kafkago.Reader
 	closed atomic.Bool
 }
 
@@ -24,11 +24,11 @@ func NewReader(cfg config.KafkaConsumerConfig) (*Reader, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("Kafka reader configuration: %w", err)
 	}
-	startOffset := kafka.FirstOffset
+	startOffset := kafkago.FirstOffset
 	if cfg.StartOffset == config.KafkaStartLatest {
-		startOffset = kafka.LastOffset
+		startOffset = kafkago.LastOffset
 	}
-	readerConfig := kafka.ReaderConfig{
+	readerConfig := kafkago.ReaderConfig{
 		// Discovery addresses for one cluster; the reader follows assigned leaders.
 		Brokers: cfg.Brokers,
 		Topic:   cfg.Topic,
@@ -53,18 +53,18 @@ func NewReader(cfg config.KafkaConsumerConfig) (*Reader, error) {
 	if err := readerConfig.Validate(); err != nil {
 		return nil, fmt.Errorf("Kafka reader SDK configuration: %w", err)
 	}
-	return &Reader{reader: kafka.NewReader(readerConfig)}, nil
+	return &Reader{reader: kafkago.NewReader(readerConfig)}, nil
 }
 
 // FetchMessage does not commit. Pass the caller's context to bound waiting on an
 // empty topic. Cancelling one fetch does not close the SDK's group subscription.
-func (r *Reader) FetchMessage(ctx context.Context) (kafka.Message, error) {
+func (r *Reader) FetchMessage(ctx context.Context) (kafkago.Message, error) {
 	if r.closed.Load() {
-		return kafka.Message{}, fmt.Errorf("fetch Kafka message: %w", io.EOF)
+		return kafkago.Message{}, fmt.Errorf("fetch Kafka message: %w", io.EOF)
 	}
 	message, err := r.reader.FetchMessage(ctx)
 	if err != nil {
-		return kafka.Message{}, fmt.Errorf("fetch Kafka message: %w", err)
+		return kafkago.Message{}, fmt.Errorf("fetch Kafka message: %w", err)
 	}
 	return message, nil
 }
@@ -73,7 +73,7 @@ func (r *Reader) FetchMessage(ctx context.Context) (kafka.Message, error) {
 // handled records: committing a higher offset also commits all earlier offsets in
 // that partition. Parallel handlers therefore need completion-order coordination.
 // Processing may repeat after a crash between its side effect and this commit.
-func (r *Reader) CommitMessages(ctx context.Context, messages ...kafka.Message) error {
+func (r *Reader) CommitMessages(ctx context.Context, messages ...kafkago.Message) error {
 	// The SDK's buffered commit channel can accept requests after its group loop
 	// stops. Reject them here instead of waiting for a commit result that cannot arrive.
 	if r.closed.Load() {

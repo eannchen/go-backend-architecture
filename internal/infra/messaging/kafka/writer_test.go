@@ -1,4 +1,4 @@
-package kafkaclient
+package kafka
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/segmentio/kafka-go"
+	kafkago "github.com/segmentio/kafka-go"
 )
 
 // TestNewWriterPartitionStrategy protects caller-selected routing rather than imposing the example's key policy.
@@ -25,12 +25,12 @@ func TestNewWriterPartitionStrategy(t *testing.T) {
 			// Check our SDK mapping; the SDK owns the hashing and rotation algorithms.
 			switch strategy {
 			case config.PartitionByKey:
-				if _, ok := writer.writer.Balancer.(*kafka.Hash); !ok {
-					t.Fatalf("balancer = %T, want *kafka.Hash", writer.writer.Balancer)
+				if _, ok := writer.writer.Balancer.(*kafkago.Hash); !ok {
+					t.Fatalf("balancer = %T, want *kafkago.Hash", writer.writer.Balancer)
 				}
 			case config.PartitionRoundRobin:
-				if _, ok := writer.writer.Balancer.(*kafka.RoundRobin); !ok {
-					t.Fatalf("balancer = %T, want *kafka.RoundRobin", writer.writer.Balancer)
+				if _, ok := writer.writer.Balancer.(*kafkago.RoundRobin); !ok {
+					t.Fatalf("balancer = %T, want *kafkago.RoundRobin", writer.writer.Balancer)
 				}
 			}
 		})
@@ -49,10 +49,10 @@ func TestNewWriterPublicationPolicy(t *testing.T) {
 	if writer.writer.Topic != cfg.Topic {
 		t.Fatalf("topic = %q, want %q", writer.writer.Topic, cfg.Topic)
 	}
-	if writer.writer.Addr.String() != kafka.TCP("localhost:9092", "localhost:19092").String() {
+	if writer.writer.Addr.String() != kafkago.TCP("localhost:9092", "localhost:19092").String() {
 		t.Fatalf("broker addresses = %v", writer.writer.Addr)
 	}
-	if writer.writer.Async || writer.writer.RequiredAcks != kafka.RequireAll || writer.writer.AllowAutoTopicCreation {
+	if writer.writer.Async || writer.writer.RequiredAcks != kafkago.RequireAll || writer.writer.AllowAutoTopicCreation {
 		t.Fatalf("publication policy = (async %v, acks %v, auto-topic %v), want false/all/false", writer.writer.Async, writer.writer.RequiredAcks, writer.writer.AllowAutoTopicCreation)
 	}
 	if writer.writer.ReadTimeout != cfg.ReadTimeout || writer.writer.WriteTimeout != cfg.WriteTimeout {
@@ -76,7 +76,7 @@ func TestNewWriterPreservesCallerCancellation(t *testing.T) {
 	cleanupWriter(t, writer)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	err = writer.WriteMessages(ctx, kafka.Message{Key: []byte("recipient-123"), Value: []byte("notification")})
+	err = writer.WriteMessages(ctx, kafkago.Message{Key: []byte("recipient-123"), Value: []byte("notification")})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("WriteMessages() error = %v, want context cancellation", err)
 	}
@@ -149,11 +149,11 @@ func cleanupWriter(t *testing.T, writer *Writer) {
 func TestNewWriterCompression(t *testing.T) {
 	tests := []struct {
 		codec config.KafkaCompression
-		want  kafka.Compression
+		want  kafkago.Compression
 	}{
-		{config.CompressionNone, 0}, {config.CompressionGzip, kafka.Gzip},
-		{config.CompressionSnappy, kafka.Snappy}, {config.CompressionLz4, kafka.Lz4},
-		{config.CompressionZstd, kafka.Zstd},
+		{config.CompressionNone, 0}, {config.CompressionGzip, kafkago.Gzip},
+		{config.CompressionSnappy, kafkago.Snappy}, {config.CompressionLz4, kafkago.Lz4},
+		{config.CompressionZstd, kafkago.Zstd},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.codec), func(t *testing.T) {
@@ -189,7 +189,7 @@ func TestWriterOwnsTransportAndRejectsWritesAfterClose(t *testing.T) {
 	if err := first.Close(); err != nil {
 		t.Fatalf("Close() error = %v", err)
 	}
-	err = first.WriteMessages(t.Context(), kafka.Message{Value: []byte("closed")})
+	err = first.WriteMessages(t.Context(), kafkago.Message{Value: []byte("closed")})
 	if !errors.Is(err, io.ErrClosedPipe) {
 		t.Fatalf("closed publication error = %v, want io.ErrClosedPipe", err)
 	}
@@ -234,11 +234,11 @@ func TestNewWriterRejectsInvalidTuning(t *testing.T) {
 func TestNewWriterAcknowledgments(t *testing.T) {
 	tests := []struct {
 		policy config.KafkaAcknowledgments
-		want   kafka.RequiredAcks
+		want   kafkago.RequiredAcks
 	}{
-		{config.KafkaAcksAll, kafka.RequireAll},
-		{config.KafkaAcksLeader, kafka.RequireOne},
-		{config.KafkaAcksNone, kafka.RequireNone},
+		{config.KafkaAcksAll, kafkago.RequireAll},
+		{config.KafkaAcksLeader, kafkago.RequireOne},
+		{config.KafkaAcksNone, kafkago.RequireNone},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.policy), func(t *testing.T) {

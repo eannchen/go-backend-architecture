@@ -18,3 +18,8 @@ dev-kafka-down:
 
 dev-kafka-logs:
 	$(KAFKA_COMPOSE) logs -f kafka
+
+.PHONY: run-kafkaworker
+
+run-kafkaworker:
+	go run ./cmd/kafkaworker

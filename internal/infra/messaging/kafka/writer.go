@@ -1,18 +1,18 @@
-package kafkaclient
+package kafka
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/segmentio/kafka-go"
+	kafkago "github.com/segmentio/kafka-go"
 )
 
 // Writer owns a publisher and its dedicated connection pool. Configure it at
 // construction; keep SDK message types inside infra and composition boundaries.
 type Writer struct {
-	writer    *kafka.Writer
-	transport *kafka.Transport
+	writer    *kafkago.Writer
+	transport *kafkago.Transport
 }
 
 // NewWriter constructs a lazy publisher; construction does not prove connectivity.
@@ -21,48 +21,48 @@ func NewWriter(cfg config.KafkaPublisherConfig) (*Writer, error) {
 		return nil, fmt.Errorf("Kafka writer configuration: %w", err)
 	}
 
-	var balancer kafka.Balancer
+	var balancer kafkago.Balancer
 	switch cfg.PartitionStrategy {
 	case config.PartitionByKey:
-		balancer = &kafka.Hash{}
+		balancer = &kafkago.Hash{}
 	case config.PartitionRoundRobin:
-		balancer = &kafka.RoundRobin{}
+		balancer = &kafkago.RoundRobin{}
 	}
 
-	var requiredAcks kafka.RequiredAcks
+	var requiredAcks kafkago.RequiredAcks
 	switch cfg.RequiredAcks {
 	case config.KafkaAcksAll:
-		requiredAcks = kafka.RequireAll
+		requiredAcks = kafkago.RequireAll
 	case config.KafkaAcksLeader:
-		requiredAcks = kafka.RequireOne
+		requiredAcks = kafkago.RequireOne
 	case config.KafkaAcksNone:
-		requiredAcks = kafka.RequireNone
+		requiredAcks = kafkago.RequireNone
 	}
 
-	var compression kafka.Compression
+	var compression kafkago.Compression
 	switch cfg.Compression {
 	case config.CompressionNone:
 		compression = 0
 	case config.CompressionGzip:
-		compression = kafka.Gzip
+		compression = kafkago.Gzip
 	case config.CompressionSnappy:
-		compression = kafka.Snappy
+		compression = kafkago.Snappy
 	case config.CompressionLz4:
-		compression = kafka.Lz4
+		compression = kafkago.Lz4
 	case config.CompressionZstd:
-		compression = kafka.Zstd
+		compression = kafkago.Zstd
 	}
 
 	// Transport performs Kafka request/response networking: it discovers partition
 	// leaders, caches cluster metadata, and reuses connections across requests.
 	// The empty value uses SDK defaults; it opens connections lazily and currently
 	// has no TLS or SASL authentication configured. Each publisher owns its pool.
-	transport := &kafka.Transport{}
+	transport := &kafkago.Transport{}
 
-	writer := &kafka.Writer{
+	writer := &kafkago.Writer{
 		// Discovery addresses belong to one cluster. The transport finds the selected
 		// partition's leader; it does not publish a copy to every listed address.
-		Addr: kafka.TCP(cfg.Brokers...),
+		Addr: kafkago.TCP(cfg.Brokers...),
 		// This writer publishes to one topic. Leave Message.Topic unset because the
 		// SDK rejects specifying a topic both here and on an individual message.
 		Topic: cfg.Topic,
@@ -116,7 +116,7 @@ func NewWriter(cfg config.KafkaPublisherConfig) (*Writer, error) {
 
 // WriteMessages waits for delivery or caller cancellation. Cancellation does not
 // retract queued messages; SDK batch attempts may continue after this call returns.
-func (w *Writer) WriteMessages(ctx context.Context, messages ...kafka.Message) error {
+func (w *Writer) WriteMessages(ctx context.Context, messages ...kafkago.Message) error {
 	if err := w.writer.WriteMessages(ctx, messages...); err != nil {
 		return fmt.Errorf("publish Kafka messages: %w", err)
 	}
