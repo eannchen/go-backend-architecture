@@ -3,6 +3,7 @@
 include make/common.mk
 -include make/public-http.mk
 -include make/service-grpc.mk
+-include make/kafka.mk
 
 ifeq ($(PUBLIC_HTTP_PROFILE),true)
 run: run-httpapi

@@ -1,0 +1,125 @@
+# Kafka has its own Compose project, network, and volume. Starting/stopping it
+# does not start or stop PostgreSQL, Redis, or the observability services.
+name: go-backend-architecture-kafka
+
+services:
+  kafka:
+    # Use a specific Kafka version so everyone runs the same local server.
+    image: apache/kafka:4.1.2
+    hostname: kafka
+    ports:
+      # Your Go program runs on your computer and connects to localhost:9092.
+      # Docker forwards that connection to port 9092 inside this container.
+      # 127.0.0.1 keeps this port accessible only from your computer.
+      # This local setup has no login or encryption.
+      - "127.0.0.1:9092:9092"
+    environment:
+      # A node is a Kafka server. Give this server the ID 1.
+      # It does two jobs:
+      # - broker: stores messages and serves producers/consumers;
+      # - controller: tracks topics, partitions, and which broker leads each one.
+      # Kafka calls its built-in controller system KRaft.
+      # One server can do both jobs for local development.
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      # The cluster also needs an ID. Keep this value unchanged while reusing
+      # saved Kafka data: that data belongs to this cluster.
+      CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
+      # Controllers choose a leader among themselves. We have only one:
+      # server ID 1, reachable at kafka:29093 inside Docker.
+      # CONTROLLER names the connection used for controller communication.
+      # This does not set the number of partitions or message copies.
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:29093"
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # A listener is an address/port where Kafka accepts connections.
+      # HOST, INTERNAL, and CONTROLLER are names we chose for these connections.
+      # Kafka listens on three ports inside the container:
+      # - 9092: Go programs running on your computer;
+      # - 19092: other containers in this Compose project;
+      # - 29093: controller communication.
+      KAFKA_LISTENERS: "HOST://:9092,INTERNAL://:19092,CONTROLLER://:29093"
+      # After connecting, a client asks Kafka where to send its requests.
+      # These are the addresses Kafka gives back:
+      # - your computer can reach localhost:9092;
+      # - another container can reach kafka:19092 (kafka is the service name).
+      # Inside a container, localhost means that container, not your computer.
+      KAFKA_ADVERTISED_LISTENERS: "HOST://localhost:9092,INTERNAL://kafka:19092"
+      # PLAINTEXT means these connections have no encryption or login.
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "HOST:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      # Brokers use the INTERNAL connection to talk to other brokers.
+      # We keep this setting even though this local setup has only one broker.
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # Kafka saves each consumer group's progress in a topic it manages itself.
+      # Progress is an offset: the position reached in a partition.
+      # Give each partition of that internal topic one copy because we have
+      # only one broker. This lets consumers save progress locally.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      # Kafka has other internal topics for optional features: transactions
+      # and share groups. We are not using those features in this phase.
+      # These settings let their internal topics work with one broker too:
+      # REPLICATION_FACTOR=1 means one copy per partition;
+      # MIN_ISR=1 means one up-to-date copy is enough for an acknowledged write.
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR: 1
+      # Default topic settings: one copy per partition, and one up-to-date
+      # copy required when a producer requests acknowledgments from all ISR.
+      # ISR means the copies currently keeping up with the partition leader.
+      # With one broker, RequiredAcks=all still waits for only one copy.
+      # There is no backup copy if this broker or its stored data is lost.
+      # Our initialization script also sets these values on our topic.
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+      # Misspelled topic names must fail rather than silently create new topics.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      # Save messages and the controller's cluster information in this folder.
+      # The Docker volume below keeps them when the container is recreated.
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      # Ask Kafka which requests it supports. A successful response means
+      # Kafka can answer a client, rather than merely having started a process.
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:19092 >/dev/null 2>&1"]
+      # Check every 5 seconds; give each check up to 10 seconds to finish.
+      interval: 5s
+      timeout: 10s
+      # Mark unhealthy after 20 consecutive failures outside the startup period.
+      retries: 20
+      # Allow 20 seconds for startup before counting failed checks.
+      start_period: 20s
+    # Give the broker time to flush and stop cleanly on Compose shutdown.
+    stop_grace_period: 30s
+
+  kafka-init:
+    image: apache/kafka:4.1.2
+    depends_on:
+      kafka:
+        # Container startup alone does not mean the broker can accept requests.
+        condition: service_healthy
+    environment:
+      # This script runs in a container, so it uses the INTERNAL address.
+      KAFKA_BOOTSTRAP_SERVER: kafka:19092
+      # Use KAFKA_TOPIC from your environment, or this name when it is unset/empty.
+      KAFKA_TOPIC: "${KAFKA_TOPIC:-notifications.requested.v1}"
+      # Split this topic into three ordered message streams (partitions).
+      # All three can live on our one broker. Later, up to three consumers
+      # in one group can each be assigned a partition at the same time.
+      # Override with KAFKA_TOPIC_PARTITIONS when creating a new topic.
+      KAFKA_TOPIC_PARTITIONS: "${KAFKA_TOPIC_PARTITIONS:-3}"
+    volumes:
+      # Mount our topic-creation script into this container. :ro means the
+      # container can read the script but cannot change the file on your computer.
+      # The script creates the topic or checks its settings if it already exists.
+      - ./tools/kafka/init-topic.sh:/opt/template/init-topic.sh:ro
+    entrypoint: ["/bin/bash", "/opt/template/init-topic.sh"]
+    # This container creates/checks the topic and then exits.
+    # Do not automatically restart it if the script fails.
+    restart: "no"
+
+volumes:
+  # Docker manages this saved-data volume separately from the container.
+  # `make dev-kafka-down` removes the container but keeps this data.
+  # Running Compose `down --volumes` would erase messages and consumer progress.
+  kafka-data:
