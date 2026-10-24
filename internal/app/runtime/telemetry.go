@@ -26,7 +26,8 @@ func NewTelemetry(ctx context.Context, cfg config.RuntimeConfig) (*Telemetry, er
 	}
 	log, err := zaplogger.New(cfg.Log)
 	if err != nil {
-		return nil, errutil.Join(err, errutil.Step("shutdown observability after logger init failure", obs.Shutdown(ctx)))
+		cleanupErr := CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, obs.Shutdown)
+		return nil, errutil.Join(err, errutil.Step("shutdown observability after logger init failure", cleanupErr))
 	}
 	log.SetLogSink(logEmitterToLogSink(obs.LogEmitter()))
 	log.SetContextFieldsProvider(contextFieldsProvider(obs.Tracer()))

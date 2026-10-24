@@ -36,9 +36,8 @@ func New(ctx context.Context) (*App, error) {
 	}
 	reader, err := kafkaclient.NewReader(cfg.Kafka)
 	if err != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.Shutdown.GracePeriod)
-		defer cancel()
-		return nil, errors.Join(err, errutil.Step("shutdown telemetry after Kafka init failure", telemetry.Shutdown(cleanupCtx)))
+		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, telemetry.Shutdown)
+		return nil, errors.Join(err, errutil.Step("shutdown telemetry after Kafka init failure", cleanupErr))
 	}
 	usecase := notification.New(telemetry.Logger)
 	worker := kafkadelivery.NewNotificationWorker(reader, usecase, telemetry.Observability.Tracer())

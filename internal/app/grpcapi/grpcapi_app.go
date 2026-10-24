@@ -39,9 +39,10 @@ func New(ctx context.Context) (*App, error) {
 	healthUsecase := wiring.buildHealthUsecase(runtime.DBPool, runtime.RedisClient)
 	components, err := wiring.buildServer(healthUsecase)
 	if err != nil {
+		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, runtime.Shutdown)
 		return nil, errutil.Join(
 			err,
-			errutil.Step("shutdown runtime after gRPC server init failure", runtime.Shutdown(ctx)),
+			errutil.Step("shutdown runtime after gRPC server init failure", cleanupErr),
 		)
 	}
 
