@@ -23,3 +23,6 @@ dev-kafka-logs:
 
 run-kafkaworker:
 	go run ./cmd/kafkaworker
+
+# The Kafka profile owns its disposable-broker integration suite.
+INTEGRATION_PACKAGES += ./internal/infra/messaging/kafka

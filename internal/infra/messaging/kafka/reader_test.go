@@ -4,136 +4,107 @@ import (
 	"context"
 	"errors"
 	"io"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	kafkago "github.com/segmentio/kafka-go"
+	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-// TestNewReaderSubscriptionPolicy protects group-based work sharing, injected fetch bounds, and synchronous explicit commits.
-func TestNewReaderSubscriptionPolicy(t *testing.T) {
-	for _, start := range []config.KafkaStartOffset{config.KafkaStartEarliest, config.KafkaStartLatest} {
+// TestReaderSubscriptionPolicy protects manual commits, rebalance coordination,
+// fetch buffering bounds, and the configured initial position for a new group.
+func TestReaderSubscriptionPolicy(t *testing.T) {
+	for _, start := range []config.KafkaInitialOffset{config.KafkaInitialEarliest, config.KafkaInitialLatest} {
 		t.Run(string(start), func(t *testing.T) {
 			cfg := validConsumerConfig()
-			cfg.StartOffset = start
-			reader, err := NewReader(cfg)
+			cfg.InitialOffset = start
+			r, err := NewReader(cfg)
 			if err != nil {
 				t.Fatal(err)
 			}
-			cleanupReader(t, reader)
-			got := reader.reader.Config()
-			if got.GroupID != cfg.GroupID || got.Topic != cfg.Topic || len(got.Brokers) != 1 || got.Brokers[0] != cfg.Brokers[0] {
-				t.Fatalf("subscription differs: %+v", got)
+			cleanupReader(t, r)
+			offset := kgo.NewOffset().AtStart()
+			if start == config.KafkaInitialLatest {
+				offset = kgo.NewOffset().AtEnd()
 			}
-			if got.MinBytes != cfg.FetchMinBytes || got.MaxBytes != cfg.FetchMaxBytes || got.MaxWait != cfg.FetchMaxWait || got.ReadBatchTimeout != cfg.ReadBatchTimeout || got.QueueCapacity != cfg.QueueCapacity {
-				t.Fatalf("fetch settings differ: %+v", got)
-			}
-			want := kafkago.FirstOffset
-			if start == config.KafkaStartLatest {
-				want = kafkago.LastOffset
-			}
-			if got.StartOffset != want || got.CommitInterval != 0 {
-				t.Fatalf("offset/commit policy = %d/%v, want %d/0", got.StartOffset, got.CommitInterval, want)
+			for _, check := range []struct{ option, want any }{
+				{kgo.ConsumerGroup, cfg.GroupID}, {kgo.DisableAutoCommit, true}, {kgo.BlockRebalanceOnPoll, true},
+				{kgo.ConsumeStartOffset, offset}, {kgo.ConsumeResetOffset, kgo.NoResetOffset()},
+				{kgo.AllowAutoTopicCreation, false}, {kgo.FetchMinBytes, int32(cfg.FetchMinBytes)},
+				{kgo.FetchMaxBytes, int32(cfg.FetchMaxBytes)}, {kgo.FetchMaxPartitionBytes, int32(cfg.FetchMaxBytes)},
+				{kgo.FetchMaxWait, cfg.FetchMaxWait}, {kgo.RequestTimeoutOverhead, cfg.RequestTimeout},
+				{kgo.MaxConcurrentFetches, cfg.MaxConcurrentFetches}, {kgo.RebalanceTimeout, cfg.RebalanceTimeout},
+			} {
+				if got := r.client.OptValue(check.option); !reflect.DeepEqual(got, check.want) {
+					t.Fatalf("option %T=%v want=%v", check.option, got, check.want)
+				}
 			}
 		})
 	}
 }
 
-// TestReaderPreservesCancellation protects blocked fetch/commit callers without requiring a broker.
-func TestReaderPreservesCancellation(t *testing.T) {
-	reader, err := NewReader(validConsumerConfig())
+// TestReaderCancellationAndClosure preserves cancellation causes and rejects
+// operations after close, including a canceled poll that blocked rebalances.
+func TestReaderCancellationAndClosure(t *testing.T) {
+	r, err := NewReader(validConsumerConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
-	cleanupReader(t, reader)
+	cleanupReader(t, r)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := reader.FetchMessage(ctx); !errors.Is(err, context.Canceled) {
-		t.Fatalf("fetch error = %v, want cancellation", err)
+	if _, err := r.FetchRecord(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("fetch error=%v", err)
 	}
-	if err := reader.CommitMessages(ctx, kafkago.Message{Topic: "events.v1", Partition: 0, Offset: 10}); !errors.Is(err, context.Canceled) {
-		t.Fatalf("commit error = %v, want cancellation", err)
+	if err := r.CommitRecords(ctx, &kgo.Record{Topic: "events.v1", Offset: 10}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("commit error=%v", err)
+	}
+	if err := r.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.FetchRecord(t.Context()); !errors.Is(err, io.EOF) {
+		t.Fatalf("closed fetch=%v", err)
+	}
+	if err := r.CommitRecords(t.Context(), &kgo.Record{}); !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("closed commit=%v", err)
 	}
 }
 
-// TestReaderCloseStopsOperations protects explicit lifecycle ownership and prevents commits after shutdown.
-func TestReaderCloseStopsOperations(t *testing.T) {
-	reader, err := NewReader(validConsumerConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
-	cleanupReader(t, reader)
-	if err := reader.Close(); err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
-	defer cancel()
-	if _, err := reader.FetchMessage(ctx); !errors.Is(err, io.EOF) {
-		t.Fatalf("closed fetch error = %v, want EOF", err)
-	}
-	// Repeat to catch the SDK's select race between a closed subscription and a
-	// still-writable buffered commit queue. The wrapper must always reject it.
-	for range 20 {
-		if err := reader.CommitMessages(ctx, kafkago.Message{Topic: "events.v1", Partition: 0, Offset: 10}); !errors.Is(err, io.ErrClosedPipe) {
-			t.Fatalf("closed commit error = %v, want closed pipe", err)
+// TestReaderRejectsInvalidConfiguration prevents unsafe byte narrowing and SDK
+// defaults from silently replacing an invalid subscription supplied directly.
+func TestReaderRejectsInvalidConfiguration(t *testing.T) {
+	for _, change := range []func(*config.KafkaConsumerConfig){
+		func(c *config.KafkaConsumerConfig) { c.Brokers = nil }, func(c *config.KafkaConsumerConfig) { c.GroupID = "" },
+		func(c *config.KafkaConsumerConfig) { c.FetchMaxBytes = 1 << 31 }, func(c *config.KafkaConsumerConfig) { c.MaxConcurrentFetches = 0 },
+		func(c *config.KafkaConsumerConfig) { c.RequestTimeout = 0 }, func(c *config.KafkaConsumerConfig) { c.InitialOffset = "unknown" },
+	} {
+		cfg := validConsumerConfig()
+		change(&cfg)
+		r, err := NewReader(cfg)
+		if r != nil {
+			cleanupReader(t, r)
+		}
+		if r != nil || err == nil {
+			t.Fatal("accepted invalid reader configuration")
 		}
 	}
 }
 
-// TestNewReaderRejectsInvalidConfiguration protects direct callers from constructor panics and SDK fallback settings.
-func TestNewReaderRejectsInvalidConfiguration(t *testing.T) {
-	tests := []struct {
-		name   string
-		change func(*config.KafkaConsumerConfig)
-	}{
-		{"no brokers", func(c *config.KafkaConsumerConfig) { c.Brokers = nil }},
-		{"blank broker", func(c *config.KafkaConsumerConfig) { c.Brokers = []string{" "} }},
-		{"blank topic", func(c *config.KafkaConsumerConfig) { c.Topic = " " }},
-		{"blank group", func(c *config.KafkaConsumerConfig) { c.GroupID = " " }},
-		{"zero min bytes", func(c *config.KafkaConsumerConfig) { c.FetchMinBytes = 0 }},
-		{"negative min bytes", func(c *config.KafkaConsumerConfig) { c.FetchMinBytes = -1 }},
-		{"zero max bytes", func(c *config.KafkaConsumerConfig) { c.FetchMaxBytes = 0 }},
-		{"negative max bytes", func(c *config.KafkaConsumerConfig) { c.FetchMaxBytes = -1 }},
-		{"inverted fetch bounds", func(c *config.KafkaConsumerConfig) { c.FetchMinBytes = c.FetchMaxBytes + 1 }},
-		{"zero wait", func(c *config.KafkaConsumerConfig) { c.FetchMaxWait = 0 }},
-		{"negative wait", func(c *config.KafkaConsumerConfig) { c.FetchMaxWait = -time.Second }},
-		{"zero batch timeout", func(c *config.KafkaConsumerConfig) { c.ReadBatchTimeout = 0 }},
-		{"negative batch timeout", func(c *config.KafkaConsumerConfig) { c.ReadBatchTimeout = -time.Second }},
-		{"zero queue", func(c *config.KafkaConsumerConfig) { c.QueueCapacity = 0 }},
-		{"negative queue", func(c *config.KafkaConsumerConfig) { c.QueueCapacity = -1 }},
-		{"missing offset", func(c *config.KafkaConsumerConfig) { c.StartOffset = "" }},
-		{"unknown offset", func(c *config.KafkaConsumerConfig) { c.StartOffset = "unknown" }},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := validConsumerConfig()
-			tt.change(&cfg)
-			reader, err := NewReader(cfg)
-			if reader != nil {
-				cleanupReader(t, reader)
-			}
-			if err == nil || reader != nil {
-				t.Fatalf("NewReader() = (%v, %v), want rejected config", reader, err)
-			}
-		})
-	}
-}
-
 func validConsumerConfig() config.KafkaConsumerConfig {
-	// The closed port keeps unit tests independent of Kafka; Close owns the SDK's group goroutines.
 	return config.KafkaConsumerConfig{
 		Brokers: []string{"127.0.0.1:1"}, Topic: "events.v1", GroupID: "worker-v1",
 		FetchMinBytes: 1, FetchMaxBytes: 65536, FetchMaxWait: 500 * time.Millisecond,
-		ReadBatchTimeout: time.Second, QueueCapacity: 10, StartOffset: config.KafkaStartEarliest,
+		RequestTimeout: time.Second, RebalanceTimeout: time.Minute, MaxConcurrentFetches: 1, InitialOffset: config.KafkaInitialEarliest,
 	}
 }
-
-func cleanupReader(t *testing.T, reader *Reader) {
+func cleanupReader(t *testing.T, r *Reader) {
 	t.Helper()
 	t.Cleanup(func() {
-		if err := reader.Close(); err != nil {
-			t.Errorf("Close() error = %v", err)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := r.Close(ctx); err != nil {
+			t.Error(err)
 		}
 	})
 }

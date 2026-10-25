@@ -6,24 +6,31 @@ import (
 	"reflect"
 	"testing"
 
-	kafkago "github.com/segmentio/kafka-go"
+	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification/notificationtest"
 )
 
 type readerStub struct {
-	fetch  func(context.Context) (kafkago.Message, error)
-	commit func(context.Context, ...kafkago.Message) error
+	fetch  func(context.Context) (*kgo.Record, error)
+	commit func(context.Context, ...*kgo.Record) error
+	allow  func()
 }
 
-func (r readerStub) FetchMessage(ctx context.Context) (kafkago.Message, error) { return r.fetch(ctx) }
-func (r readerStub) CommitMessages(ctx context.Context, messages ...kafkago.Message) error {
+func (r readerStub) FetchRecord(ctx context.Context) (*kgo.Record, error) { return r.fetch(ctx) }
+func (r readerStub) CommitRecords(ctx context.Context, messages ...*kgo.Record) error {
 	return r.commit(ctx, messages...)
 }
 
+func (r readerStub) AllowRebalance() {
+	if r.allow != nil {
+		r.allow()
+	}
+}
+
 // TestNotificationWorkerProcessing protects handle-before-commit ordering and
-// ensures failures cannot advance the group's progress past an unhandled record.
+// ensures failures cannot advance group progress and always release rebalances.
 func TestNotificationWorkerProcessing(t *testing.T) {
 	failure := errors.New("dependency failed")
 	valid := []byte(`{"request_id":"req-1","recipient":"user-1","content":"hello"}`)
@@ -34,29 +41,30 @@ func TestNotificationWorkerProcessing(t *testing.T) {
 		want                 []string
 		wantErr              error
 	}{
-		{name: "success", payload: valid, want: []string{"fetch", "handle", "commit", "fetch"}},
-		{name: "invalid JSON", payload: []byte(`{"content":`), want: []string{"fetch"}},
-		{name: "missing recipient", payload: []byte(`{"request_id":"r","content":"hello"}`), want: []string{"fetch"}},
-		{name: "handler failure", payload: valid, handleErr: failure, want: []string{"fetch", "handle"}, wantErr: failure},
-		{name: "commit failure", payload: valid, commitErr: failure, want: []string{"fetch", "handle", "commit"}, wantErr: failure},
+		{name: "success", payload: valid, want: []string{"fetch", "handle", "commit", "release", "fetch"}},
+		{name: "invalid JSON", payload: []byte(`{"content":`), want: []string{"fetch", "release"}},
+		{name: "missing recipient", payload: []byte(`{"request_id":"r","content":"hello"}`), want: []string{"fetch", "release"}},
+		{name: "handler failure", payload: valid, handleErr: failure, want: []string{"fetch", "handle", "release"}, wantErr: failure},
+		{name: "commit failure", payload: valid, commitErr: failure, want: []string{"fetch", "handle", "commit", "release"}, wantErr: failure},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			var steps []string
-			message := kafkago.Message{Topic: "notifications", Partition: 2, Offset: 7, Value: tc.payload}
+			message := &kgo.Record{Topic: "notifications", Partition: 2, Offset: 7, Value: tc.payload}
 			fetches := 0
 			reader := readerStub{
-				fetch: func(context.Context) (kafkago.Message, error) {
+				allow: func() { steps = append(steps, "release") },
+				fetch: func(context.Context) (*kgo.Record, error) {
 					steps = append(steps, "fetch")
 					fetches++
 					if fetches > 1 {
 						cancel()
-						return kafkago.Message{}, ctx.Err()
+						return nil, ctx.Err()
 					}
 					return message, nil
 				},
-				commit: func(_ context.Context, messages ...kafkago.Message) error {
+				commit: func(_ context.Context, messages ...*kgo.Record) error {
 					steps = append(steps, "commit")
 					if len(messages) != 1 || !reflect.DeepEqual(messages[0], message) {
 						t.Fatal("committed a different record")
@@ -110,12 +118,12 @@ func TestNotificationWorkerFetchFailure(t *testing.T) {
 	failure := errors.New("broker unavailable")
 	for _, stopping := range []bool{false, true} {
 		ctx, cancel := context.WithCancel(context.Background())
-		reader := readerStub{fetch: func(context.Context) (kafkago.Message, error) {
+		reader := readerStub{fetch: func(context.Context) (*kgo.Record, error) {
 			if stopping {
 				cancel()
-				return kafkago.Message{}, ctx.Err()
+				return nil, ctx.Err()
 			}
-			return kafkago.Message{}, failure
+			return nil, failure
 		}}
 		err := NewNotificationWorker(reader, &notificationtest.Usecase{}, nil).Run(ctx)
 		cancel()

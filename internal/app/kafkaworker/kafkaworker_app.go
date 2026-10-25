@@ -59,5 +59,5 @@ func (a *App) Shutdown(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-	return errors.Join(a.reader.Close(), a.Telemetry.Shutdown(ctx))
+	return errors.Join(a.reader.Close(ctx), a.Telemetry.Shutdown(ctx))
 }
