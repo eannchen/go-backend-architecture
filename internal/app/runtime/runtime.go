@@ -29,7 +29,8 @@ func New(ctx context.Context, cfg config.RuntimeConfig) (*Runtime, error) {
 	}
 	pool, err := postgres.NewPool(ctx, cfg.DB, telemetry.Logger)
 	if err != nil {
-		return nil, errutil.Join(err, errutil.Step("shutdown telemetry after db init failure", telemetry.Shutdown(ctx)))
+		cleanupErr := CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, telemetry.Shutdown)
+		return nil, errutil.Join(err, errutil.Step("shutdown telemetry after db init failure", cleanupErr))
 	}
 	redisClient := redisconn.NewClient(cfg.Redis)
 	return &Runtime{

@@ -37,9 +37,10 @@ func New(ctx context.Context) (*App, error) {
 	handlers := wiring.buildHandlers(responder, usecases)
 	server, err := wiring.buildServer(responder, repositories, handlers, usecases)
 	if err != nil {
+		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, runtime.Shutdown)
 		return nil, errutil.Join(
 			err,
-			errutil.Step("shutdown runtime after server init failure", runtime.Shutdown(ctx)),
+			errutil.Step("shutdown runtime after server init failure", cleanupErr),
 		)
 	}
 
