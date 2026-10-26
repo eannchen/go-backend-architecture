@@ -24,5 +24,13 @@ dev-kafka-logs:
 run-kafkaworker:
 	go run ./cmd/kafkaworker
 
+
+.PHONY: kafka-share-group-init
+
+kafka-share-group-init:
+	# Set the Share Group's initial policy and record-lock duration on Kafka.
+	# Requires dev-kafka-up first; does not start a worker or reset group progress.
+	$(KAFKA_COMPOSE) run --rm --no-deps kafka-share-init
+
 # The Kafka profile owns its disposable-broker integration suite.
 INTEGRATION_PACKAGES += ./internal/infra/messaging/kafka

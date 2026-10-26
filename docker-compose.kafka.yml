@@ -4,8 +4,9 @@ name: go-backend-architecture-kafka
 
 services:
   kafka:
-    # Use a specific Kafka version so everyone runs the same local server.
-    image: apache/kafka:4.1.2
+    # Kafka 4.2 makes Share Groups production-ready; use its patched 4.2.1 release.
+    # Pin the version so local development and integration tests use the same API.
+    image: apache/kafka:4.2.1
     hostname: kafka
     ports:
       # Your Go program runs on your computer and connects to localhost:9092.
@@ -55,7 +56,7 @@ services:
       # only one broker. This lets consumers save progress locally.
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       # Kafka has other internal topics for optional features: transactions
-      # and share groups. We are not using those features in this phase.
+      # and Share Groups. Our optional share reader uses per-record acknowledgments.
       # These settings let their internal topics work with one broker too:
       # REPLICATION_FACTOR=1 means one copy per partition;
       # MIN_ISR=1 means one up-to-date copy is enough for an acknowledged write.
@@ -93,7 +94,7 @@ services:
     stop_grace_period: 30s
 
   kafka-init:
-    image: apache/kafka:4.1.2
+    image: apache/kafka:4.2.1
     depends_on:
       kafka:
         # Container startup alone does not mean the broker can accept requests.
@@ -105,7 +106,8 @@ services:
       KAFKA_TOPIC: "${KAFKA_TOPIC:-notifications.requested.v1}"
       # Split this topic into three ordered message streams (partitions).
       # All three can live on our one broker. Later, up to three consumers
-      # in one group can each be assigned a partition at the same time.
+      # in one ORDINARY consumer group can each be assigned a partition at the same time.
+      # Share Groups can instead share records within each partition.
       # Override with KAFKA_TOPIC_PARTITIONS when creating a new topic.
       KAFKA_TOPIC_PARTITIONS: "${KAFKA_TOPIC_PARTITIONS:-3}"
     volumes:
@@ -116,6 +118,27 @@ services:
     entrypoint: ["/bin/bash", "/opt/template/init-topic.sh"]
     # This container creates/checks the topic and then exits.
     # Do not automatically restart it if the script fails.
+    restart: "no"
+
+  # Optional group setup: run with `make kafka-share-group-init` after Kafka is up.
+  # This is infrastructure provisioning, not a consumer worker.
+  kafka-share-init:
+    image: apache/kafka:4.2.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVER: kafka:19092
+      KAFKA_SHARE_GROUP_ID: "${KAFKA_SHARE_GROUP_ID:-shared-workers-v1}"
+      # Share Groups default to latest on Kafka. Choose earliest explicitly so
+      # this learning group can read requests already waiting in the topic.
+      KAFKA_SHARE_INITIAL_OFFSET: "${KAFKA_SHARE_INITIAL_OFFSET:-earliest}"
+      # Kafka holds a record for a consumer for this long before redelivery is
+      # possible. This does not cancel its Go handler or prevent duplicates.
+      KAFKA_SHARE_RECORD_LOCK_MS: "${KAFKA_SHARE_RECORD_LOCK_MS:-30000}"
+    volumes:
+      - ./tools/kafka/init-share-group.sh:/opt/template/init-share-group.sh:ro
+    entrypoint: ["/bin/bash", "/opt/template/init-share-group.sh"]
     restart: "no"
 
 volumes:

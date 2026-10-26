@@ -21,6 +21,7 @@ import (
 
 var integrationBrokers []string
 var integrationAdmin *kgo.Client
+var integrationContainer testcontainers.Container
 var integrationTopicSequence atomic.Uint64
 
 // TestMain owns one disposable broker for this package, separate from Compose
@@ -32,7 +33,7 @@ func runKafkaIntegrationTests(m *testing.M) int {
 	defer cancel()
 	// Docker chooses a free host port. Kafka must advertise that mapped address,
 	// so copy a startup script after the container starts but before Kafka starts.
-	container, err := testcontainers.Run(ctx, "apache/kafka:4.1.2",
+	container, err := testcontainers.Run(ctx, "apache/kafka:4.2.1",
 		testcontainers.WithExposedPorts("9092/tcp"),
 		testcontainers.WithEnv(map[string]string{
 			"KAFKA_NODE_ID": "1", "KAFKA_PROCESS_ROLES": "broker,controller",
@@ -44,7 +45,14 @@ func runKafkaIntegrationTests(m *testing.M) int {
 			"KAFKA_INTER_BROKER_LISTENER_NAME":       "INTERNAL",
 			"KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR": "1", "KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS": "1",
 			"KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR": "1", "KAFKA_TRANSACTION_STATE_LOG_MIN_ISR": "1",
-			"KAFKA_AUTO_CREATE_TOPICS_ENABLE": "false", "KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS": "0",
+			// Single-node internal state for per-record Share Group acknowledgments.
+			"KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR": "1",
+			"KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR":            "1",
+			"KAFKA_SHARE_COORDINATOR_STATE_TOPIC_NUM_PARTITIONS":     "1",
+			// Allow short leases for the expiry test. Other share tests explicitly
+			// request the normal 30s lock, leaving time for their assertions.
+			"KAFKA_GROUP_SHARE_MIN_RECORD_LOCK_DURATION_MS": "1000",
+			"KAFKA_AUTO_CREATE_TOPICS_ENABLE":               "false", "KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS": "0",
 		}),
 		testcontainers.WithEntrypoint("/bin/bash"),
 		// This readiness loop waits for a real file copied by the lifecycle hook;
@@ -79,6 +87,7 @@ func runKafkaIntegrationTests(m *testing.M) int {
 		}
 		return 1
 	}
+	integrationContainer = container
 	integrationAdmin, err = kgo.NewClient(kgo.SeedBrokers(integrationBrokers...))
 	if err == nil {
 		err = integrationAdmin.Ping(ctx)

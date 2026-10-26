@@ -77,7 +77,10 @@ func NewReader(cfg config.KafkaConsumerConfig) (*Reader, error) {
 		// returns one record and leaves any others buffered for later polls.
 		// Draining that buffer frees the slot; committing is a separate operation.
 		// Fetching does not remove records from Kafka or start parallel handlers.
-		// Our default is 1, and our worker still handles one record at a time.
+		// Default 1 allows background fetching between polls, even while the worker
+		// handles a record. It still handles one record at a time. Ordinary groups
+		// do not acquire Share Group record locks, so fetching ahead is useful here.
+		// The SDK's special 0 mode fetches only during polling; the share reader uses it.
 		kgo.MaxConcurrentFetches(cfg.MaxConcurrentFetches),
 		// Kafka can wait to collect at least this much data before replying.
 		// With 1 byte, it can reply as soon as a message is available.
