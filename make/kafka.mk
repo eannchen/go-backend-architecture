@@ -19,12 +19,6 @@ dev-kafka-down:
 dev-kafka-logs:
 	$(KAFKA_COMPOSE) logs -f kafka
 
-.PHONY: run-kafkaworker
-
-run-kafkaworker:
-	go run ./cmd/kafkaworker
-
-
 .PHONY: kafka-share-group-init
 
 kafka-share-group-init:
@@ -34,3 +28,8 @@ kafka-share-group-init:
 
 # The Kafka profile owns its disposable-broker integration suite.
 INTEGRATION_PACKAGES += ./internal/infra/messaging/kafka
+
+SQLC_CONFIG ?= $(if $(wildcard sqlc.kafka.yaml),sqlc.kafka.yaml,sqlc.yaml)
+ifneq (,$(wildcard internal/app/kafkashareworker))
+INTEGRATION_PACKAGES += ./internal/app/kafkashareworker
+endif

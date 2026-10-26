@@ -1,10 +1,11 @@
-// Program profile-selector reduces the source template from two example server
-// profiles to one project shape:
+// Program profile-selector reduces the source template to one project shape:
 //
 //   - public-http keeps the browser/public HTTP API, OpenAPI contract, sessions,
 //     OTP/OAuth, rate limiting, and their user persistence.
 //   - service-grpc keeps the service-to-service gRPC API, protobuf contract, mTLS,
 //     caller identity, and outbound gRPC support.
+//
+// Kafka worker profiles keep either an ordinary consumer or a Share Group worker.
 //
 // Run it once on a clean template checkout, before bootstrap-template.sh. Without
 // --apply it only prints the planned deletions. With --apply it installs the chosen
@@ -27,8 +28,10 @@ import (
 )
 
 const (
-	publicHTTPProfile  = "public-http"
-	serviceGRPCProfile = "service-grpc"
+	publicHTTPProfile       = "public-http"
+	serviceGRPCProfile      = "service-grpc"
+	kafkaWorkerProfile      = "kafka-worker"
+	kafkaShareWorkerProfile = "kafka-share-worker"
 )
 
 // selectionPlan is the complete file-level transformation for one choice. Profile
@@ -43,7 +46,7 @@ type selectionPlan struct {
 }
 
 func main() {
-	profile := flag.String("profile", "", "profile to keep: public-http or service-grpc")
+	profile := flag.String("profile", "", "profile to keep: public-http, service-grpc, kafka-worker, or kafka-share-worker")
 	apply := flag.Bool("apply", false, "apply the selection; omission prints a dry run")
 	flag.Parse()
 
@@ -76,7 +79,7 @@ func main() {
 // newSelectionPlan answers “what remains?” Common removals are inputs needed only
 // while selecting. The chosen case then removes every capability owned exclusively
 // by the other profile and identifies the chosen configuration fragments.
-func newSelectionPlan(profile string) (selectionPlan, error) {
+func transportSelectionPlan(profile string) (selectionPlan, error) {
 	commonRemovals := []string{
 		".github/workflows/profile-selector.yml",
 		"config/env",
@@ -172,6 +175,56 @@ func newSelectionPlan(profile string) (selectionPlan, error) {
 	default:
 		return selectionPlan{}, fmt.Errorf("--profile must be %q or %q", publicHTTPProfile, serviceGRPCProfile)
 	}
+}
+
+// Kafka profiles retain shared runtime infrastructure for cloned projects, while
+// removing HTTP/gRPC examples and the other worker's executable-specific files.
+func newSelectionPlan(profile string) (selectionPlan, error) {
+	kafkaCommon := []string{
+		"docker-compose.kafka.yml", "tools/kafka", "make/kafka.mk",
+		"internal/delivery/kafka", "internal/infra/messaging/kafka",
+		"internal/usecase/notification",
+		"internal/infra/config/kafka_connection_config.go",
+		"internal/infra/config/kafka_consumer_config.go", "internal/infra/config/kafka_consumer_config_test.go",
+		"internal/infra/config/kafka_publisher_config.go", "internal/infra/config/kafka_publisher_config_test.go",
+		"internal/infra/config/kafka_share_consumer_config.go", "internal/infra/config/kafka_share_consumer_config_test.go",
+		"internal/infra/config/kafka_migration_config_test.go", "sqlc.kafka.yaml",
+	}
+	groupOnly := []string{"cmd/kafkaworker", "internal/app/kafkaworker", "internal/infra/config/kafkaworker_config.go", "internal/infra/config/kafkaworker_config_test.go", "make/kafka-worker.mk", ".air.kafkaworker.toml"}
+	shareOnly := []string{"cmd/kafkashareworker", "internal/app/kafkashareworker", "internal/infra/config/kafkashareworker_config.go", "internal/infra/config/kafkashareworker_config_test.go", "make/kafka-share-worker.mk", ".air.kafkashareworker.toml"}
+	if profile == publicHTTPProfile || profile == serviceGRPCProfile {
+		plan, err := transportSelectionPlan(profile)
+		plan.remove = append(plan.remove, kafkaCommon...)
+		plan.remove = append(plan.remove, groupOnly...)
+		plan.remove = append(plan.remove, shareOnly...)
+		return plan, err
+	}
+	if profile != kafkaWorkerProfile && profile != kafkaShareWorkerProfile {
+		return selectionPlan{}, fmt.Errorf("--profile must be %q, %q, %q, or %q", publicHTTPProfile, serviceGRPCProfile, kafkaWorkerProfile, kafkaShareWorkerProfile)
+	}
+	http, err := transportSelectionPlan(publicHTTPProfile)
+	if err != nil {
+		return selectionPlan{}, err
+	}
+	grpc, err := transportSelectionPlan(serviceGRPCProfile)
+	if err != nil {
+		return selectionPlan{}, err
+	}
+	removals := append(http.remove, grpc.remove...)
+	removals = append(removals, ".air.httpapi.toml", ".air.grpcapi.toml", "sqlc.public-http.yaml", "sqlc.service-grpc.yaml")
+	plan := selectionPlan{profile: profile, sqlcSource: "sqlc.kafka.yaml", envFragments: []string{"config/env/common.env.example", "config/env/" + profile + ".env.example"}}
+	if profile == kafkaWorkerProfile {
+		removals = append(removals, shareOnly...)
+		removals = append(removals, "internal/delivery/kafka/notification_share_worker.go", "internal/delivery/kafka/notification_share_worker_test.go", "internal/delivery/kafka/kafkatest")
+		plan.airSource = ".air.kafkaworker.toml"
+	} else {
+		removals = append(removals, groupOnly...)
+		removals = append(removals, "internal/delivery/kafka/notification_worker.go", "internal/delivery/kafka/notification_worker_test.go")
+		plan.airSource = ".air.kafkashareworker.toml"
+	}
+	slices.Sort(removals)
+	plan.remove = slices.Compact(removals)
+	return plan, nil
 }
 
 // validateRepository makes application all-or-nothing for predictable repository
