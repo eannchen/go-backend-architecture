@@ -77,6 +77,8 @@ func NewShareReader(cfg config.KafkaShareConsumerConfig) (*ShareReader, error) {
 
 // FetchBatch waits for records. Every record in the previous batch must have
 // a decision: franz-go v1.22.2 would otherwise auto-accept it on the next poll.
+// After stopping its handlers, the owner can use batch.ReleaseRemaining to
+// abandon undecided work while preserving the outcomes already marked.
 // A flush error is returned before fetching; the owner chooses whether to retry.
 func (r *ShareReader) FetchBatch(ctx context.Context) (*ShareBatch, error) {
 	if r.closed {

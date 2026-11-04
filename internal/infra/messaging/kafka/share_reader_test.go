@@ -206,3 +206,58 @@ func cleanupShareReader(t *testing.T, r *ShareReader) {
 		}
 	})
 }
+
+// TestShareBatchReleaseRemaining preserves explicit outcomes while allowing the
+// owner to abandon unfinished work without the next poll implicitly accepting it.
+func TestShareBatchReleaseRemaining(t *testing.T) {
+	r, err := NewShareReader(validShareConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleanupShareReader(t, r)
+	records := []*kgo.Record{{}, {}, {}, {}}
+	batch := newShareBatch(r, records)
+	r.active = batch
+	for i, decision := range []ShareDecision{ShareAccept, ShareReject, ShareRelease} {
+		if err := batch.Mark(records[i], decision); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := r.FetchBatch(t.Context()); !errors.Is(err, ErrShareBatchPending) {
+		t.Fatalf("guard=%v", err)
+	}
+	for range 2 {
+		if err := batch.ReleaseRemaining(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if batch.pending != 0 {
+		t.Fatalf("pending=%d", batch.pending)
+	}
+	for i, want := range []ShareDecision{ShareAccept, ShareReject, ShareRelease, ShareRelease} {
+		if got := batch.decisions[records[i]]; got != want {
+			t.Fatalf("record %d decision=%s want=%s", i, got, want)
+		}
+	}
+	// With every outcome queued, FetchBatch reaches context checking instead of
+	// the pending guard. Synthetic records test bookkeeping, not broker outcomes.
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := r.FetchBatch(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("fetch=%v", err)
+	}
+	r.active = newShareBatch(r, nil)
+	if err := batch.ReleaseRemaining(); !errors.Is(err, ErrShareBatchStale) {
+		t.Fatalf("stale batch=%v", err)
+	}
+	if err := r.active.ReleaseRemaining(); err != nil {
+		t.Fatalf("empty batch=%v", err)
+	}
+	empty := r.active
+	if err := r.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := empty.ReleaseRemaining(); !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("closed reader=%v", err)
+	}
+}

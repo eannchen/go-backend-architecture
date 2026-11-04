@@ -575,3 +575,54 @@ func cleanupIntegrationShareConfig(t *testing.T, group string) {
 		}
 	})
 }
+
+// TestShareReleaseRemainingAllowsNextPoll verifies actual broker outcomes when
+// a caller abandons part of a batch while retaining completed work.
+func TestShareReleaseRemainingAllowsNextPoll(t *testing.T) {
+	topic := createIntegrationTopic(t, 1)
+	group := createIntegrationShareGroup(t, topic+"-remaining", 30000)
+	writer := newIntegrationWriter(t, topic)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	if err := writer.WriteRecords(ctx, &kgo.Record{Value: []byte("done")}, &kgo.Record{Value: []byte("unfinished")}); err != nil {
+		t.Fatal(err)
+	}
+	reader := newIntegrationShareReader(t, topic, group, 2)
+	batch, err := reader.FetchBatch(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	records := batch.Records()
+	if len(records) != 2 {
+		t.Fatalf("batch size=%d", len(records))
+	}
+	if err := batch.Mark(records[0], ShareAccept); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reader.FetchBatch(ctx); !errors.Is(err, ErrShareBatchPending) {
+		t.Fatalf("guard=%v", err)
+	}
+	if err := batch.ReleaseRemaining(); err != nil {
+		t.Fatal(err)
+	}
+	// FetchBatch itself flushes queued outcomes before the SDK's next poll.
+	again, err := reader.FetchBatch(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	redelivered := again.Records()
+	if len(redelivered) != 1 || redelivered[0].Offset != records[1].Offset || redelivered[0].DeliveryCount() < 2 {
+		t.Fatalf("unexpected redelivery=%+v", redelivered)
+	}
+	if err := again.Mark(redelivered[0], ShareAccept); err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.FlushAcknowledgments(ctx); err != nil {
+		t.Fatal(err)
+	}
+	idle, stop := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer stop()
+	if _, err := reader.FetchBatch(idle); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("completed record returned: %v", err)
+	}
+}

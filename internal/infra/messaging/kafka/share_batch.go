@@ -55,6 +55,28 @@ func newShareBatch(reader *ShareReader, records []*kgo.Record) *ShareBatch {
 // use Mark for outcomes, not the SDK's Record.Ack, so the batch can track them.
 func (b *ShareBatch) Records() []*kgo.Record { return slices.Clone(b.records) }
 
+// ReleaseRemaining queues Release for every undecided record, preserving decisions
+// already made. The owner calls this after the batch's handlers have stopped.
+// Calling it again on the current batch is harmless.
+// FlushAcknowledgments (also called by FetchBatch) confirms the broker's results.
+// An expired lock can still cause a broker rejection during that flush.
+func (b *ShareBatch) ReleaseRemaining() error {
+	if b.reader.closed {
+		return fmt.Errorf("release remaining share records: %w", io.ErrClosedPipe)
+	}
+	if b.reader.active != b {
+		return ErrShareBatchStale
+	}
+	for _, record := range b.records {
+		if b.decisions[record] == "" {
+			if err := b.Mark(record, ShareRelease); err != nil {
+				return fmt.Errorf("release remaining share records: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
 // Mark queues one outcome without waiting for Kafka. Only the reader's owner
 // calls it, after that record's handler finishes. FlushAcknowledgments reports
 // whether Kafka accepted the queued decisions.
