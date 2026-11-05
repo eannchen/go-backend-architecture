@@ -33,3 +33,4 @@ SQLC_CONFIG ?= $(if $(wildcard sqlc.kafka.yaml),sqlc.kafka.yaml,sqlc.yaml)
 ifneq (,$(wildcard internal/app/kafkashareworker))
 INTEGRATION_PACKAGES += ./internal/app/kafkashareworker
 endif
+INTEGRATION_PACKAGES += ./internal/infra/observability/otel

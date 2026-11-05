@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -52,16 +53,20 @@ type NotificationShareWorker struct {
 	usecase notification.Usecase
 	log     logger.Logger
 	options ShareWorkerOptions
+	tracer  observability.Tracer
 }
 
-func NewNotificationShareWorker(reader ShareMessageReader, usecase notification.Usecase, log logger.Logger, options ShareWorkerOptions) (*NotificationShareWorker, error) {
+func NewNotificationShareWorker(reader ShareMessageReader, usecase notification.Usecase, log logger.Logger, tracer observability.Tracer, options ShareWorkerOptions) (*NotificationShareWorker, error) {
 	if err := options.Validate(); err != nil {
 		return nil, err
 	}
 	if log == nil {
 		log = logger.NoopLogger{}
 	}
-	return &NotificationShareWorker{reader: reader, usecase: usecase, log: log, options: options}, nil
+	if tracer == nil {
+		tracer = observability.NoopTracer{}
+	}
+	return &NotificationShareWorker{tracer: tracer, reader: reader, usecase: usecase, log: log, options: options}, nil
 }
 
 // Run owns the reader. It finishes and acknowledges one batch before fetching
@@ -148,6 +153,10 @@ func (w *NotificationShareWorker) handleBatch(ctx context.Context, batch ShareWo
 
 func (w *NotificationShareWorker) handleRecord(ctx context.Context, record *kgo.Record) (result shareOutcome) {
 	result.record = record
+	ctx = notificationRecordContext(ctx, w.tracer, record)
+	ctx, span := w.tracer.Start(ctx, "delivery.kafka", "notification.share.consume")
+	// Finish after panic recovery has converted any panic into a failed outcome.
+	defer func() { span.Finish(result.err) }()
 	defer func() {
 		if recover() != nil {
 			// Panic values can contain payloads. Report the failure without exposing them.

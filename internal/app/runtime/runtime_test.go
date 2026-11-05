@@ -6,34 +6,18 @@ import (
 	"testing"
 
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
-	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
 )
 
-// TestRuntimeShutdownAttemptsEveryResourceAndJoinsErrors checks one shutdown failure does not prevent other resources from closing and all failures remain inspectable.
-func TestRuntimeShutdownAttemptsEveryResourceAndJoinsErrors(t *testing.T) {
-	observabilityErr := errors.New("observability shutdown failed")
+// TestRuntimeShutdownPreservesLoggerFailure verifies resource cleanup retains
+// the logger's error. Provider shutdown failures are covered by the OTel runtime.
+func TestRuntimeShutdownPreservesLoggerFailure(t *testing.T) {
 	loggerErr := errors.New("logger sync failed")
-	obs := &observabilitytest.Runtime{
-		ShutdownFunc: func(context.Context) error {
-			return observabilityErr
-		},
-	}
-	log := &loggertest.Logger{
-		SyncFunc: func() error {
-			return loggerErr
-		},
-	}
-	runtime := &Runtime{Telemetry: &Telemetry{Observability: obs, Logger: log}}
-
-	err := runtime.Shutdown(context.Background())
-
-	if !errors.Is(err, observabilityErr) || !errors.Is(err, loggerErr) {
-		t.Fatalf("Shutdown() error = %v, want both resource errors", err)
-	}
-	if obs.ShutdownCalls != 1 {
-		t.Fatalf("observability Shutdown() calls = %d, want 1", obs.ShutdownCalls)
+	log := &loggertest.Logger{SyncFunc: func() error { return loggerErr }}
+	runtime := &Runtime{Telemetry: &Telemetry{Logger: log}}
+	if err := runtime.Shutdown(context.Background()); !errors.Is(err, loggerErr) {
+		t.Fatalf("Shutdown() error = %v, want logger failure", err)
 	}
 	if log.SyncCalls != 1 {
-		t.Fatalf("logger Sync() calls = %d, want 1", log.SyncCalls)
+		t.Fatalf("Sync calls=%d", log.SyncCalls)
 	}
 }

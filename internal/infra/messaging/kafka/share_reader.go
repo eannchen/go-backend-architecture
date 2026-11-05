@@ -41,12 +41,14 @@ type ShareReader struct {
 
 // NewShareReader validates settings and prepares a client. Like the regular
 // reader, construction does not prove that Kafka is reachable or compatible.
-func NewShareReader(cfg config.KafkaShareConsumerConfig) (*ShareReader, error) {
+func NewShareReader(cfg config.KafkaShareConsumerConfig, hooks ...kgo.Hook) (*ShareReader, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("Kafka share reader configuration: %w", err)
 	}
 	r := &ShareReader{maxPollRecords: cfg.MaxPollRecords}
 	client, err := kgo.NewClient(
+		// Kotel hooks observe network and record activity for this client.
+		kgo.WithHooks(hooks...),
 		kgo.SeedBrokers(cfg.Brokers...), kgo.ConsumeTopics(cfg.Topic), kgo.ShareGroup(cfg.GroupID),
 		// Ask for a strict record-count limit, then return at most that many records
 		// to the caller. This makes one batch's work finite, even for large log batches.

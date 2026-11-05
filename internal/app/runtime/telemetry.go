@@ -8,14 +8,13 @@ import (
 	zaplogger "github.com/eannchen/go-backend-architecture/internal/infra/logger/zap"
 	"github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
 )
 
 // Telemetry owns the process logger and observability providers without data services.
 type Telemetry struct {
 	Logger        logger.Logger
-	Observability observability.Runtime
+	Observability *otel.Runtime
 }
 
 // NewTelemetry creates process telemetry with the configured service identity.

@@ -8,6 +8,7 @@ import (
 	kafkadelivery "github.com/eannchen/go-backend-architecture/internal/delivery/kafka"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
+	otelinfra "github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
 	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
@@ -34,7 +35,7 @@ func New(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	reader, err := kafkaclient.NewReader(cfg.Kafka)
+	reader, err := kafkaclient.NewReader(cfg.Kafka, otelinfra.KafkaHooks(telemetry.Observability.TracerProvider(), telemetry.Observability.MeterProvider(), cfg.Kafka.GroupID)...)
 	if err != nil {
 		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, telemetry.Shutdown)
 		return nil, errors.Join(err, errutil.Step("shutdown telemetry after Kafka init failure", cleanupErr))

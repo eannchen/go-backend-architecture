@@ -69,15 +69,10 @@ func (w *NotificationWorker) handle(ctx context.Context, message *kgo.Record) (e
 	// AllowRebalance does not save progress; only CommitRecords can advance
 	// the group's saved position.
 	defer w.reader.AllowRebalance()
-	// Step 3: continue the producer's trace, if its headers contain one. A trace
-	// connects work across services so a message can be followed from publishing
-	// through handling. Record this handling attempt and its outcome in a span
-	// (one timed operation within the trace).
-	headers := make(messageHeaders, len(message.Headers))
-	for _, header := range message.Headers {
-		headers.Set(header.Key, string(header.Value))
-	}
-	ctx = w.tracer.Extract(ctx, headers)
+	// Step 3: continue the receive span that kotel placed on the record, while
+	// keeping cancellation from our worker context. This span measures the
+	// processing attempt, separately from Kafka's network and buffering work.
+	ctx = notificationRecordContext(ctx, w.tracer, message)
 	ctx, span := w.tracer.Start(ctx, "delivery.kafka", "notification.consume")
 	defer func() { span.Finish(err) }()
 	// Step 4: decode and validate the JSON, then invoke the notification usecase.
@@ -99,19 +94,4 @@ func (w *NotificationWorker) handle(ctx context.Context, message *kgo.Record) (e
 		return fmt.Errorf("commit notification: %w", err)
 	}
 	return nil
-}
-
-// messageHeaders lets the tracing code read the message's key/value headers
-// without depending on franz-go types. Trace headers only help track an operation;
-// they do not choose partitions or change the consumer group's saved progress.
-type messageHeaders map[string]string
-
-func (h messageHeaders) Get(key string) string { return h[key] }
-func (h messageHeaders) Set(key, value string) { h[key] = value }
-func (h messageHeaders) Keys() []string {
-	keys := make([]string, 0, len(h))
-	for key := range h {
-		keys = append(keys, key)
-	}
-	return keys
 }

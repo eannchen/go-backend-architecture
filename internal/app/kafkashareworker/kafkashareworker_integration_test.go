@@ -89,7 +89,7 @@ func TestShareWorkersHandleOnePartitionConcurrently(t *testing.T) {
 	for range 2 {
 		reader := integrationReader(t, cfg)
 		bridge := observedReader{shareReaderAdapter: shareReaderAdapter{reader}, flushed: flushed}
-		worker, err := kafkadelivery.NewNotificationShareWorker(bridge, usecase, nil, workerOptions())
+		worker, err := kafkadelivery.NewNotificationShareWorker(bridge, usecase, nil, nil, workerOptions())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -165,7 +165,7 @@ func TestShareWorkerRestartPreservesIndividualOutcomes(t *testing.T) {
 		}
 		return nil
 	}}
-	worker, err := kafkadelivery.NewNotificationShareWorker(shareReaderAdapter{reader}, usecase, nil, workerOptions())
+	worker, err := kafkadelivery.NewNotificationShareWorker(shareReaderAdapter{reader}, usecase, nil, nil, workerOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +216,7 @@ func TestShareWorkerLockDeadlinePreventsSlowSuccess(t *testing.T) {
 	options := workerOptions()
 	options.HandlingTimeout = time.Minute
 	options.AcknowledgmentMargin = 2 * time.Second
-	worker, err := kafkadelivery.NewNotificationShareWorker(bridge, usecase, nil, options)
+	worker, err := kafkadelivery.NewNotificationShareWorker(bridge, usecase, nil, nil, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -420,7 +420,7 @@ func TestShareAppShutdownWaitsForHandlers(t *testing.T) {
 		<-finish
 		return ctx.Err()
 	}}
-	application.worker, err = kafkadelivery.NewNotificationShareWorker(shareReaderAdapter{application.reader}, usecase, nil, workerOptions())
+	application.worker, err = kafkadelivery.NewNotificationShareWorker(shareReaderAdapter{application.reader}, usecase, nil, nil, workerOptions())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -144,7 +144,7 @@ func TestShareWorkerOutcomes(t *testing.T) {
 			if handle == nil {
 				handle = func(context.Context, notification.Request) error { return nil }
 			}
-			worker, err := kafkadelivery.NewNotificationShareWorker(reader, &notificationtest.Usecase{HandleFunc: handle}, nil, kafkadelivery.ShareWorkerOptions{Concurrency: 1, HandlingTimeout: 20 * time.Millisecond, AcknowledgmentMargin: time.Second})
+			worker, err := kafkadelivery.NewNotificationShareWorker(reader, &notificationtest.Usecase{HandleFunc: handle}, nil, nil, kafkadelivery.ShareWorkerOptions{Concurrency: 1, HandlingTimeout: 20 * time.Millisecond, AcknowledgmentMargin: time.Second})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -220,7 +220,7 @@ func TestShareWorkerShutdownJoinsHandlers(t *testing.T) {
 func TestShareWorkerFetchAndOptions(t *testing.T) {
 	valid := kafkadelivery.ShareWorkerOptions{Concurrency: 2, HandlingTimeout: time.Second, AcknowledgmentMargin: time.Second}
 	for _, option := range []kafkadelivery.ShareWorkerOptions{{}, {Concurrency: 1001, HandlingTimeout: time.Second, AcknowledgmentMargin: time.Second}, {Concurrency: 1, HandlingTimeout: time.Second}} {
-		if _, err := kafkadelivery.NewNotificationShareWorker(nil, nil, nil, option); err == nil {
+		if _, err := kafkadelivery.NewNotificationShareWorker(nil, nil, nil, nil, option); err == nil {
 			t.Fatal("accepted invalid options")
 		}
 	}
@@ -234,7 +234,7 @@ func TestShareWorkerFetchAndOptions(t *testing.T) {
 			}
 			return nil, failure
 		}}
-		worker, err := kafkadelivery.NewNotificationShareWorker(reader, nil, nil, valid)
+		worker, err := kafkadelivery.NewNotificationShareWorker(reader, nil, nil, nil, valid)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -257,7 +257,7 @@ func successfulBatch(records []*kgo.Record) *kafkatest.ShareBatch {
 }
 func newShareWorker(t *testing.T, reader kafkadelivery.ShareMessageReader, usecase notification.Usecase, concurrency int) *kafkadelivery.NotificationShareWorker {
 	t.Helper()
-	worker, err := kafkadelivery.NewNotificationShareWorker(reader, usecase, nil, kafkadelivery.ShareWorkerOptions{Concurrency: concurrency, HandlingTimeout: 10 * time.Second, AcknowledgmentMargin: time.Second})
+	worker, err := kafkadelivery.NewNotificationShareWorker(reader, usecase, nil, nil, kafkadelivery.ShareWorkerOptions{Concurrency: concurrency, HandlingTimeout: 10 * time.Second, AcknowledgmentMargin: time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}

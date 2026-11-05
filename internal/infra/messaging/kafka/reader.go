@@ -32,7 +32,7 @@ type Reader struct {
 	closeErr  error
 }
 
-func NewReader(cfg config.KafkaConsumerConfig) (*Reader, error) {
+func NewReader(cfg config.KafkaConsumerConfig, hooks ...kgo.Hook) (*Reader, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("Kafka reader configuration: %w", err)
 	}
@@ -41,6 +41,8 @@ func NewReader(cfg config.KafkaConsumerConfig) (*Reader, error) {
 		offset = kgo.NewOffset().AtEnd()
 	}
 	client, err := kgo.NewClient(
+		// Kotel hooks observe network and record activity for this client.
+		kgo.WithHooks(hooks...),
 		// Find the Kafka cluster, choose the topic, and join the named group.
 		// Workers with the same GroupID share partitions. A different GroupID
 		// gets its own progress and can read the same messages independently.

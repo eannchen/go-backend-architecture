@@ -81,6 +81,8 @@ func main() {
 // by the other profile and identifies the chosen configuration fragments.
 func transportSelectionPlan(profile string) (selectionPlan, error) {
 	commonRemovals := []string{
+		// This in-memory pipeline test exercises both worker profiles together.
+		"internal/infra/observability/otel/kafka_workers_test.go",
 		".github/workflows/profile-selector.yml",
 		"config/env",
 		"tools/profile-selector",
@@ -182,6 +184,7 @@ func transportSelectionPlan(profile string) (selectionPlan, error) {
 func newSelectionPlan(profile string) (selectionPlan, error) {
 	kafkaCommon := []string{
 		"docker-compose.kafka.yml", "tools/kafka", "make/kafka.mk",
+		"internal/infra/observability/otel/kafka.go", "internal/infra/observability/otel/kafka_test.go", "internal/infra/observability/otel/kafka_integration_test.go",
 		"internal/delivery/kafka", "internal/infra/messaging/kafka",
 		"internal/usecase/notification",
 		"internal/infra/config/kafka_connection_config.go",

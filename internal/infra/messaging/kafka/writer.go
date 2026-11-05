@@ -33,7 +33,7 @@ type Writer struct {
 	closeOnce       sync.Once
 }
 
-func NewWriter(cfg config.KafkaPublisherConfig) (*Writer, error) {
+func NewWriter(cfg config.KafkaPublisherConfig, hooks ...kgo.Hook) (*Writer, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("Kafka writer configuration: %w", err)
 	}
@@ -66,6 +66,8 @@ func NewWriter(cfg config.KafkaPublisherConfig) (*Writer, error) {
 		codec = kgo.ZstdCompression()
 	}
 	opts := []kgo.Opt{
+		// Hooks are injected by app wiring after runtime telemetry is ready.
+		kgo.WithHooks(hooks...),
 		// Initial addresses used to find the Kafka cluster. The client then learns
 		// which broker leads each partition and sends messages to that broker.
 		// Listing three addresses does not send three copies of each message.
