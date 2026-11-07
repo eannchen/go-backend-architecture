@@ -3,7 +3,7 @@ package kafkashareworker
 import (
 	"context"
 
-	kafkadelivery "github.com/eannchen/go-backend-architecture/internal/delivery/kafka"
+	kafkadelivery "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/notification"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
 	"github.com/twmb/franz-go/pkg/kgo"
 )

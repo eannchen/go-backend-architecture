@@ -1,10 +1,14 @@
-package kafka
+package notification
 
 import (
 	"context"
 	"errors"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
+	contextmw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/context"
+	recoverymw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/recovery"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
@@ -79,7 +83,7 @@ func TestNotificationWorkerProcessing(t *testing.T) {
 				}
 				return tc.handleErr
 			}}
-			err := NewNotificationWorker(reader, usecase, nil).Run(ctx)
+			err := NewNotificationWorker(reader, NewNotificationHandler(usecase)).Run(ctx)
 			if !reflect.DeepEqual(steps, tc.want) {
 				t.Fatalf("steps=%v want=%v", steps, tc.want)
 			}
@@ -125,7 +129,7 @@ func TestNotificationWorkerFetchFailure(t *testing.T) {
 			}
 			return nil, failure
 		}}
-		err := NewNotificationWorker(reader, &notificationtest.Usecase{}, nil).Run(ctx)
+		err := NewNotificationWorker(reader, NewNotificationHandler(&notificationtest.Usecase{})).Run(ctx)
 		cancel()
 		if stopping && err != nil {
 			t.Fatal(err)
@@ -133,5 +137,35 @@ func TestNotificationWorkerFetchFailure(t *testing.T) {
 		if !stopping && !errors.Is(err, failure) {
 			t.Fatalf("lost fetch cause: %v", err)
 		}
+	}
+}
+
+// TestNotificationWorkerMiddlewareFailure prevents panic, cancellation, and late
+// handler success from advancing offsets, while always unblocking rebalances.
+func TestNotificationWorkerMiddlewareFailure(t *testing.T) {
+	for _, panicHandler := range []bool{false, true} {
+		t.Run(map[bool]string{false: "timeout", true: "panic"}[panicHandler], func(t *testing.T) {
+			released := false
+			reader := readerStub{
+				fetch:  func(context.Context) (*kgo.Record, error) { return &kgo.Record{}, nil },
+				commit: func(context.Context, ...*kgo.Record) error { t.Fatal("committed failed attempt"); return nil },
+				allow:  func() { released = true },
+			}
+			handler := middleware.Chain(func(ctx context.Context, _ *kgo.Record) error {
+				if panicHandler {
+					panic("private payload")
+				}
+				<-ctx.Done()
+				return nil
+			}, recoverymw.New(nil).Handler(), contextmw.New(nil, contextmw.Config{HandlingTimeout: 20 * time.Millisecond}).Handler())
+			err := NewNotificationWorker(reader, handler).Run(t.Context())
+			want := error(context.DeadlineExceeded)
+			if panicHandler {
+				want = middleware.ErrHandlerPanic
+			}
+			if !errors.Is(err, want) || !released {
+				t.Fatalf("error=%v released=%v", err, released)
+			}
+		})
 	}
 }

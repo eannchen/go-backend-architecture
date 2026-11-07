@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -94,6 +95,7 @@ func contains(values []string, target string) bool {
 
 // TestSelectedProfilesBuild applies each manifest to a disposable source copy.
 // Building the result catches imports left pointing at deleted capabilities.
+// Copy the working tree so unstaged moves and deletions are included in the check.
 func TestSelectedProfilesBuild(t *testing.T) {
 	source, err := filepath.Abs("../..")
 	if err != nil {
@@ -113,6 +115,10 @@ func TestSelectedProfilesBuild(t *testing.T) {
 					continue
 				}
 				info, err := os.Lstat(filepath.Join(source, relative))
+				// git still lists tracked files deleted in the working tree.
+				if errors.Is(err, os.ErrNotExist) {
+					continue
+				}
 				if err != nil {
 					t.Fatal(err)
 				}

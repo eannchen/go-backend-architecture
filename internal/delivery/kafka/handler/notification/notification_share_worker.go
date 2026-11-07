@@ -1,15 +1,12 @@
-package kafka
+package notification
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
@@ -29,44 +26,27 @@ type ShareMessageReader interface {
 
 // ShareWorkerOptions bounds local work. Batch size is configured on the reader.
 type ShareWorkerOptions struct {
-	Concurrency     int
-	HandlingTimeout time.Duration
-	// Leave time to send acknowledgments before Kafka's record lock expires.
-	AcknowledgmentMargin time.Duration
+	Concurrency int
 }
 
 func (o ShareWorkerOptions) Validate() error {
 	if o.Concurrency < 1 || o.Concurrency > 1000 {
 		return errors.New("share worker concurrency must be between 1 and 1000")
 	}
-	if o.HandlingTimeout <= 0 {
-		return errors.New("share worker handling timeout must be positive")
-	}
-	if o.AcknowledgmentMargin <= 0 {
-		return errors.New("share worker acknowledgment margin must be positive")
-	}
 	return nil
 }
 
 type NotificationShareWorker struct {
 	reader  ShareMessageReader
-	usecase notification.Usecase
-	log     logger.Logger
+	handler middleware.Handler
 	options ShareWorkerOptions
-	tracer  observability.Tracer
 }
 
-func NewNotificationShareWorker(reader ShareMessageReader, usecase notification.Usecase, log logger.Logger, tracer observability.Tracer, options ShareWorkerOptions) (*NotificationShareWorker, error) {
+func NewNotificationShareWorker(reader ShareMessageReader, handler middleware.Handler, options ShareWorkerOptions) (*NotificationShareWorker, error) {
 	if err := options.Validate(); err != nil {
 		return nil, err
 	}
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
-	return &NotificationShareWorker{tracer: tracer, reader: reader, usecase: usecase, log: log, options: options}, nil
+	return &NotificationShareWorker{reader: reader, handler: handler, options: options}, nil
 }
 
 // Run owns the reader. It finishes and acknowledges one batch before fetching
@@ -96,7 +76,6 @@ func (w *NotificationShareWorker) Run(ctx context.Context) error {
 
 type shareOutcome struct {
 	record *kgo.Record
-	reject bool
 	err    error
 }
 
@@ -116,7 +95,7 @@ func (w *NotificationShareWorker) handleBatch(ctx context.Context, batch ShareWo
 	for range min(w.options.Concurrency, len(records)) {
 		handlers.Go(func() {
 			for record := range jobs {
-				results <- w.handleRecord(batchCtx, record)
+				results <- shareOutcome{record: record, err: w.handler(batchCtx, record)}
 			}
 		})
 	}
@@ -125,11 +104,8 @@ func (w *NotificationShareWorker) handleBatch(ctx context.Context, batch ShareWo
 		result := <-results
 		var markErr error
 		switch {
-		case result.reject:
+		case errors.Is(result.err, middleware.ErrInvalidMessage):
 			markErr = batch.Reject(result.record)
-			w.log.Warn(ctx, "invalid notification rejected for share group", logger.FromPairs(
-				"kafka.topic", result.record.Topic, "kafka.partition", result.record.Partition,
-				"kafka.offset", result.record.Offset, "reason", result.err.Error()))
 		case result.err != nil:
 			markErr = batch.Release(result.record)
 			// Cancellation caused by shutdown or another failed handler is expected.
@@ -149,42 +125,4 @@ func (w *NotificationShareWorker) handleBatch(ctx context.Context, batch ShareWo
 	// Every handler has sent its result; join before the reader can be closed.
 	handlers.Wait()
 	return failure
-}
-
-func (w *NotificationShareWorker) handleRecord(ctx context.Context, record *kgo.Record) (result shareOutcome) {
-	result.record = record
-	ctx = notificationRecordContext(ctx, w.tracer, record)
-	ctx, span := w.tracer.Start(ctx, "delivery.kafka", "notification.share.consume")
-	// Finish after panic recovery has converted any panic into a failed outcome.
-	defer func() { span.Finish(result.err) }()
-	defer func() {
-		if recover() != nil {
-			// Panic values can contain payloads. Report the failure without exposing them.
-			result.err = errors.New("notification handler panicked")
-			result.reject = false
-		}
-	}()
-	deadline := time.Now().Add(w.options.HandlingTimeout)
-	if lockDeadline := record.AcquisitionDeadline(); !lockDeadline.IsZero() {
-		if finishBy := lockDeadline.Add(-w.options.AcknowledgmentMargin); finishBy.Before(deadline) {
-			deadline = finishBy
-		}
-	}
-	ctx, cancel := context.WithDeadline(ctx, deadline)
-	defer cancel()
-	if result.err = ctx.Err(); result.err != nil {
-		return result
-	}
-	request, err := decodeNotification(record.Value)
-	if err != nil {
-		result.reject, result.err = true, err
-		return result
-	}
-	result.err = w.usecase.Handle(ctx, request)
-	// A handler must honor cancellation. Even a nil return after the deadline
-	// cannot safely be treated as success: Kafka may have handed the record out again.
-	if result.err == nil {
-		result.err = ctx.Err()
-	}
-	return result
 }

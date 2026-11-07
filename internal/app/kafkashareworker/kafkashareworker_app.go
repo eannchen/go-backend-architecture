@@ -5,12 +5,11 @@ import (
 	"errors"
 
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
-	kafkadelivery "github.com/eannchen/go-backend-architecture/internal/delivery/kafka"
+	kafkadelivery "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/notification"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
 	otelinfra "github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
 	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
 )
 
@@ -38,9 +37,7 @@ func New(ctx context.Context) (*App, error) {
 		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, telemetry.Shutdown)
 		return nil, errors.Join(err, errutil.Step("shutdown telemetry after share reader init failure", cleanupErr))
 	}
-	worker, err := kafkadelivery.NewNotificationShareWorker(shareReaderAdapter{reader}, notification.New(telemetry.Logger), telemetry.Logger, telemetry.Observability.Tracer(), kafkadelivery.ShareWorkerOptions{
-		Concurrency: cfg.Concurrency, HandlingTimeout: cfg.HandlingTimeout, AcknowledgmentMargin: cfg.AcknowledgmentMargin,
-	})
+	worker, err := buildWorker(reader, telemetry, cfg)
 	if err != nil {
 		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, func(cleanupCtx context.Context) error {
 			return errors.Join(reader.Close(cleanupCtx), telemetry.Shutdown(cleanupCtx))

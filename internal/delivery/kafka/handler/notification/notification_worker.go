@@ -1,4 +1,4 @@
-package kafka
+package notification
 
 import (
 	"context"
@@ -7,8 +7,7 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 )
 
 // MessageReader is what this Kafka worker needs from its reader.
@@ -22,15 +21,11 @@ type MessageReader interface {
 
 type NotificationWorker struct {
 	reader  MessageReader
-	usecase notification.Usecase
-	tracer  observability.Tracer
+	handler middleware.Handler
 }
 
-func NewNotificationWorker(reader MessageReader, usecase notification.Usecase, tracer observability.Tracer) *NotificationWorker {
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
-	return &NotificationWorker{reader: reader, usecase: usecase, tracer: tracer}
+func NewNotificationWorker(reader MessageReader, handler middleware.Handler) *NotificationWorker {
+	return &NotificationWorker{reader: reader, handler: handler}
 }
 
 // Run repeats: get one message, handle it, save progress if successful.
@@ -63,28 +58,17 @@ func (w *NotificationWorker) Run(ctx context.Context) error {
 	}
 }
 
-func (w *NotificationWorker) handle(ctx context.Context, message *kgo.Record) (err error) {
+func (w *NotificationWorker) handle(ctx context.Context, message *kgo.Record) error {
 	// Step 2: arrange to let partitions move again when this attempt finishes.
 	// "defer" runs the call when this function returns, including on errors.
 	// AllowRebalance does not save progress; only CommitRecords can advance
 	// the group's saved position.
 	defer w.reader.AllowRebalance()
-	// Step 3: continue the receive span that kotel placed on the record, while
-	// keeping cancellation from our worker context. This span measures the
-	// processing attempt, separately from Kafka's network and buffering work.
-	ctx = notificationRecordContext(ctx, w.tracer, message)
-	ctx, span := w.tracer.Start(ctx, "delivery.kafka", "notification.consume")
-	defer func() { span.Finish(err) }()
-	// Step 4: decode and validate the JSON, then invoke the notification usecase.
-	// Any error returns before CommitRecords, so Kafka progress is not advanced.
-	request, err := decodeNotification(message.Value)
-	if err != nil {
+	// The injected chain decodes, observes, and handles this record.
+	if err := w.handler(ctx, message); err != nil {
 		return err
 	}
-	if err := w.usecase.Handle(ctx, request); err != nil {
-		return fmt.Errorf("handle notification: %w", err)
-	}
-	// Step 5: handling succeeded, so ask Kafka to save the group's next position.
+	// Handling succeeded, so ask Kafka to save the group's next position.
 	// Example: after handling offset 7, commit saves 8 as the next message to read.
 	// If we crash after handling but before this commit succeeds, Kafka can give
 	// us offset 7 again. This possibility is called "at-least-once processing".

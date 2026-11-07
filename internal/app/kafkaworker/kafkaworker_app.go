@@ -5,12 +5,11 @@ import (
 	"errors"
 
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
-	kafkadelivery "github.com/eannchen/go-backend-architecture/internal/delivery/kafka"
+	kafkadelivery "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/notification"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
 	otelinfra "github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
 	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
 )
 
@@ -40,8 +39,7 @@ func New(ctx context.Context) (*App, error) {
 		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, telemetry.Shutdown)
 		return nil, errors.Join(err, errutil.Step("shutdown telemetry after Kafka init failure", cleanupErr))
 	}
-	usecase := notification.New(telemetry.Logger)
-	worker := kafkadelivery.NewNotificationWorker(reader, usecase, telemetry.Observability.Tracer())
+	worker := buildWorker(reader, telemetry, cfg)
 	return &App{Telemetry: telemetry, Config: cfg, reader: reader, worker: worker, done: make(chan struct{})}, nil
 }
 

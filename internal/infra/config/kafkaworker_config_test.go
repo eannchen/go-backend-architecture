@@ -121,3 +121,22 @@ func TestLoadKafkaWorkerIgnoresPublisherPolicies(t *testing.T) {
 		t.Fatalf("LoadKafkaWorker() error = %v", err)
 	}
 }
+
+// TestKafkaWorkerHandlingTimeout validates processing budgets at startup while
+// keeping them independent of the reader's network timeouts.
+func TestKafkaWorkerHandlingTimeout(t *testing.T) {
+	for _, value := range []string{"2s", "0", "-1s", "bad"} {
+		t.Run(value, func(t *testing.T) {
+			setValidRuntimeEnv(t)
+			t.Setenv("KAFKA_HANDLING_TIMEOUT", value)
+			cfg, err := LoadKafkaWorker()
+			if value == "2s" {
+				if err != nil || cfg.HandlingTimeout.String() != value {
+					t.Fatalf("timeout=%v error=%v", cfg.HandlingTimeout, err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), "KAFKA_HANDLING_TIMEOUT") {
+				t.Fatalf("error=%v", err)
+			}
+		})
+	}
+}

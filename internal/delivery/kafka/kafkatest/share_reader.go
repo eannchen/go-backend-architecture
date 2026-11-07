@@ -4,7 +4,7 @@ package kafkatest
 import (
 	"context"
 
-	kafkadelivery "github.com/eannchen/go-backend-architecture/internal/delivery/kafka"
+	kafkadelivery "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/notification"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 

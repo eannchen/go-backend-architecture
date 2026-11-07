@@ -81,8 +81,6 @@ func main() {
 // by the other profile and identifies the chosen configuration fragments.
 func transportSelectionPlan(profile string) (selectionPlan, error) {
 	commonRemovals := []string{
-		// This in-memory pipeline test exercises both worker profiles together.
-		"internal/infra/observability/otel/kafka_workers_test.go",
 		".github/workflows/profile-selector.yml",
 		"config/env",
 		"tools/profile-selector",
@@ -183,8 +181,9 @@ func transportSelectionPlan(profile string) (selectionPlan, error) {
 // removing HTTP/gRPC examples and the other worker's executable-specific files.
 func newSelectionPlan(profile string) (selectionPlan, error) {
 	kafkaCommon := []string{
+		"internal/app/kafkaprocessing",
 		"docker-compose.kafka.yml", "tools/kafka", "make/kafka.mk",
-		"internal/infra/observability/otel/kafka.go", "internal/infra/observability/otel/kafka_test.go", "internal/infra/observability/otel/kafka_integration_test.go",
+		"internal/infra/observability/otel/kafka.go", "internal/infra/observability/otel/kafka_test.go",
 		"internal/delivery/kafka", "internal/infra/messaging/kafka",
 		"internal/usecase/notification",
 		"internal/infra/config/kafka_connection_config.go",
@@ -218,11 +217,11 @@ func newSelectionPlan(profile string) (selectionPlan, error) {
 	plan := selectionPlan{profile: profile, sqlcSource: "sqlc.kafka.yaml", envFragments: []string{"config/env/common.env.example", "config/env/" + profile + ".env.example"}}
 	if profile == kafkaWorkerProfile {
 		removals = append(removals, shareOnly...)
-		removals = append(removals, "internal/delivery/kafka/notification_share_worker.go", "internal/delivery/kafka/notification_share_worker_test.go", "internal/delivery/kafka/kafkatest")
+		removals = append(removals, "internal/delivery/kafka/handler/notification/notification_share_worker.go", "internal/delivery/kafka/kafkatest")
 		plan.airSource = ".air.kafkaworker.toml"
 	} else {
 		removals = append(removals, groupOnly...)
-		removals = append(removals, "internal/delivery/kafka/notification_worker.go", "internal/delivery/kafka/notification_worker_test.go")
+		removals = append(removals, "internal/delivery/kafka/handler/notification/notification_worker.go", "internal/delivery/kafka/handler/notification/notification_worker_test.go")
 		plan.airSource = ".air.kafkashareworker.toml"
 	}
 	slices.Sort(removals)
