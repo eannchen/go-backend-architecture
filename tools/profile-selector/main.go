@@ -181,7 +181,7 @@ func transportSelectionPlan(profile string) (selectionPlan, error) {
 // removing HTTP/gRPC examples and the other worker's executable-specific files.
 func newSelectionPlan(profile string) (selectionPlan, error) {
 	kafkaCommon := []string{
-		"internal/app/kafkaprocessing",
+		"internal/app/wiring/kafkaprocessing",
 		"docker-compose.kafka.yml", "tools/kafka", "make/kafka.mk",
 		"internal/infra/observability/otel/kafka.go", "internal/infra/observability/otel/kafka_test.go",
 		"internal/delivery/kafka", "internal/infra/messaging/kafka",

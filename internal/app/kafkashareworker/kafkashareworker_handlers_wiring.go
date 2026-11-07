@@ -1,8 +1,8 @@
 package kafkashareworker
 
 import (
-	"github.com/eannchen/go-backend-architecture/internal/app/kafkaprocessing"
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
+	"github.com/eannchen/go-backend-architecture/internal/app/wiring/kafkaprocessing"
 	kafkadelivery "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/notification"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
