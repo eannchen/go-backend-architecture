@@ -181,7 +181,6 @@ func transportSelectionPlan(profile string) (selectionPlan, error) {
 // removing HTTP/gRPC examples and the other worker's executable-specific files.
 func newSelectionPlan(profile string) (selectionPlan, error) {
 	kafkaCommon := []string{
-		"internal/app/wiring/kafkaprocessing",
 		"docker-compose.kafka.yml", "tools/kafka", "make/kafka.mk",
 		"internal/infra/observability/otel/kafka.go", "internal/infra/observability/otel/kafka_test.go",
 		"internal/delivery/kafka", "internal/infra/messaging/kafka",
@@ -221,7 +220,7 @@ func newSelectionPlan(profile string) (selectionPlan, error) {
 		plan.airSource = ".air.kafkaworker.toml"
 	} else {
 		removals = append(removals, groupOnly...)
-		removals = append(removals, "internal/delivery/kafka/handler/notification/notification_worker.go", "internal/delivery/kafka/handler/notification/notification_worker_test.go")
+		removals = append(removals, "internal/delivery/kafka/handler/notification/notification_worker.go")
 		plan.airSource = ".air.kafkashareworker.toml"
 	}
 	slices.Sort(removals)
