@@ -55,7 +55,7 @@ func NewServerSessionManager(
 		tracer:      tracer,
 		sessionRepo: sessionRepo,
 		ttl:         ttl,
-		createTotal: meter.Counter("auth_session_create_total",
+		createTotal: meter.Counter("app.auth.session.creations",
 			observability.MetricOption{Description: "Total sessions created.", Unit: "{session}"},
 		),
 	}

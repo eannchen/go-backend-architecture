@@ -12,7 +12,7 @@ func NormalizeMethod(fullMethod string) string {
 	return strings.TrimPrefix(fullMethod, "/")
 }
 
-// StatusName returns the canonical protobuf name required by rpc.response.status_code.
+// StatusName returns the canonical protobuf name required by rpc.status_code.
 func StatusName(code codes.Code) string {
 	index := int(code)
 	if index >= 0 && index < len(statusNames) {

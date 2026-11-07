@@ -36,7 +36,7 @@ func TestRequestMetricsRecordsBoundedRouteAndError(t *testing.T) {
 		},
 	})
 
-	requests := meter.CounterSamples("http_server_requests_total")
+	requests := meter.CounterSamples("app.http.server.requests")
 	if len(requests) != 1 || requests[0].Fields[keyHTTPRoute] != "/protected" || requests[0].Fields[keyHTTPResponseStatusCode] != http.StatusUnauthorized {
 		t.Fatalf("request metric = %#v", requests)
 	}
@@ -49,10 +49,10 @@ func TestRequestMetricsRecordsBoundedRouteAndError(t *testing.T) {
 	if _, exists := requests[0].Fields[keyApplicationErrorCode]; exists {
 		t.Fatalf("request metric contains application error code: %#v", requests[0].Fields)
 	}
-	if errorSamples := meter.CounterSamples("http_server_errors_total"); len(errorSamples) != 1 {
+	if errorSamples := meter.CounterSamples("app.http.server.errors"); len(errorSamples) != 1 {
 		t.Fatalf("error metric count = %d, want 1", len(errorSamples))
 	}
-	if samples := meter.HistogramSamples("http_server_request_duration_seconds"); len(samples) != 1 {
+	if samples := meter.HistogramSamples("http.server.request.duration"); len(samples) != 1 {
 		t.Fatalf("duration metric count = %d, want 1", len(samples))
 	}
 }
@@ -110,7 +110,7 @@ func TestMiddlewareUsesOneOutcomeForTracingMetricsAndAccessLog(t *testing.T) {
 	if logFields[keyHTTPRoute] != "/protected" || logFields[keyHTTPResponseStatusCode] != http.StatusBadRequest || logFields[keyApplicationErrorDetails] != `{"field":"name"}` {
 		t.Fatalf("access-log fields = %#v", logFields)
 	}
-	requestSamples := meter.CounterSamples("http_server_requests_total")
+	requestSamples := meter.CounterSamples("app.http.server.requests")
 	if len(requestSamples) != 1 || requestSamples[0].Fields[keyHTTPRoute] != "/protected" || requestSamples[0].Fields[keyHTTPResponseStatusCode] != http.StatusBadRequest {
 		t.Fatalf("request metrics = %#v", requestSamples)
 	}
@@ -122,4 +122,33 @@ func mergeSpanAttributes(calls []observabilitytest.SetAttributesCall) observabil
 		sets = append(sets, call.Fields...)
 	}
 	return observability.MergeFields(sets...)
+}
+
+// TestHTTPDurationMetricAttributes protects the standard duration's required
+// scheme and failure labels without classifying client errors as server failures.
+func TestHTTPDurationMetricAttributes(t *testing.T) {
+	for _, status := range []int{http.StatusOK, http.StatusBadRequest, http.StatusInternalServerError} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			meter := observabilitytest.NewRecordingMeter()
+			NewRequestMetrics(meter).Record(t.Context(), requestOutcome{
+				request:  requestInfo{requestMethod: http.MethodGet, urlScheme: "https", routeTemplate: "/users/:id"},
+				duration: time.Second, responseStatusCode: status,
+			})
+			samples := meter.HistogramSamples("http.server.request.duration")
+			if len(samples) != 1 || samples[0].Value != 1 {
+				t.Fatalf("duration=%v", samples)
+			}
+			fields := samples[0].Fields
+			if fields[keyURLScheme] != "https" || fields[keyHTTPRequestMethod] != http.MethodGet {
+				t.Fatalf("attributes=%v", fields)
+			}
+			if status >= 500 {
+				if fields[keyErrorType] != "500" {
+					t.Fatalf("error.type=%v", fields[keyErrorType])
+				}
+			} else if _, exists := fields[keyErrorType]; exists {
+				t.Fatal("unexpected server failure")
+			}
+		})
+	}
 }

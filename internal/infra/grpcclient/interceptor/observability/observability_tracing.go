@@ -58,7 +58,7 @@ func (t *Tracing) Start(ctx context.Context, rpc rpcInfo) (context.Context, appo
 
 // Finish records the bounded transport outcome and completes the span.
 func (*Tracing) Finish(span appobservability.Span, outcome rpcOutcome) {
-	fields := appobservability.FromPairs(keyRPCResponseStatusCode, outcome.responseStatusName())
+	fields := appobservability.FromPairs(keyRPCStatusCode, outcome.responseStatusName())
 	if errorType := outcome.errorType(); errorType != "" {
 		fields[keyErrorType] = errorType
 		fields[keyApplicationRPCStatusMessage] = outcome.responseStatusMessage

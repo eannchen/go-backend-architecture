@@ -59,7 +59,7 @@ func (l *AccessLog) Record(ctx context.Context, outcome rpcOutcome) {
 		keyRPCSystemName, "grpc",
 		keyRPCMethod, outcome.rpc.method,
 		keyApplicationRPCCallType, outcome.rpc.callType,
-		keyRPCResponseStatusCode, outcome.responseStatusName(),
+		keyRPCStatusCode, outcome.responseStatusName(),
 		keyLogDurationMS, outcome.duration.Milliseconds(),
 	)
 	if outcome.rpc.serverAddress != "" {

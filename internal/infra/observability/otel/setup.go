@@ -8,41 +8,66 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	otellog "go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
 )
 
-// otelRuntime is a lifecycle manager for OTel providers.
-// Pattern used: Facade + Lifecycle Manager.
-type otelRuntime struct {
-	traceProvider  *sdktrace.TracerProvider
-	loggerProvider *sdklog.LoggerProvider
-	meterProvider  *sdkmetric.MeterProvider
+// The runtime owns provider shutdown as well as instrumentation. OTel's API
+// interfaces expose instrumentation only, so require Shutdown here too.
+type traceProvider interface {
+	trace.TracerProvider
+	Shutdown(context.Context) error
+}
+
+type meterProvider interface {
+	metric.MeterProvider
+	Shutdown(context.Context) error
+}
+
+type logProvider interface {
+	otellog.LoggerProvider
+	Shutdown(context.Context) error
+}
+
+// Runtime owns OTel providers and supplies both application contracts and SDK
+// instrumentation built from those same providers.
+type Runtime struct {
+	traceProvider  traceProvider
+	loggerProvider logProvider
+	meterProvider  meterProvider
 	logEmitter     observability.LogEmitter
 	tracer         observability.Tracer
 	meter          observability.Meter
 }
 
-func (r *otelRuntime) LogEmitter() observability.LogEmitter {
+// TracerProvider and MeterProvider let client SDKs use the same telemetry
+// providers as the application. The runtime remains responsible for shutdown.
+func (r *Runtime) TracerProvider() trace.TracerProvider { return r.traceProvider }
+func (r *Runtime) MeterProvider() metric.MeterProvider  { return r.meterProvider }
+
+func (r *Runtime) LogEmitter() observability.LogEmitter {
 	return r.logEmitter
 }
 
-func (r *otelRuntime) Tracer() observability.Tracer {
+func (r *Runtime) Tracer() observability.Tracer {
 	return r.tracer
 }
 
-func (r *otelRuntime) Meter() observability.Meter {
+func (r *Runtime) Meter() observability.Meter {
 	return r.meter
 }
 
-func (r *otelRuntime) Shutdown(ctx context.Context) error {
+func (r *Runtime) Shutdown(ctx context.Context) error {
 	return errutil.Join(
 		errutil.Step("shutdown meter provider", r.meterProvider.Shutdown(ctx)),
 		errutil.Step("shutdown logger provider", r.loggerProvider.Shutdown(ctx)),
@@ -50,7 +75,7 @@ func (r *otelRuntime) Shutdown(ctx context.Context) error {
 	)
 }
 
-func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv string) (observability.Runtime, error) {
+func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv string) (*Runtime, error) {
 	res, err := resource.New(
 		ctx,
 		resource.WithAttributes(
@@ -139,11 +164,11 @@ func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv strin
 }
 
 func newRuntime(
-	tracerProvider *sdktrace.TracerProvider,
-	loggerProvider *sdklog.LoggerProvider,
-	meterProvider *sdkmetric.MeterProvider,
+	tracerProvider traceProvider,
+	loggerProvider logProvider,
+	meterProvider meterProvider,
 	serviceName string,
-) observability.Runtime {
+) *Runtime {
 	otel.SetTracerProvider(tracerProvider)
 	otel.SetMeterProvider(meterProvider)
 	// Propagator is the "format adapter" used to read/write trace context in
@@ -156,7 +181,7 @@ func newRuntime(
 		propagation.Baggage{},
 	))
 
-	return &otelRuntime{
+	return &Runtime{
 		traceProvider:  tracerProvider,
 		loggerProvider: loggerProvider,
 		meterProvider:  meterProvider,

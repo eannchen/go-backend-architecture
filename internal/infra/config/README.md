@@ -4,9 +4,9 @@ This package loads and validates environment-backed configuration before applica
 
 ## Responsibilities and boundaries
 
-- `LoadRuntime` reads shared settings; `LoadHTTPAPI` and `LoadGRPCAPI` add the settings for their executable.
+- `LoadRuntime` reads shared settings; `LoadHTTPAPI`, `LoadGRPCAPI`, and `LoadKafkaWorker` add the settings for their executable.
 - Configuration values are normalized and validated once, then injected into constructors.
-- HTTP and gRPC configuration and tests remain in separate files so the profile selector can remove the unused pair.
+- Profile-specific configuration and tests remain in separate files so the profile selector can remove unused pairs.
 
 ## Extending
 

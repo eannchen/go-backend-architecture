@@ -57,13 +57,13 @@ func New(
 	}
 	return &impl{
 		tracer: tracer,
-		checkTotal: meter.Counter("health_check_total",
+		checkTotal: meter.Counter("app.health.checks",
 			observability.MetricOption{
 				Description: "Total number of health checks by mode and result.",
 				Unit:        "{check}",
 			},
 		),
-		checkLatency: meter.Histogram("health_check_duration_seconds",
+		checkLatency: meter.Histogram("app.health.check.duration",
 			observability.MetricOption{
 				Description: "Health check latency in seconds by mode and result.",
 				Unit:        "s",

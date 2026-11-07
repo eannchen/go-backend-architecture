@@ -3,8 +3,10 @@ package observability
 import (
 	"context"
 	"errors"
+	"github.com/eannchen/go-backend-architecture/internal/observability/grpcsemconv"
 	"io"
 	"testing"
+	"time"
 
 	googlegrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -52,8 +54,8 @@ func TestUnaryInjectsTraceAndRecordsOutcome(t *testing.T) {
 	if len(log.InfoCalls) != 1 || len(log.ErrorNoStackCalls) != 0 {
 		t.Fatalf("log calls = info:%d error:%d", len(log.InfoCalls), len(log.ErrorNoStackCalls))
 	}
-	requests := meter.CounterSamples("grpc_client_requests_total")
-	if len(requests) != 1 || requests[0].Fields[keyRPCMethod] != "diagnostics.v1.DiagnosticsService/GetHealth" || requests[0].Fields[keyRPCResponseStatusCode] != "OK" || requests[0].Fields[keyApplicationDependencyName] != "diagnostics" {
+	requests := meter.CounterSamples("app.grpc.client.requests")
+	if len(requests) != 1 || requests[0].Fields[keyRPCMethod] != "diagnostics.v1.DiagnosticsService/GetHealth" || requests[0].Fields[keyRPCStatusCode] != "OK" || requests[0].Fields[keyApplicationDependencyName] != "diagnostics" {
 		t.Fatalf("request metrics = %#v", requests)
 	}
 	if requests[0].Fields[keyServerAddress] != "diagnostics" || requests[0].Fields[keyServerPort] != 9090 {
@@ -101,7 +103,7 @@ func TestUnaryRecordsRemoteFailure(t *testing.T) {
 	if loggedOutcome.DependencyName != "external-provider" || loggedOutcome.RPCMethod != "test.Service/Fail" || loggedOutcome.GRPCStatusCode != codes.Unavailable || !errors.Is(loggedOutcome.RPCError, wireErr) {
 		t.Fatalf("log policy outcome = %+v", loggedOutcome)
 	}
-	if samples := meter.CounterSamples("grpc_client_errors_total"); len(samples) != 1 || samples[0].Fields[keyRPCResponseStatusCode] != "UNAVAILABLE" {
+	if samples := meter.CounterSamples("app.grpc.client.errors"); len(samples) != 1 || samples[0].Fields[keyRPCStatusCode] != "UNAVAILABLE" {
 		t.Fatalf("error metrics = %#v", samples)
 	}
 }
@@ -133,7 +135,7 @@ func TestStreamFinishesOnEOF(t *testing.T) {
 	if err := stream.RecvMsg(nil); err != io.EOF {
 		t.Fatalf("RecvMsg() error = %v, want EOF", err)
 	}
-	active := meter.UpDownCounterSamples("grpc_client_active_streams")
+	active := meter.UpDownCounterSamples("app.grpc.client.active_streams")
 	if len(active) != 2 || active[0].Value != 1 || active[1].Value != -1 {
 		t.Fatalf("active stream metrics = %#v", active)
 	}
@@ -188,7 +190,7 @@ func TestUnaryCapabilitiesCanBeSelectedIndependently(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Unary() error = %v", err)
 		}
-		if samples := meter.CounterSamples("grpc_client_requests_total"); len(samples) != 1 {
+		if samples := meter.CounterSamples("app.grpc.client.requests"); len(samples) != 1 {
 			t.Fatalf("request metric samples = %#v, want one", samples)
 		}
 	})
@@ -240,3 +242,35 @@ type testClientStream struct {
 }
 
 func (s *testClientStream) RecvMsg(any) error { return s.recvErr }
+
+// TestClientDurationMetricAttributes protects the standard RPC client status
+// attribute and treats every non-OK client result as an operation failure.
+func TestClientDurationMetricAttributes(t *testing.T) {
+	for _, code := range []codes.Code{codes.OK, codes.InvalidArgument, codes.Unavailable} {
+		t.Run(code.String(), func(t *testing.T) {
+			meter := observabilitytest.NewRecordingMeter()
+			NewRequestMetrics(meter).Record(t.Context(), newRPCOutcome(
+				newRPCInfo("billing", "billing.internal", 443, "/example.Service/Call", "unary"),
+				time.Second, status.Error(code, "safe error"),
+			))
+			samples := meter.HistogramSamples("rpc.client.call.duration")
+			if len(samples) != 1 || samples[0].Value != 1 {
+				t.Fatalf("duration=%v", samples)
+			}
+			fields := samples[0].Fields
+			if fields[keyRPCSystemName] != "grpc" || fields[keyRPCStatusCode] != grpcsemconv.StatusName(code) {
+				t.Fatalf("attributes=%v", fields)
+			}
+			if _, exists := fields["rpc.response.status_code"]; exists {
+				t.Fatal("duration uses legacy status attribute")
+			}
+			if code == codes.OK {
+				if _, exists := fields[keyErrorType]; exists {
+					t.Fatal("successful call has error.type")
+				}
+			} else if fields[keyErrorType] != grpcsemconv.StatusName(code) {
+				t.Fatalf("error.type=%v", fields[keyErrorType])
+			}
+		})
+	}
+}

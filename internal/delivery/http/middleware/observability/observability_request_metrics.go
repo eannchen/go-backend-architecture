@@ -18,16 +18,17 @@ func NewRequestMetrics(meter observability.Meter) *RequestMetrics {
 	if meter == nil {
 		meter = observability.NoopMeter{}
 	}
+	// Duration follows OTel HTTP conventions; the additional counters are custom.
 	return &RequestMetrics{
-		requests: meter.Counter("http_server_requests_total", observability.MetricOption{Description: "Completed HTTP requests.", Unit: "{request}"}),
-		errors:   meter.Counter("http_server_errors_total", observability.MetricOption{Description: "Completed HTTP requests with 4xx or 5xx status.", Unit: "{error}"}),
-		duration: meter.Histogram("http_server_request_duration_seconds", observability.MetricOption{Description: "HTTP request duration.", Unit: "s"}),
+		requests: meter.Counter("app.http.server.requests", observability.MetricOption{Description: "Completed HTTP requests.", Unit: "{request}"}),
+		errors:   meter.Counter("app.http.server.errors", observability.MetricOption{Description: "Completed HTTP requests with 4xx or 5xx status.", Unit: "{error}"}),
+		duration: meter.Histogram("http.server.request.duration", observability.MetricOption{Description: "HTTP request duration.", Unit: "s"}),
 	}
 }
 
 // Record records one completed HTTP request.
 func (m *RequestMetrics) Record(ctx context.Context, outcome requestOutcome) {
-	fields := metricFields(outcome.request, outcome.responseStatusCode)
+	fields := metricFields(outcome)
 	m.requests.Add(ctx, 1, fields)
 	m.duration.Record(ctx, outcome.duration.Seconds(), fields)
 	if outcome.responseStatusCode >= 400 {
@@ -37,13 +38,18 @@ func (m *RequestMetrics) Record(ctx context.Context, outcome requestOutcome) {
 
 // metricFields intentionally excludes the concrete URL path to prevent one
 // metric series per resource identifier or unknown URL.
-func metricFields(request requestInfo, status int) observability.Fields {
+func metricFields(outcome requestOutcome) observability.Fields {
+	request := outcome.request
 	fields := observability.FromPairs(
 		keyHTTPRequestMethod, request.requestMethod,
-		keyHTTPResponseStatusCode, status,
+		keyURLScheme, request.urlScheme,
+		keyHTTPResponseStatusCode, outcome.responseStatusCode,
 	)
 	if request.routeTemplate != "" {
 		fields[keyHTTPRoute] = request.routeTemplate
+	}
+	if errorType := outcome.errorType(); errorType != "" {
+		fields[keyErrorType] = errorType
 	}
 	return fields
 }
