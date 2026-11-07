@@ -28,7 +28,7 @@ func NewGlobalRateLimit(limiter globalratelimit.Limiter, responder httpresponse.
 	return &GlobalRateLimitMiddleware{
 		limiter:   limiter,
 		responder: responder,
-		decisions: meter.Counter("http_rate_limit_decisions_total", observability.MetricOption{Description: "Global HTTP rate-limit decisions by outcome.", Unit: "{decision}"}),
+		decisions: meter.Counter("app.http.rate_limit.decisions", observability.MetricOption{Description: "Global HTTP rate-limit decisions by outcome.", Unit: "{decision}"}),
 	}
 }
 

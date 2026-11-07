@@ -72,7 +72,7 @@ func NewOAuthAuthenticator(
 		providers: pm,
 		stateRepo: stateRepo,
 		userRepo:  userRepo,
-		oauthTotal: meter.Counter("auth_oauth_total",
+		oauthTotal: meter.Counter("app.auth.oauth.attempts",
 			observability.MetricOption{Description: "OAuth flow completions by provider and outcome.", Unit: "{attempt}"},
 		),
 	}

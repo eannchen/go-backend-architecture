@@ -43,8 +43,16 @@ func KafkaHooks(tracerProvider trace.TracerProvider, meterProvider metric.MeterP
 		// attribute entirely. Record keys and Kafka partition routing stay intact.
 		kotel.KeyFormatter(func(*kgo.Record) (string, error) { return "", errors.New("message keys are private") }),
 	)
-	// These metrics describe Kafka client activity, such as network traffic and
-	// record batches. They do not measure our usecase's processing time or success.
+	// Kotel uses the OpenTelemetry metrics API directly. NewMeter asks this
+	// provider for a meter and creates Int64Counter instruments for connections,
+	// network errors, bytes, and records. Franz-go calls the returned hooks on
+	// client events; those hooks call counter.Add with the observed counts.
+	//
+	// Our processing middleware uses the same API through observability.Meter
+	// and our OTel adapter. Both feed this runtime's provider and exporter, but
+	// measure different work: client activity here and handler outcomes there.
+	// Kotel owns its metric names; our custom processing metrics use app.*
+	// names with units configured separately, like our other custom OTel metrics.
 	meter := kotel.NewMeter(kotel.MeterProvider(meterProvider))
 	return kotel.NewKotel(kotel.WithTracer(tracer), kotel.WithMeter(meter)).Hooks()
 }

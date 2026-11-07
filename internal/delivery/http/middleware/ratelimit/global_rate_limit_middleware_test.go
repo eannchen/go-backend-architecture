@@ -82,7 +82,7 @@ func TestGlobalRateLimitMiddleware(t *testing.T) {
 			if limiter.AllowIPCalls != 1 || limiter.AllowIPIP == "" {
 				t.Fatalf("limiter call = %d, %q; want one non-empty IP", limiter.AllowIPCalls, limiter.AllowIPIP)
 			}
-			samples := meter.CounterSamples("http_rate_limit_decisions_total")
+			samples := meter.CounterSamples("app.http.rate_limit.decisions")
 			if len(samples) != 1 || samples[0].Fields["outcome"] != tt.wantOutcome {
 				t.Fatalf("decision metrics = %#v, want outcome %q", samples, tt.wantOutcome)
 			}
