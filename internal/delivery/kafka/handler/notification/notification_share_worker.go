@@ -95,9 +95,15 @@ func (w *NotificationShareWorker) handleBatch(ctx context.Context, records []*kg
 			}
 		})
 	}
+	// Only the sender side closes results, after every handler goroutine exits.
+	// The owner drains results concurrently so it can mark outcomes and cancel
+	// the remaining work as soon as a failure arrives.
+	go func() {
+		handlers.Wait()
+		close(results)
+	}()
 	var failure error
-	for range len(records) {
-		result := <-results
+	for result := range results {
 		var markErr error
 		switch {
 		case errors.Is(result.err, middleware.ErrInvalidMessage):
@@ -118,7 +124,5 @@ func (w *NotificationShareWorker) handleBatch(ctx context.Context, records []*kg
 			cancel()
 		}
 	}
-	// Every handler has sent its result; join before the reader can be closed.
-	handlers.Wait()
 	return failure
 }
