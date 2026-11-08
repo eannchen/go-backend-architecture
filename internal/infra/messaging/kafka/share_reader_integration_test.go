@@ -34,21 +34,22 @@ func TestShareReadersShareOnePartition(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := newIntegrationShareReader(t, topic, group, 2)
-	batch1, err := first.FetchBatch(ctx)
+	batch1, err := first.FetchRecords(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	second := newIntegrationShareReader(t, topic, group, 2)
-	batch2, err := second.FetchBatch(ctx)
+	batch2, err := second.FetchRecords(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	seen := make(map[int64]bool)
-	for _, batch := range []*ShareBatch{batch1, batch2} {
-		if len(batch.Records()) < 1 || len(batch.Records()) > 2 {
+	batches := [][]*kgo.Record{batch1, batch2}
+	for _, records := range batches {
+		if len(records) < 1 || len(records) > 2 {
 			t.Fatal("poll exceeded configured bound")
 		}
-		for _, record := range batch.Records() {
+		for _, record := range records {
 			if record.Partition != 0 || seen[record.Offset] {
 				t.Fatalf("record acquired twice before release: %+v", record)
 			}
@@ -61,20 +62,16 @@ func TestShareReadersShareOnePartition(t *testing.T) {
 			}
 		}
 	}
-	// Neither consumer has finished its first batch yet, but both acquired records
-	// from partition 0. Mark outcomes only after proving simultaneous ownership.
-	for _, batch := range []*ShareBatch{batch1, batch2} {
-		for _, record := range batch.Records() {
-			if err := batch.Mark(record, ShareAccept); err != nil {
+	// Both readers acquired records before either marked its outcomes.
+	for i, reader := range []*ShareReader{first, second} {
+		for _, record := range batches[i] {
+			if err := reader.Accept(record); err != nil {
 				t.Fatal(err)
 			}
 		}
-	}
-	if err := first.FlushAcknowledgments(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if err := second.FlushAcknowledgments(ctx); err != nil {
-		t.Fatal(err)
+		if err := reader.FlushAcknowledgments(ctx); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
@@ -90,46 +87,46 @@ func TestShareReleaseRejectAndIndependentGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := newIntegrationShareReader(t, topic, group, 2)
-	batch, err := first.FetchBatch(ctx)
+	batch, err := first.FetchRecords(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(batch.Records()) != 2 {
-		t.Fatalf("expected two records in published batch, got %d", len(batch.Records()))
+	if len(batch) != 2 {
+		t.Fatalf("expected two records in published batch, got %d", len(batch))
 	}
-	retry, reject := batch.Records()[0], batch.Records()[1]
-	if err := batch.Mark(retry, ShareRelease); err != nil {
+	retry, reject := batch[0], batch[1]
+	if err := first.Release(retry); err != nil {
 		t.Fatal(err)
 	}
 	if err := first.FlushAcknowledgments(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := first.FetchBatch(ctx); !errors.Is(err, ErrShareBatchPending) {
+	if _, err := first.FetchRecords(ctx); !errors.Is(err, ErrShareBatchPending) {
 		t.Fatal("unfinished record did not block next poll")
 	}
 	second := newIntegrationShareReader(t, topic, group, 1)
-	again, err := second.FetchBatch(ctx)
+	again, err := second.FetchRecords(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	record := again.Records()[0]
+	record := again[0]
 	if record.Offset != retry.Offset || record.DeliveryCount() < 2 {
 		t.Fatal("released record was not redelivered")
 	}
-	if err := again.Mark(record, ShareAccept); err != nil {
+	if err := second.Accept(record); err != nil {
 		t.Fatal(err)
 	}
 	if err := second.FlushAcknowledgments(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := batch.Mark(reject, ShareReject); err != nil {
+	if err := first.Reject(reject); err != nil {
 		t.Fatal(err)
 	}
 	if err := first.FlushAcknowledgments(ctx); err != nil {
 		t.Fatal(err)
 	}
 	idleCtx, stop := context.WithTimeout(ctx, 750*time.Millisecond)
-	_, err = first.FetchBatch(idleCtx)
+	_, err = first.FetchRecords(idleCtx)
 	stop()
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("accepted/rejected work delivered again: %v", err)
@@ -138,15 +135,15 @@ func TestShareReleaseRejectAndIndependentGroup(t *testing.T) {
 	// delete Kafka data or affect a different group's acknowledgments.
 	otherGroup := createIntegrationShareGroup(t, topic+"-other", 30000)
 	other := newIntegrationShareReader(t, topic, otherGroup, 2)
-	independent, err := other.FetchBatch(ctx)
+	independent, err := other.FetchRecords(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(independent.Records()) != 2 {
+	if len(independent) != 2 {
 		t.Fatal("independent group could not read retained records")
 	}
-	for _, record := range independent.Records() {
-		if err := independent.Mark(record, ShareAccept); err != nil {
+	for _, record := range independent {
+		if err := other.Accept(record); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -167,34 +164,34 @@ func TestShareClosePreservesMarkedAndReleasesUnfinished(t *testing.T) {
 		t.Fatal(err)
 	}
 	first := newIntegrationShareReader(t, topic, group, 2)
-	batch, err := first.FetchBatch(ctx)
+	batch, err := first.FetchRecords(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(batch.Records()) != 2 {
-		t.Fatalf("expected two records, got %d", len(batch.Records()))
+	if len(batch) != 2 {
+		t.Fatalf("expected two records, got %d", len(batch))
 	}
-	completed, unfinished := batch.Records()[0], batch.Records()[1]
-	if err := batch.Mark(completed, ShareAccept); err != nil {
+	completed, unfinished := batch[0], batch[1]
+	if err := first.Accept(completed); err != nil {
 		t.Fatal(err)
 	}
 	// Do not explicitly flush: Close must confirm this acceptance itself.
-	if _, err := first.FetchBatch(ctx); !errors.Is(err, ErrShareBatchPending) {
+	if _, err := first.FetchRecords(ctx); !errors.Is(err, ErrShareBatchPending) {
 		t.Fatal(err)
 	}
 	if err := first.Close(ctx); err != nil {
 		t.Fatal(err)
 	}
 	second := newIntegrationShareReader(t, topic, group, 1)
-	replay, err := second.FetchBatch(ctx)
+	replay, err := second.FetchRecords(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	record := replay.Records()[0]
+	record := replay[0]
 	if record.Offset != unfinished.Offset || record.DeliveryCount() < 2 {
 		t.Fatal("shutdown did not preserve the accepted record and release the unfinished one")
 	}
-	if err := replay.Mark(record, ShareAccept); err != nil {
+	if err := second.Accept(record); err != nil {
 		t.Fatal(err)
 	}
 	if err := second.FlushAcknowledgments(ctx); err != nil {
@@ -206,7 +203,7 @@ func TestShareClosePreservesMarkedAndReleasesUnfinished(t *testing.T) {
 	third := newIntegrationShareReader(t, topic, group, 1)
 	idleCtx, stop := context.WithTimeout(ctx, 2*time.Second)
 	defer stop()
-	if _, err := third.FetchBatch(idleCtx); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := third.FetchRecords(idleCtx); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("accepted work replayed after restart: %v", err)
 	}
 }
@@ -232,27 +229,27 @@ func TestShareLockExpiryAndRestartRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	cleanupShareReader(t, first)
-	batch, err := first.FetchBatch(ctx)
+	batch, err := first.FetchRecords(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := batch.Records()[0]
+	original := batch[0]
 	second := newIntegrationShareReader(t, topic, group, 1)
-	replay, err := second.FetchBatch(ctx)
+	replay, err := second.FetchRecords(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	record := replay.Records()[0]
+	record := replay[0]
 	if record.Offset != original.Offset || record.DeliveryCount() < 2 {
 		t.Fatal("expiry did not redeliver the locked record")
 	}
-	if err := batch.Mark(original, ShareAccept); err != nil {
+	if err := first.Accept(original); err != nil {
 		t.Fatal(err)
 	}
 	if err := first.FlushAcknowledgments(ctx); !errors.Is(err, ErrShareAcknowledgment) {
 		t.Fatalf("late broker rejection was hidden: %v", err)
 	}
-	if err := replay.Mark(record, ShareAccept); err != nil {
+	if err := second.Accept(record); err != nil {
 		t.Fatal(err)
 	}
 	if err := second.FlushAcknowledgments(ctx); err != nil {
@@ -268,14 +265,14 @@ func TestShareLockExpiryAndRestartRecovery(t *testing.T) {
 	if err := writer.WriteRecords(ctx, &kgo.Record{Value: []byte("next")}); err != nil {
 		t.Fatal(err)
 	}
-	next, err := restarted.FetchBatch(ctx)
+	next, err := restarted.FetchRecords(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.Records()[0].Offset != original.Offset+1 {
+	if next[0].Offset != original.Offset+1 {
 		t.Fatal("expected new work after restart")
 	}
-	if err := next.Mark(next.Records()[0], ShareAccept); err != nil {
+	if err := restarted.Accept(next[0]); err != nil {
 		t.Fatal(err)
 	}
 	if err := restarted.FlushAcknowledgments(ctx); err != nil {
@@ -291,7 +288,7 @@ func TestSharePollingCancellationThenClose(t *testing.T) {
 	reader := newIntegrationShareReader(t, topic, group, 1)
 	ctx, cancel := context.WithTimeout(t.Context(), 250*time.Millisecond)
 	defer cancel()
-	if _, err := reader.FetchBatch(ctx); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := reader.FetchRecords(ctx); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("idle poll=%v", err)
 	}
 	shutdownCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
@@ -365,7 +362,7 @@ func TestShareCloseWaitsForFinalAcknowledgments(t *testing.T) {
 					t.Error(err)
 				}
 			})
-			if _, err := reader.FetchBatch(ctx); err != nil {
+			if _, err := reader.FetchRecords(ctx); err != nil {
 				t.Fatal(err)
 			}
 			result := make(chan error, 1)
@@ -527,15 +524,15 @@ func TestShareGroupProvisioningScript(t *testing.T) {
 			t.Fatal(err)
 		}
 		reader := newIntegrationShareReader(t, topic, group, 1)
-		batch, err := reader.FetchBatch(ctx)
+		batch, err := reader.FetchRecords(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		record := batch.Records()[0]
+		record := batch[0]
 		if record.Offset != int64(run) {
 			t.Fatalf("setup changed accepted progress: offset=%d want=%d", record.Offset, run)
 		}
-		if err := batch.Mark(record, ShareAccept); err != nil {
+		if err := reader.Accept(record); err != nil {
 			t.Fatal(err)
 		}
 		if err := reader.FlushAcknowledgments(ctx); err != nil {
@@ -577,7 +574,7 @@ func cleanupIntegrationShareConfig(t *testing.T, group string) {
 }
 
 // TestShareReleaseRemainingAllowsNextPoll verifies actual broker outcomes when
-// a caller abandons part of a batch while retaining completed work.
+// the flat reader API abandons unfinished work while retaining completed outcomes.
 func TestShareReleaseRemainingAllowsNextPoll(t *testing.T) {
 	topic := createIntegrationTopic(t, 1)
 	group := createIntegrationShareGroup(t, topic+"-remaining", 30000)
@@ -588,33 +585,31 @@ func TestShareReleaseRemainingAllowsNextPoll(t *testing.T) {
 		t.Fatal(err)
 	}
 	reader := newIntegrationShareReader(t, topic, group, 2)
-	batch, err := reader.FetchBatch(ctx)
+	records, err := reader.FetchRecords(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	records := batch.Records()
 	if len(records) != 2 {
 		t.Fatalf("batch size=%d", len(records))
 	}
-	if err := batch.Mark(records[0], ShareAccept); err != nil {
+	if err := reader.Accept(records[0]); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := reader.FetchBatch(ctx); !errors.Is(err, ErrShareBatchPending) {
+	if _, err := reader.FetchRecords(ctx); !errors.Is(err, ErrShareBatchPending) {
 		t.Fatalf("guard=%v", err)
 	}
-	if err := batch.ReleaseRemaining(); err != nil {
+	if err := reader.ReleaseRemaining(); err != nil {
 		t.Fatal(err)
 	}
-	// FetchBatch itself flushes queued outcomes before the SDK's next poll.
-	again, err := reader.FetchBatch(ctx)
+	// FetchRecords itself flushes queued outcomes before the SDK's next poll.
+	redelivered, err := reader.FetchRecords(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	redelivered := again.Records()
 	if len(redelivered) != 1 || redelivered[0].Offset != records[1].Offset || redelivered[0].DeliveryCount() < 2 {
 		t.Fatalf("unexpected redelivery=%+v", redelivered)
 	}
-	if err := again.Mark(redelivered[0], ShareAccept); err != nil {
+	if err := reader.Accept(redelivered[0]); err != nil {
 		t.Fatal(err)
 	}
 	if err := reader.FlushAcknowledgments(ctx); err != nil {
@@ -622,7 +617,7 @@ func TestShareReleaseRemainingAllowsNextPoll(t *testing.T) {
 	}
 	idle, stop := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer stop()
-	if _, err := reader.FetchBatch(idle); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := reader.FetchRecords(idle); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("completed record returned: %v", err)
 	}
 }

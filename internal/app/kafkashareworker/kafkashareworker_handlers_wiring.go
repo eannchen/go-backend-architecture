@@ -25,5 +25,5 @@ func buildWorker(reader *kafkaclient.ShareReader, telemetry *appruntime.Telemetr
 		observabilitymw.New(telemetry.Observability.Tracer(), telemetry.Logger, telemetry.Observability.Meter()).Handler("notification.share.consume"),
 		recoverymw.New(telemetry.Logger).Handler(),
 	)
-	return kafkadelivery.NewNotificationShareWorker(shareReaderAdapter{reader}, handler, kafkadelivery.ShareWorkerOptions{Concurrency: cfg.Concurrency})
+	return kafkadelivery.NewNotificationShareWorker(reader, handler, kafkadelivery.ShareWorkerOptions{Concurrency: cfg.Concurrency})
 }

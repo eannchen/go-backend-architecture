@@ -10,18 +10,19 @@ import (
 
 // ShareReader is owned by one worker goroutine, like the real reader.
 type ShareReader struct {
-	FetchBatchFunc            func(context.Context) (kafkadelivery.ShareWorkBatch, error)
-	FlushAcknowledgmentsFunc  func(context.Context) error
-	FetchBatchCalls           int
-	FlushAcknowledgmentsCalls int
+	FetchRecordsFunc                             func(context.Context) ([]*kgo.Record, error)
+	FlushAcknowledgmentsFunc                     func(context.Context) error
+	AcceptFunc, ReleaseFunc, RejectFunc          func(*kgo.Record) error
+	FetchRecordsCalls, FlushAcknowledgmentsCalls int
+	AcceptCalls, ReleaseCalls, RejectCalls       []*kgo.Record
 }
 
-func (r *ShareReader) FetchBatch(ctx context.Context) (kafkadelivery.ShareWorkBatch, error) {
-	r.FetchBatchCalls++
-	if r.FetchBatchFunc == nil {
-		panic("unexpected FetchBatch call")
+func (r *ShareReader) FetchRecords(ctx context.Context) ([]*kgo.Record, error) {
+	r.FetchRecordsCalls++
+	if r.FetchRecordsFunc == nil {
+		panic("unexpected FetchRecords call")
 	}
-	return r.FetchBatchFunc(ctx)
+	return r.FetchRecordsFunc(ctx)
 }
 func (r *ShareReader) FlushAcknowledgments(ctx context.Context) error {
 	r.FlushAcknowledgmentsCalls++
@@ -30,39 +31,26 @@ func (r *ShareReader) FlushAcknowledgments(ctx context.Context) error {
 	}
 	return r.FlushAcknowledgmentsFunc(ctx)
 }
-
-type ShareBatch struct {
-	RecordsFunc                            func() []*kgo.Record
-	AcceptFunc                             func(*kgo.Record) error
-	ReleaseFunc                            func(*kgo.Record) error
-	RejectFunc                             func(*kgo.Record) error
-	AcceptCalls, ReleaseCalls, RejectCalls []*kgo.Record
-}
-
-func (b *ShareBatch) Records() []*kgo.Record {
-	if b.RecordsFunc == nil {
-		panic("unexpected Records call")
-	}
-	return b.RecordsFunc()
-}
-func (b *ShareBatch) Accept(r *kgo.Record) error {
-	b.AcceptCalls = append(b.AcceptCalls, r)
-	if b.AcceptFunc == nil {
+func (r *ShareReader) Accept(record *kgo.Record) error {
+	r.AcceptCalls = append(r.AcceptCalls, record)
+	if r.AcceptFunc == nil {
 		panic("unexpected Accept call")
 	}
-	return b.AcceptFunc(r)
+	return r.AcceptFunc(record)
 }
-func (b *ShareBatch) Release(r *kgo.Record) error {
-	b.ReleaseCalls = append(b.ReleaseCalls, r)
-	if b.ReleaseFunc == nil {
+func (r *ShareReader) Release(record *kgo.Record) error {
+	r.ReleaseCalls = append(r.ReleaseCalls, record)
+	if r.ReleaseFunc == nil {
 		panic("unexpected Release call")
 	}
-	return b.ReleaseFunc(r)
+	return r.ReleaseFunc(record)
 }
-func (b *ShareBatch) Reject(r *kgo.Record) error {
-	b.RejectCalls = append(b.RejectCalls, r)
-	if b.RejectFunc == nil {
+func (r *ShareReader) Reject(record *kgo.Record) error {
+	r.RejectCalls = append(r.RejectCalls, record)
+	if r.RejectFunc == nil {
 		panic("unexpected Reject call")
 	}
-	return b.RejectFunc(r)
+	return r.RejectFunc(record)
 }
+
+var _ kafkadelivery.ShareMessageReader = (*ShareReader)(nil)

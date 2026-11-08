@@ -10,17 +10,14 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-// ShareWorkBatch exposes the per-record decisions this delivery adapter needs.
-// Only the worker's owner calls these methods; handlers return results to it.
-type ShareWorkBatch interface {
-	Records() []*kgo.Record
+// ShareMessageReader is the worker-owned contract for fetching and deciding
+// record outcomes. The client owns batch bookkeeping. Only Run's owner goroutine
+// calls these methods; parallel handlers return their results to it.
+type ShareMessageReader interface {
+	FetchRecords(context.Context) ([]*kgo.Record, error)
 	Accept(*kgo.Record) error
 	Release(*kgo.Record) error
 	Reject(*kgo.Record) error
-}
-
-type ShareMessageReader interface {
-	FetchBatch(context.Context) (ShareWorkBatch, error)
 	FlushAcknowledgments(context.Context) error
 }
 
@@ -53,14 +50,14 @@ func NewNotificationShareWorker(reader ShareMessageReader, handler middleware.Ha
 // another. Records within a batch may finish in any order, even in one partition.
 func (w *NotificationShareWorker) Run(ctx context.Context) error {
 	for ctx.Err() == nil {
-		batch, err := w.reader.FetchBatch(ctx)
+		records, err := w.reader.FetchRecords(ctx)
 		if err != nil {
 			if ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 				return nil
 			}
 			return fmt.Errorf("share notification fetch: %w", err)
 		}
-		handleErr := w.handleBatch(ctx, batch)
+		handleErr := w.handleBatch(ctx, records)
 		// Shutdown uses a fresh cleanup context in App.Shutdown. Leave queued
 		// decisions for Close rather than trying to flush with a canceled context.
 		var flushErr error
@@ -79,8 +76,7 @@ type shareOutcome struct {
 	err    error
 }
 
-func (w *NotificationShareWorker) handleBatch(ctx context.Context, batch ShareWorkBatch) error {
-	records := batch.Records()
+func (w *NotificationShareWorker) handleBatch(ctx context.Context, records []*kgo.Record) error {
 	batchCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	// Both queues are bounded by this finite batch / configured concurrency.
@@ -105,9 +101,9 @@ func (w *NotificationShareWorker) handleBatch(ctx context.Context, batch ShareWo
 		var markErr error
 		switch {
 		case errors.Is(result.err, middleware.ErrInvalidMessage):
-			markErr = batch.Reject(result.record)
+			markErr = w.reader.Reject(result.record)
 		case result.err != nil:
-			markErr = batch.Release(result.record)
+			markErr = w.reader.Release(result.record)
 			// Cancellation caused by shutdown or another failed handler is expected.
 			// A handler's own timeout is a failure and stops this worker after the batch.
 			if batchCtx.Err() == nil || (!errors.Is(result.err, context.Canceled) && !errors.Is(result.err, context.DeadlineExceeded)) {
@@ -115,7 +111,7 @@ func (w *NotificationShareWorker) handleBatch(ctx context.Context, batch ShareWo
 				cancel()
 			}
 		default:
-			markErr = batch.Accept(result.record)
+			markErr = w.reader.Accept(result.record)
 		}
 		if markErr != nil {
 			failure = errors.Join(failure, fmt.Errorf("mark share outcome: %w", markErr))

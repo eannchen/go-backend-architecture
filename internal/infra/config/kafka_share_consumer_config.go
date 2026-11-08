@@ -17,7 +17,7 @@ type KafkaShareConsumerConfig struct {
 	// All share readers with this ID cooperate on the same records. Use an ID
 	// different from an existing ordinary consumer group's ID.
 	GroupID string
-	// Maximum records returned by FetchBatch AND requested from the broker.
+	// Maximum records returned by FetchRecords AND requested from the broker.
 	// It bounds one batch of work, not how many handlers run in parallel.
 	// All acquired records already have a running lock timer, so choose a small
 	// batch for slow/serial handlers; waiting in your queue uses processing time.
@@ -27,7 +27,7 @@ type KafkaShareConsumerConfig struct {
 	FetchMinBytes int
 	FetchMaxBytes int
 	// How long Kafka may wait for FetchMinBytes before replying with what it has.
-	// FetchBatch itself can keep waiting until data arrives or its context ends.
+	// FetchRecords itself can keep waiting until data arrives or its context ends.
 	FetchMaxWait time.Duration
 	// Network time in addition to Kafka's fetch wait. A 500ms fetch wait plus
 	// 10s here gives roughly 10.5s to receive that request's response.

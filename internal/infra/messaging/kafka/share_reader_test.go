@@ -41,69 +41,9 @@ func TestShareReaderPolicy(t *testing.T) {
 	}
 }
 
-// TestShareBatchGuards protects the boundary before a second SDK poll can
-// auto-accept unfinished records, and rejects foreign/stale/conflicting decisions.
-func TestShareBatchGuards(t *testing.T) {
-	r, err := NewShareReader(validShareConfig())
-	if err != nil {
-		t.Fatal(err)
-	}
-	cleanupShareReader(t, r)
-	// Synthetic records exercise wrapper bookkeeping only. Real broker-backed
-	// acknowledgment states and outcomes are covered by integration tests.
-	a, b := &kgo.Record{}, &kgo.Record{}
-	batch := newShareBatch(r, []*kgo.Record{a, b})
-	r.active = batch
-	if _, err := r.FetchBatch(t.Context()); !errors.Is(err, ErrShareBatchPending) {
-		t.Fatalf("unfinished poll=%v", err)
-	}
-	if err := batch.Mark(a, "unknown"); err == nil {
-		t.Fatal("accepted unknown decision")
-	}
-	if err := batch.Mark(&kgo.Record{}, ShareAccept); !errors.Is(err, ErrShareRecordNotInBatch) {
-		t.Fatal(err)
-	}
-	copy := batch.Records()
-	copy[0] = nil
-	if batch.Records()[0] != a {
-		t.Fatal("caller changed batch ownership through returned slice")
-	}
-	if err := batch.Mark(a, ShareAccept); err != nil {
-		t.Fatal(err)
-	}
-	if err := batch.Mark(a, ShareAccept); err != nil {
-		t.Fatal(err)
-	}
-	if err := batch.Mark(a, ShareReject); !errors.Is(err, ErrShareDecisionAlreadySet) {
-		t.Fatal(err)
-	}
-	if _, err := r.FetchBatch(t.Context()); !errors.Is(err, ErrShareBatchPending) {
-		t.Fatal("one undecided record must still block polling")
-	}
-	if err := batch.Mark(b, ShareRelease); err != nil {
-		t.Fatal(err)
-	}
-	if batch.pending != 0 {
-		t.Fatal("repeated marking corrupted pending count")
-	}
-	r.active = newShareBatch(r, nil)
-	if err := batch.Mark(a, ShareAccept); !errors.Is(err, ErrShareBatchStale) {
-		t.Fatal(err)
-	}
-	if err := r.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	if err := batch.Mark(a, ShareAccept); !errors.Is(err, io.ErrClosedPipe) {
-		t.Fatal(err)
-	}
-	if _, err := r.FetchBatch(t.Context()); !errors.Is(err, io.EOF) {
-		t.Fatal(err)
-	}
-}
-
-// TestShareBatchParallelHandlersReturnOutcomes shows parallel work with one
+// TestShareReaderParallelHandlersReturnOutcomes shows parallel work with one
 // owner marking the results, without concurrent access to reader state.
-func TestShareBatchParallelHandlersReturnOutcomes(t *testing.T) {
+func TestShareReaderParallelHandlersReturnOutcomes(t *testing.T) {
 	cfg := validShareConfig()
 	cfg.MaxPollRecords = 4
 	r, err := NewShareReader(cfg)
@@ -115,23 +55,19 @@ func TestShareBatchParallelHandlersReturnOutcomes(t *testing.T) {
 	for i := range records {
 		records[i] = &kgo.Record{Offset: int64(i)}
 	}
-	batch := newShareBatch(r, records)
+	batch := newShareBatch(records)
 	r.active = batch
 	// Synthetic records test the ownership contract here; integration tests
 	// verify actual Kafka acknowledgments with records returned by the broker.
-	type outcome struct {
-		record   *kgo.Record
-		decision ShareDecision
-	}
-	results := make(chan outcome, len(records))
+	results := make(chan *kgo.Record, len(records))
 	var handlers sync.WaitGroup
-	for _, record := range batch.Records() {
-		handlers.Go(func() { results <- outcome{record: record, decision: ShareAccept} })
+	for _, record := range records {
+		handlers.Go(func() { results <- record })
 	}
 	handlers.Wait()
 	close(results)
-	for result := range results {
-		if err := batch.Mark(result.record, result.decision); err != nil {
+	for record := range results {
+		if err := r.Accept(record); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -149,15 +85,15 @@ func TestShareAcknowledgmentFailureReportedOnce(t *testing.T) {
 	}
 	cleanupShareReader(t, r)
 	record := &kgo.Record{}
-	batch := newShareBatch(r, []*kgo.Record{record})
+	batch := newShareBatch([]*kgo.Record{record})
 	r.active = batch
 	r.recordAckResults(r.client, kgo.ShareAckResults{{Topic: "jobs.v1", Partition: 0, Err: kerr.InvalidRecordState}})
 	r.recordAckResults(r.client, kgo.ShareAckResults{{Topic: "jobs.v1", Partition: 0}})
 	// Reporting one failure must not prevent decisions for the remaining work.
-	if err := batch.Mark(record, ShareRelease); err != nil {
+	if err := r.Release(record); err != nil {
 		t.Fatal(err)
 	}
-	_, err = r.FetchBatch(t.Context())
+	_, err = r.FetchRecords(t.Context())
 	if !errors.Is(err, ErrShareAcknowledgment) || !errors.Is(err, kerr.InvalidRecordState) {
 		t.Fatalf("next fetch hid queued acknowledgment failure: %v", err)
 	}
@@ -185,7 +121,7 @@ func TestShareReaderPreservesCancellation(t *testing.T) {
 	cleanupShareReader(t, r)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := r.FetchBatch(ctx); !errors.Is(err, context.Canceled) {
+	if _, err := r.FetchRecords(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -207,57 +143,80 @@ func cleanupShareReader(t *testing.T, r *ShareReader) {
 	})
 }
 
-// TestShareBatchReleaseRemaining preserves explicit outcomes while allowing the
-// owner to abandon unfinished work without the next poll implicitly accepting it.
-func TestShareBatchReleaseRemaining(t *testing.T) {
+// TestShareReaderRecordDecisions protects direct reader decisions from bypassing
+// batch membership, duplicate-decision checks, or the unfinished-work poll guard.
+func TestShareReaderRecordDecisions(t *testing.T) {
 	r, err := NewShareReader(validShareConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
 	cleanupShareReader(t, r)
-	records := []*kgo.Record{{}, {}, {}, {}}
-	batch := newShareBatch(r, records)
-	r.active = batch
-	for i, decision := range []ShareDecision{ShareAccept, ShareReject, ShareRelease} {
-		if err := batch.Mark(records[i], decision); err != nil {
-			t.Fatal(err)
+	record := &kgo.Record{}
+	for _, mark := range []func(*kgo.Record) error{r.Accept, r.Release, r.Reject} {
+		if err := mark(record); !errors.Is(err, ErrShareRecordNotInBatch) {
+			t.Fatalf("before fetch: %v", err)
 		}
 	}
-	if _, err := r.FetchBatch(t.Context()); !errors.Is(err, ErrShareBatchPending) {
-		t.Fatalf("guard=%v", err)
+	if err := r.ReleaseRemaining(); err != nil {
+		t.Fatal(err)
+	}
+	records := []*kgo.Record{{Offset: 0}, {Offset: 1}, {Offset: 2}, {Offset: 3}}
+	r.active = newShareBatch(records)
+	if _, err := r.FetchRecords(t.Context()); !errors.Is(err, ErrShareBatchPending) {
+		t.Fatal(err)
+	}
+	for i, mark := range []func(*kgo.Record) error{r.Accept, r.Release, r.Reject} {
+		if err := mark(records[i]); err != nil {
+			t.Fatal(err)
+		}
+		if err := mark(records[i]); err != nil {
+			t.Fatalf("repeating decision: %v", err)
+		}
+	}
+	if err := r.Reject(records[0]); !errors.Is(err, ErrShareDecisionAlreadySet) {
+		t.Fatal(err)
+	}
+	if err := r.Accept(record); !errors.Is(err, ErrShareRecordNotInBatch) {
+		t.Fatal(err)
+	}
+	if r.active.pending != 1 {
+		t.Fatalf("pending=%d", r.active.pending)
 	}
 	for range 2 {
-		if err := batch.ReleaseRemaining(); err != nil {
+		if err := r.ReleaseRemaining(); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if batch.pending != 0 {
-		t.Fatalf("pending=%d", batch.pending)
+	if r.active.pending != 0 {
+		t.Fatalf("pending after release=%d", r.active.pending)
 	}
-	for i, want := range []ShareDecision{ShareAccept, ShareReject, ShareRelease, ShareRelease} {
-		if got := batch.decisions[records[i]]; got != want {
-			t.Fatalf("record %d decision=%s want=%s", i, got, want)
+	for i, want := range []kgo.AckStatus{kgo.AckAccept, kgo.AckRelease, kgo.AckReject, kgo.AckRelease} {
+		if got := r.active.decisions[records[i]]; got != want {
+			t.Fatalf("record %d decision=%v want=%v", i, got, want)
 		}
 	}
-	// With every outcome queued, FetchBatch reaches context checking instead of
-	// the pending guard. Synthetic records test bookkeeping, not broker outcomes.
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := r.FetchBatch(ctx); !errors.Is(err, context.Canceled) {
-		t.Fatalf("fetch=%v", err)
+	if _, err := r.FetchRecords(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
 	}
-	r.active = newShareBatch(r, nil)
-	if err := batch.ReleaseRemaining(); !errors.Is(err, ErrShareBatchStale) {
-		t.Fatalf("stale batch=%v", err)
+	// Moving to another batch must not allow late outcomes for earlier records.
+	r.active = newShareBatch([]*kgo.Record{record})
+	if err := r.Accept(records[0]); !errors.Is(err, ErrShareRecordNotInBatch) {
+		t.Fatal(err)
 	}
-	if err := r.active.ReleaseRemaining(); err != nil {
-		t.Fatalf("empty batch=%v", err)
-	}
-	empty := r.active
 	if err := r.Close(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if err := empty.ReleaseRemaining(); !errors.Is(err, io.ErrClosedPipe) {
-		t.Fatalf("closed reader=%v", err)
+	for _, mark := range []func(*kgo.Record) error{r.Accept, r.Release, r.Reject} {
+		if err := mark(record); !errors.Is(err, io.ErrClosedPipe) {
+			t.Fatalf("after close: %v", err)
+		}
+	}
+	if err := r.ReleaseRemaining(); !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatal(err)
+	}
+	if _, err := r.FetchRecords(t.Context()); !errors.Is(err, io.EOF) {
+		t.Fatal(err)
 	}
 }
