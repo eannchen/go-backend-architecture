@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -33,10 +34,16 @@ type Writer struct {
 	closeOnce       sync.Once
 }
 
-func NewWriter(cfg config.KafkaPublisherConfig, hooks ...kgo.Hook) (*Writer, error) {
+// tlsConfig is loaded by app wiring and must be non-nil when cfg.Security.TLS is enabled.
+func NewWriter(cfg config.KafkaPublisherConfig, tlsConfig *tls.Config, hooks ...kgo.Hook) (*Writer, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("Kafka writer configuration: %w", err)
 	}
+	security, err := securityOptions(cfg.Security, tlsConfig)
+	if err != nil {
+		return nil, fmt.Errorf("Kafka client security: %w", err)
+	}
+
 	// Choose how each message gets its partition:
 	// - round-robin: take turns across partitions, even if messages have keys;
 	// - key: calculate a partition from the key, so the same key stays together
@@ -149,6 +156,7 @@ func NewWriter(cfg config.KafkaPublisherConfig, hooks ...kgo.Hook) (*Writer, err
 	if cfg.RequiredAcks != config.KafkaAcksAll {
 		opts = append(opts, kgo.DisableIdempotentWrite())
 	}
+	opts = append(opts, security...)
 	client, err := kgo.NewClient(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create Kafka writer: %w", err)

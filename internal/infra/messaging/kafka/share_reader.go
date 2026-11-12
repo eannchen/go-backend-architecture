@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -59,12 +60,18 @@ func newShareBatch(records []*kgo.Record) *shareBatch {
 
 // NewShareReader validates settings and prepares a client. Like the regular
 // reader, construction does not prove that Kafka is reachable or compatible.
-func NewShareReader(cfg config.KafkaShareConsumerConfig, hooks ...kgo.Hook) (*ShareReader, error) {
+// tlsConfig is loaded by app wiring and must be non-nil when cfg.Security.TLS is enabled.
+func NewShareReader(cfg config.KafkaShareConsumerConfig, tlsConfig *tls.Config, hooks ...kgo.Hook) (*ShareReader, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("Kafka share reader configuration: %w", err)
 	}
+	security, err := securityOptions(cfg.Security, tlsConfig)
+	if err != nil {
+		return nil, fmt.Errorf("Kafka client security: %w", err)
+	}
+
 	r := &ShareReader{maxPollRecords: cfg.MaxPollRecords}
-	client, err := kgo.NewClient(
+	opts := []kgo.Opt{
 		// Kotel hooks observe network and record activity for this client.
 		kgo.WithHooks(hooks...),
 		kgo.SeedBrokers(cfg.Brokers...), kgo.ConsumeTopics(cfg.Topic), kgo.ShareGroup(cfg.GroupID),
@@ -87,7 +94,9 @@ func NewShareReader(cfg config.KafkaShareConsumerConfig, hooks ...kgo.Hook) (*Sh
 		kgo.ShareAckCallback(r.recordAckResults),
 		// Do not add DisableAutoCommit or BlockRebalanceOnPoll: those belong to
 		// ordinary consumer groups, not Share Groups. Topics are provisioned separately.
-	)
+	}
+	opts = append(opts, security...)
+	client, err := kgo.NewClient(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create Kafka share reader: %w", err)
 	}

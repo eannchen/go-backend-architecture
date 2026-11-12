@@ -28,11 +28,16 @@ func New(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	tlsConfig, err := buildTLSConfig(cfg.Kafka.Security.TLS)
+	if err != nil {
+		return nil, err
+	}
+
 	telemetry, err := appruntime.NewTelemetry(ctx, cfg.RuntimeConfig)
 	if err != nil {
 		return nil, err
 	}
-	reader, err := kafkaclient.NewShareReader(cfg.Kafka, otelinfra.KafkaHooks(telemetry.Observability.TracerProvider(), telemetry.Observability.MeterProvider(), cfg.Kafka.GroupID)...)
+	reader, err := kafkaclient.NewShareReader(cfg.Kafka, tlsConfig, otelinfra.KafkaHooks(telemetry.Observability.TracerProvider(), telemetry.Observability.MeterProvider(), cfg.Kafka.GroupID)...)
 	if err != nil {
 		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, telemetry.Shutdown)
 		return nil, errors.Join(err, errutil.Step("shutdown telemetry after share reader init failure", cleanupErr))

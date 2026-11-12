@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -32,15 +33,21 @@ type Reader struct {
 	closeErr  error
 }
 
-func NewReader(cfg config.KafkaConsumerConfig, hooks ...kgo.Hook) (*Reader, error) {
+// tlsConfig is loaded by app wiring and must be non-nil when cfg.Security.TLS is enabled.
+func NewReader(cfg config.KafkaConsumerConfig, tlsConfig *tls.Config, hooks ...kgo.Hook) (*Reader, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("Kafka reader configuration: %w", err)
 	}
+	security, err := securityOptions(cfg.Security, tlsConfig)
+	if err != nil {
+		return nil, fmt.Errorf("Kafka client security: %w", err)
+	}
+
 	offset := kgo.NewOffset().AtStart()
 	if cfg.InitialOffset == config.KafkaInitialLatest {
 		offset = kgo.NewOffset().AtEnd()
 	}
-	client, err := kgo.NewClient(
+	opts := []kgo.Opt{
 		// Kotel hooks observe network and record activity for this client.
 		kgo.WithHooks(hooks...),
 		// Find the Kafka cluster, choose the topic, and join the named group.
@@ -105,7 +112,9 @@ func NewReader(cfg config.KafkaConsumerConfig, hooks ...kgo.Hook) (*Reader, erro
 		kgo.RequestTimeoutOverhead(cfg.RequestTimeout),
 		// Missing topics stay missing: our initialization script creates them.
 		// Automatic topic creation is disabled by default in franz-go.
-	)
+	}
+	opts = append(opts, security...)
+	client, err := kgo.NewClient(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("create Kafka reader: %w", err)
 	}

@@ -12,8 +12,9 @@ import (
 // can handle different records from the same partition at the same time.
 // These are our configuration types; they do not depend on franz-go.
 type KafkaShareConsumerConfig struct {
-	Brokers []string
-	Topic   string
+	Security KafkaSecurityConfig
+	Brokers  []string
+	Topic    string
 	// All share readers with this ID cooperate on the same records. Use an ID
 	// different from an existing ordinary consumer group's ID.
 	GroupID string
@@ -40,10 +41,15 @@ type KafkaShareConsumerConfig struct {
 // LoadKafkaShareConsumer loads only the share reader's settings. It does not
 // require publisher, ordinary consumer, database, Redis, or runtime settings.
 func LoadKafkaShareConsumer() (KafkaShareConsumerConfig, error) {
+	security, err := LoadKafkaSecurity()
+	if err != nil {
+		return KafkaShareConsumerConfig{}, err
+	}
 	cfg := KafkaShareConsumerConfig{
-		Brokers: getCSV("KAFKA_BROKERS", []string{"localhost:9092"}),
-		Topic:   strings.TrimSpace(getEnv("KAFKA_TOPIC", "notifications.requested.v1")),
-		GroupID: strings.TrimSpace(getEnv("KAFKA_SHARE_GROUP_ID", "shared-workers-v1")),
+		Security: security,
+		Brokers:  getCSV("KAFKA_BROKERS", []string{"localhost:9092"}),
+		Topic:    strings.TrimSpace(getEnv("KAFKA_TOPIC", "notifications.requested.v1")),
+		GroupID:  strings.TrimSpace(getEnv("KAFKA_SHARE_GROUP_ID", "shared-workers-v1")),
 	}
 	for _, s := range []struct {
 		key, fallback string
@@ -80,6 +86,9 @@ func LoadKafkaShareConsumer() (KafkaShareConsumerConfig, error) {
 
 // Validate also protects callers constructing configuration directly in Go.
 func (cfg KafkaShareConsumerConfig) Validate() error {
+	if err := cfg.Security.Validate(); err != nil {
+		return err
+	}
 	if err := validateKafkaConnection(cfg.Brokers, cfg.Topic); err != nil {
 		return err
 	}

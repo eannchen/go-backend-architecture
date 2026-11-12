@@ -19,6 +19,7 @@ const (
 )
 
 type KafkaConsumerConfig struct {
+	Security KafkaSecurityConfig
 	// Addresses used to find the Kafka cluster, e.g. localhost:9092.
 	Brokers []string
 	Topic   string
@@ -72,6 +73,10 @@ type KafkaConsumerConfig struct {
 // LoadKafkaConsumer reads only settings needed to receive messages.
 // A consumer does not need the publisher's batching or acknowledgment settings.
 func LoadKafkaConsumer() (KafkaConsumerConfig, error) {
+	security, err := LoadKafkaSecurity()
+	if err != nil {
+		return KafkaConsumerConfig{}, err
+	}
 	for _, setting := range [][2]string{
 		{"KAFKA_START_OFFSET", "use KAFKA_INITIAL_OFFSET; this chooses a starting point only without saved group progress and does not rewind commits"},
 		{"KAFKA_READ_BATCH_TIMEOUT", "there is no batch-read timer; use KAFKA_REQUEST_TIMEOUT for network overhead and KAFKA_REBALANCE_TIMEOUT for partition reassignment"},
@@ -82,6 +87,7 @@ func LoadKafkaConsumer() (KafkaConsumerConfig, error) {
 		}
 	}
 	cfg := KafkaConsumerConfig{
+		Security:      security,
 		Brokers:       getCSV("KAFKA_BROKERS", []string{"localhost:9092"}),
 		Topic:         strings.TrimSpace(getEnv("KAFKA_TOPIC", "notifications.requested.v1")),
 		GroupID:       strings.TrimSpace(getEnv("KAFKA_GROUP_ID", "notification-sender-v1")),
@@ -126,6 +132,9 @@ func LoadKafkaConsumer() (KafkaConsumerConfig, error) {
 // Validate rejects invalid settings before we construct the Kafka client.
 // Constructors also call this when configuration was built directly in Go.
 func (cfg KafkaConsumerConfig) Validate() error {
+	if err := cfg.Security.Validate(); err != nil {
+		return err
+	}
 	if err := validateKafkaConnection(cfg.Brokers, cfg.Topic); err != nil {
 		return err
 	}

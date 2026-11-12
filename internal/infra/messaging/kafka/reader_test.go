@@ -19,7 +19,7 @@ func TestReaderSubscriptionPolicy(t *testing.T) {
 		t.Run(string(start), func(t *testing.T) {
 			cfg := validConsumerConfig()
 			cfg.InitialOffset = start
-			r, err := NewReader(cfg)
+			r, err := NewReader(cfg, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -47,7 +47,7 @@ func TestReaderSubscriptionPolicy(t *testing.T) {
 // TestReaderCancellationAndClosure preserves cancellation causes and rejects
 // operations after close, including a canceled poll that blocked rebalances.
 func TestReaderCancellationAndClosure(t *testing.T) {
-	r, err := NewReader(validConsumerConfig())
+	r, err := NewReader(validConsumerConfig(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestReaderRejectsInvalidConfiguration(t *testing.T) {
 	} {
 		cfg := validConsumerConfig()
 		change(&cfg)
-		r, err := NewReader(cfg)
+		r, err := NewReader(cfg, nil)
 		if r != nil {
 			cleanupReader(t, r)
 		}

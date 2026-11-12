@@ -186,6 +186,7 @@ func newSelectionPlan(profile string) (selectionPlan, error) {
 		"internal/delivery/kafka", "internal/infra/messaging/kafka",
 		"internal/usecase/notification",
 		"internal/infra/config/kafka_connection_config.go",
+		"internal/infra/config/kafka_security_config.go", "internal/infra/config/kafka_security_config_test.go",
 		"internal/infra/config/kafka_consumer_config.go", "internal/infra/config/kafka_consumer_config_test.go",
 		"internal/infra/config/kafka_publisher_config.go", "internal/infra/config/kafka_publisher_config_test.go",
 		"internal/infra/config/kafka_share_consumer_config.go", "internal/infra/config/kafka_share_consumer_config_test.go",
@@ -212,11 +213,13 @@ func newSelectionPlan(profile string) (selectionPlan, error) {
 		return selectionPlan{}, err
 	}
 	removals := append(http.remove, grpc.remove...)
+	removals = slices.DeleteFunc(removals, func(path string) bool { return path == "internal/infra/security" })
+	removals = append(removals, "internal/infra/security/calleridentity")
 	removals = append(removals, ".air.httpapi.toml", ".air.grpcapi.toml", "sqlc.public-http.yaml", "sqlc.service-grpc.yaml")
 	plan := selectionPlan{profile: profile, sqlcSource: "sqlc.kafka.yaml", envFragments: []string{"config/env/common.env.example", "config/env/" + profile + ".env.example"}}
 	if profile == kafkaWorkerProfile {
 		removals = append(removals, shareOnly...)
-		removals = append(removals, "internal/delivery/kafka/handler/notification/notification_share_worker.go", "internal/delivery/kafka/kafkatest")
+		removals = append(removals, "internal/delivery/kafka/handler/notification/notification_share_worker.go")
 		plan.airSource = ".air.kafkaworker.toml"
 	} else {
 		removals = append(removals, groupOnly...)

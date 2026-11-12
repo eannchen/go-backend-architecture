@@ -224,7 +224,7 @@ func TestShareLockExpiryAndRestartRecovery(t *testing.T) {
 	cfg.Topic = topic
 	cfg.GroupID = group
 	cfg.MaxPollRecords = 1
-	first, err := NewShareReader(cfg)
+	first, err := NewShareReader(cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -479,7 +479,7 @@ func newIntegrationShareReader(t *testing.T, topic, group string, maxRecords int
 	cfg.Topic = topic
 	cfg.GroupID = group
 	cfg.MaxPollRecords = maxRecords
-	reader, err := NewShareReader(cfg)
+	reader, err := NewShareReader(cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

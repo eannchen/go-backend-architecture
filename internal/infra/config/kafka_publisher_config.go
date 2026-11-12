@@ -40,6 +40,7 @@ const (
 )
 
 type KafkaPublisherConfig struct {
+	Security KafkaSecurityConfig
 	// Addresses used to find the Kafka cluster, e.g. localhost:9092.
 	// More addresses do not create more copies of a message.
 	Brokers []string
@@ -125,6 +126,9 @@ type KafkaPublisherConfig struct {
 
 // Validate rejects invalid settings before we construct the Kafka client.
 func (cfg KafkaPublisherConfig) Validate() error {
+	if err := cfg.Security.Validate(); err != nil {
+		return err
+	}
 	if err := validateKafkaConnection(cfg.Brokers, cfg.Topic); err != nil {
 		return err
 	}
@@ -189,6 +193,10 @@ func (cfg KafkaPublisherConfig) Validate() error {
 // LoadKafkaPublisher reads only the settings needed to publish messages.
 // A publisher does not need a consumer group, database, or Redis configuration.
 func LoadKafkaPublisher() (KafkaPublisherConfig, error) {
+	security, err := LoadKafkaSecurity()
+	if err != nil {
+		return KafkaPublisherConfig{}, err
+	}
 	for _, setting := range [][2]string{
 		{"KAFKA_READ_TIMEOUT", "use KAFKA_REQUEST_TIMEOUT (network overhead for all broker requests)"},
 		{"KAFKA_WRITE_TIMEOUT", "use KAFKA_PRODUCE_TIMEOUT (broker acknowledgment wait) and KAFKA_DELIVERY_TIMEOUT (overall publication)"},
@@ -199,6 +207,7 @@ func LoadKafkaPublisher() (KafkaPublisherConfig, error) {
 		}
 	}
 	cfg := KafkaPublisherConfig{
+		Security:          security,
 		Brokers:           getCSV("KAFKA_BROKERS", []string{"localhost:9092"}),
 		Topic:             strings.TrimSpace(getEnv("KAFKA_TOPIC", "notifications.requested.v1")),
 		PartitionStrategy: PartitionStrategy(strings.TrimSpace(getEnv("KAFKA_PARTITION_STRATEGY", string(PartitionRoundRobin)))),

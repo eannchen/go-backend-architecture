@@ -28,13 +28,18 @@ func New(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	tlsConfig, err := buildTLSConfig(cfg.Kafka.Security.TLS)
+	if err != nil {
+		return nil, err
+	}
+
 	// Keep shared runtime configuration, but construct only resources this process
 	// uses. NewTelemetry reuses runtime logging/tracing without opening DB/Redis.
 	telemetry, err := appruntime.NewTelemetry(ctx, cfg.RuntimeConfig)
 	if err != nil {
 		return nil, err
 	}
-	reader, err := kafkaclient.NewReader(cfg.Kafka, otelinfra.KafkaHooks(telemetry.Observability.TracerProvider(), telemetry.Observability.MeterProvider(), cfg.Kafka.GroupID)...)
+	reader, err := kafkaclient.NewReader(cfg.Kafka, tlsConfig, otelinfra.KafkaHooks(telemetry.Observability.TracerProvider(), telemetry.Observability.MeterProvider(), cfg.Kafka.GroupID)...)
 	if err != nil {
 		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, telemetry.Shutdown)
 		return nil, errors.Join(err, errutil.Step("shutdown telemetry after Kafka init failure", cleanupErr))

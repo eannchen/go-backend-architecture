@@ -27,7 +27,7 @@ func TestWriterPolicies(t *testing.T) {
 		t.Run(string(tc.policy), func(t *testing.T) {
 			cfg := validPublisherConfig()
 			cfg.RequiredAcks = tc.policy
-			w, err := NewWriter(cfg)
+			w, err := NewWriter(cfg, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -54,7 +54,7 @@ func TestWriterPolicies(t *testing.T) {
 func TestWriterPartitioning(t *testing.T) {
 	cfg := validPublisherConfig()
 	cfg.PartitionStrategy = config.PartitionByKey
-	w, err := NewWriter(cfg)
+	w, err := NewWriter(cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestWriterPartitioning(t *testing.T) {
 		}
 	}
 	cfg.PartitionStrategy = config.PartitionRoundRobin
-	rr, err := NewWriter(cfg)
+	rr, err := NewWriter(cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestWriterCompression(t *testing.T) {
 		t.Run(string(tc.codec), func(t *testing.T) {
 			cfg := validPublisherConfig()
 			cfg.Compression = tc.codec
-			w, err := NewWriter(cfg)
+			w, err := NewWriter(cfg, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -123,12 +123,12 @@ func TestWriterCompression(t *testing.T) {
 // TestWriterCancellationAndClosure prevents publishing with an ended context or
 // closed client and verifies independent connection ownership without a broker.
 func TestWriterCancellationAndClosure(t *testing.T) {
-	w, err := NewWriter(validPublisherConfig())
+	w, err := NewWriter(validPublisherConfig(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	cleanupWriter(t, w)
-	other, err := NewWriter(validPublisherConfig())
+	other, err := NewWriter(validPublisherConfig(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestWriterCancellationAndClosure(t *testing.T) {
 // TestWriterCancellationWhileWaiting protects the delivery boundary after a
 // record was queued, rather than only checking contexts canceled before a call.
 func TestWriterCancellationWhileWaiting(t *testing.T) {
-	w, err := NewWriter(validPublisherConfig())
+	w, err := NewWriter(validPublisherConfig(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestWriterRejectsInvalidInput(t *testing.T) {
 	} {
 		cfg := validPublisherConfig()
 		change(&cfg)
-		w, err := NewWriter(cfg)
+		w, err := NewWriter(cfg, nil)
 		if w != nil {
 			cleanupWriter(t, w)
 		}
@@ -188,7 +188,7 @@ func TestWriterRejectsInvalidInput(t *testing.T) {
 			t.Fatal("accepted invalid configuration")
 		}
 	}
-	w, err := NewWriter(validPublisherConfig())
+	w, err := NewWriter(validPublisherConfig(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

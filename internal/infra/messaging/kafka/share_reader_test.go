@@ -19,7 +19,7 @@ import (
 // rather than reusing the ordinary group's commit/rebalance mechanisms.
 func TestShareReaderPolicy(t *testing.T) {
 	cfg := validShareConfig()
-	r, err := NewShareReader(cfg)
+	r, err := NewShareReader(cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestShareReaderPolicy(t *testing.T) {
 	}
 	bad := cfg
 	bad.MaxPollRecords = 0
-	if got, err := NewShareReader(bad); got != nil || err == nil {
+	if got, err := NewShareReader(bad, nil); got != nil || err == nil {
 		t.Fatal("accepted invalid share reader config")
 	}
 }
@@ -46,7 +46,7 @@ func TestShareReaderPolicy(t *testing.T) {
 func TestShareReaderParallelHandlersReturnOutcomes(t *testing.T) {
 	cfg := validShareConfig()
 	cfg.MaxPollRecords = 4
-	r, err := NewShareReader(cfg)
+	r, err := NewShareReader(cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestShareReaderParallelHandlersReturnOutcomes(t *testing.T) {
 // TestShareAcknowledgmentFailureReportedOnce ensures a queued rejection explains
 // why fetching stopped, preserves its cause, and is not reported forever.
 func TestShareAcknowledgmentFailureReportedOnce(t *testing.T) {
-	r, err := NewShareReader(validShareConfig())
+	r, err := NewShareReader(validShareConfig(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestShareAcknowledgmentFailureReportedOnce(t *testing.T) {
 // TestShareReaderPreservesCancellation protects empty-topic waits and clean
 // ownership when polling is canceled before a broker is contacted.
 func TestShareReaderPreservesCancellation(t *testing.T) {
-	r, err := NewShareReader(validShareConfig())
+	r, err := NewShareReader(validShareConfig(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +146,7 @@ func cleanupShareReader(t *testing.T, r *ShareReader) {
 // TestShareReaderRecordDecisions protects direct reader decisions from bypassing
 // batch membership, duplicate-decision checks, or the unfinished-work poll guard.
 func TestShareReaderRecordDecisions(t *testing.T) {
-	r, err := NewShareReader(validShareConfig())
+	r, err := NewShareReader(validShareConfig(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

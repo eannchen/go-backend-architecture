@@ -27,7 +27,7 @@ func TestKafkaRoundTrip(t *testing.T) {
 			cfg.Topic = topic
 			cfg.PartitionStrategy = config.PartitionByKey
 			cfg.Compression = codec
-			writer, err := NewWriter(cfg)
+			writer, err := NewWriter(cfg, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -195,7 +195,7 @@ func TestKafkaWeakerAcknowledgments(t *testing.T) {
 			cfg.Brokers = integrationBrokers
 			cfg.Topic = topic
 			cfg.RequiredAcks = acks
-			writer, err := NewWriter(cfg)
+			writer, err := NewWriter(cfg, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -227,7 +227,7 @@ func newIntegrationReader(t *testing.T, topic, group string) *Reader {
 	cfg.Brokers = integrationBrokers
 	cfg.Topic = topic
 	cfg.GroupID = group
-	reader, err := NewReader(cfg)
+	reader, err := NewReader(cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func newIntegrationWriter(t *testing.T, topic string) *Writer {
 	cfg := validPublisherConfig()
 	cfg.Brokers = integrationBrokers
 	cfg.Topic = topic
-	writer, err := NewWriter(cfg)
+	writer, err := NewWriter(cfg, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
