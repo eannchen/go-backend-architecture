@@ -102,8 +102,10 @@ services:
     environment:
       # This script runs in a container, so it uses the INTERNAL address.
       KAFKA_BOOTSTRAP_SERVER: kafka:19092
-      # Use KAFKA_TOPIC from your environment, or this name when it is unset/empty.
-      KAFKA_TOPIC: "${KAFKA_TOPIC:-notifications.requested.v1}"
+      # Named worker bindings also determine which local topics to prepare.
+      # A dash without a colon preserves an explicitly empty (disabled) binding.
+      KAFKA_NOTIFICATION_TOPIC: "${KAFKA_NOTIFICATION_TOPIC-notifications.requested.v1}"
+      KAFKA_ACTIVITY_TOPIC: "${KAFKA_ACTIVITY_TOPIC-activities.recorded.v1}"
       # Split this topic into three ordered message streams (partitions).
       # All three can live on our one broker. Later, up to three consumers
       # in one ORDINARY consumer group can each be assigned a partition at the same time.

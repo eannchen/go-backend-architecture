@@ -22,7 +22,8 @@ type KafkaConsumerConfig struct {
 	Security KafkaSecurityConfig
 	// Addresses used to find the Kafka cluster, e.g. localhost:9092.
 	Brokers []string
-	Topic   string
+	// Topic names to subscribe to. Delivery routes each record by its topic.
+	Topics []string
 	// Workers with the same GroupID share the topic's partitions and progress.
 	// A different GroupID gets its own progress and can read the same messages.
 	GroupID string
@@ -70,9 +71,8 @@ type KafkaConsumerConfig struct {
 	InitialOffset KafkaInitialOffset
 }
 
-// LoadKafkaConsumer reads only settings needed to receive messages.
-// A consumer does not need the publisher's batching or acknowledgment settings.
-func LoadKafkaConsumer() (KafkaConsumerConfig, error) {
+// loadKafkaConsumer loads client settings using the worker's derived subscriptions.
+func loadKafkaConsumer(topics []string) (KafkaConsumerConfig, error) {
 	security, err := LoadKafkaSecurity()
 	if err != nil {
 		return KafkaConsumerConfig{}, err
@@ -89,7 +89,7 @@ func LoadKafkaConsumer() (KafkaConsumerConfig, error) {
 	cfg := KafkaConsumerConfig{
 		Security:      security,
 		Brokers:       getCSV("KAFKA_BROKERS", []string{"localhost:9092"}),
-		Topic:         strings.TrimSpace(getEnv("KAFKA_TOPIC", "notifications.requested.v1")),
+		Topics:        topics,
 		GroupID:       strings.TrimSpace(getEnv("KAFKA_GROUP_ID", "notification-sender-v1")),
 		InitialOffset: KafkaInitialOffset(strings.TrimSpace(getEnv("KAFKA_INITIAL_OFFSET", string(KafkaInitialEarliest)))),
 	}
@@ -135,7 +135,7 @@ func (cfg KafkaConsumerConfig) Validate() error {
 	if err := cfg.Security.Validate(); err != nil {
 		return err
 	}
-	if err := validateKafkaConnection(cfg.Brokers, cfg.Topic); err != nil {
+	if err := validateKafkaSubscription(cfg.Brokers, cfg.Topics); err != nil {
 		return err
 	}
 	if strings.TrimSpace(cfg.GroupID) == "" {
@@ -168,4 +168,34 @@ func (cfg KafkaConsumerConfig) Validate() error {
 		return fmt.Errorf("KAFKA_INITIAL_OFFSET must be earliest or latest, got %q", cfg.InitialOffset)
 	}
 	return nil
+}
+
+// KafkaWorkerConfig combines shared runtime settings with the consumer profile.
+type KafkaWorkerConfig struct {
+	RuntimeConfig
+	Routes KafkaWorkerRoutesConfig
+	Kafka  KafkaConsumerConfig
+	// Cooperative limit for one processing attempt; handlers must honor context.
+	// Leave enough rebalance time for processing and the subsequent commit.
+	HandlingTimeout time.Duration
+}
+
+func LoadKafkaWorker() (KafkaWorkerConfig, error) {
+	runtimeConfig, err := LoadRuntime()
+	if err != nil {
+		return KafkaWorkerConfig{}, err
+	}
+	routes, err := loadKafkaWorkerRoutes()
+	if err != nil {
+		return KafkaWorkerConfig{}, err
+	}
+	consumerConfig, err := loadKafkaConsumer(routes.Topics())
+	if err != nil {
+		return KafkaWorkerConfig{}, err
+	}
+	timeout, err := time.ParseDuration(strings.TrimSpace(getEnv("KAFKA_HANDLING_TIMEOUT", "10s")))
+	if err != nil || timeout <= 0 {
+		return KafkaWorkerConfig{}, fmt.Errorf("KAFKA_HANDLING_TIMEOUT must be a positive duration")
+	}
+	return KafkaWorkerConfig{RuntimeConfig: runtimeConfig, Kafka: consumerConfig, Routes: routes, HandlingTimeout: timeout}, nil
 }

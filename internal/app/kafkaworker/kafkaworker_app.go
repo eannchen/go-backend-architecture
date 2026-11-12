@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
-	kafkadelivery "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/notification"
+	kafkadelivery "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/worker"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
 	otelinfra "github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
@@ -17,7 +17,7 @@ type App struct {
 	*appruntime.Telemetry
 	Config config.KafkaWorkerConfig
 	reader *kafkaclient.Reader
-	worker *kafkadelivery.NotificationWorker
+	worker *kafkadelivery.Worker
 	done   chan struct{}
 }
 
@@ -44,14 +44,18 @@ func New(ctx context.Context) (*App, error) {
 		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, telemetry.Shutdown)
 		return nil, errors.Join(err, errutil.Step("shutdown telemetry after Kafka init failure", cleanupErr))
 	}
-	worker := buildWorker(reader, telemetry, cfg)
+	worker, err := buildWorker(reader, telemetry, cfg)
+	if err != nil {
+		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, reader.Close, telemetry.Shutdown)
+		return nil, errors.Join(err, cleanupErr)
+	}
 	return &App{Telemetry: telemetry, Config: cfg, reader: reader, worker: worker, done: make(chan struct{})}, nil
 }
 
 // Start is called once with the process's signal-aware root context.
 func (a *App) Start(ctx context.Context) error {
 	defer close(a.done)
-	a.Logger.Info(ctx, "Kafka worker started", logger.FromPairs("kafka.topic", a.Config.Kafka.Topic, "kafka.group_id", a.Config.Kafka.GroupID))
+	a.Logger.Info(ctx, "Kafka worker started", logger.FromPairs("kafka.topics", a.Config.Kafka.Topics, "kafka.group_id", a.Config.Kafka.GroupID))
 	return a.worker.Run(ctx)
 }
 

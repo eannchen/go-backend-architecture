@@ -13,7 +13,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-// Reader receives messages from one topic as a member of a consumer group.
+// Reader receives messages from subscribed topics as a member of a consumer group.
 // franz-go calls a message a "record"; kgo is the name of its Go package.
 //
 // Use it in this order, one record at a time:
@@ -53,7 +53,7 @@ func NewReader(cfg config.KafkaConsumerConfig, tlsConfig *tls.Config, hooks ...k
 		// Find the Kafka cluster, choose the topic, and join the named group.
 		// Workers with the same GroupID share partitions. A different GroupID
 		// gets its own progress and can read the same messages independently.
-		kgo.SeedBrokers(cfg.Brokers...), kgo.ConsumeTopics(cfg.Topic), kgo.ConsumerGroup(cfg.GroupID),
+		kgo.SeedBrokers(cfg.Brokers...), kgo.ConsumeTopics(cfg.Topics...), kgo.ConsumerGroup(cfg.GroupID),
 		// For a group with no saved progress: earliest starts at the oldest retained
 		// messages; latest starts at the end and waits for new messages.
 		// Existing saved progress takes priority over this choice.

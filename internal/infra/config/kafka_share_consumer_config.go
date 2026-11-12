@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -14,7 +15,8 @@ import (
 type KafkaShareConsumerConfig struct {
 	Security KafkaSecurityConfig
 	Brokers  []string
-	Topic    string
+	// Topic names to subscribe to. Delivery routes each record by its topic.
+	Topics []string
 	// All share readers with this ID cooperate on the same records. Use an ID
 	// different from an existing ordinary consumer group's ID.
 	GroupID string
@@ -38,9 +40,8 @@ type KafkaShareConsumerConfig struct {
 	// Initial position and record-lock duration are configured on the Kafka group.
 }
 
-// LoadKafkaShareConsumer loads only the share reader's settings. It does not
-// require publisher, ordinary consumer, database, Redis, or runtime settings.
-func LoadKafkaShareConsumer() (KafkaShareConsumerConfig, error) {
+// loadKafkaShareConsumer loads client settings using the share worker's derived subscriptions.
+func loadKafkaShareConsumer(topics []string) (KafkaShareConsumerConfig, error) {
 	security, err := LoadKafkaSecurity()
 	if err != nil {
 		return KafkaShareConsumerConfig{}, err
@@ -48,7 +49,7 @@ func LoadKafkaShareConsumer() (KafkaShareConsumerConfig, error) {
 	cfg := KafkaShareConsumerConfig{
 		Security: security,
 		Brokers:  getCSV("KAFKA_BROKERS", []string{"localhost:9092"}),
-		Topic:    strings.TrimSpace(getEnv("KAFKA_TOPIC", "notifications.requested.v1")),
+		Topics:   topics,
 		GroupID:  strings.TrimSpace(getEnv("KAFKA_SHARE_GROUP_ID", "shared-workers-v1")),
 	}
 	for _, s := range []struct {
@@ -89,7 +90,7 @@ func (cfg KafkaShareConsumerConfig) Validate() error {
 	if err := cfg.Security.Validate(); err != nil {
 		return err
 	}
-	if err := validateKafkaConnection(cfg.Brokers, cfg.Topic); err != nil {
+	if err := validateKafkaSubscription(cfg.Brokers, cfg.Topics); err != nil {
 		return err
 	}
 	if strings.TrimSpace(cfg.GroupID) == "" {
@@ -112,4 +113,58 @@ func (cfg KafkaShareConsumerConfig) Validate() error {
 		return fmt.Errorf("KAFKA_SHARE_REQUEST_TIMEOUT must be between 100ms and 15m")
 	}
 	return nil
+}
+
+// KafkaShareWorkerConfig reuses runtime settings, but opens only resources used
+// by this process. Pool settings belong to the worker, not the Kafka client.
+type KafkaShareWorkerConfig struct {
+	RuntimeConfig
+	Routes KafkaWorkerRoutesConfig
+	Kafka  KafkaShareConsumerConfig
+	// Maximum simultaneous record handlers in this process.
+	Concurrency int
+	// Each attempt gets this much time, unless its Kafka lock expires sooner.
+	HandlingTimeout time.Duration
+	// Finish this much before the SDK's estimated lock deadline. This leaves
+	// network time for Kafka to confirm outcomes; it does not extend the lock.
+	AcknowledgmentMargin time.Duration
+}
+
+func LoadKafkaShareWorker() (KafkaShareWorkerConfig, error) {
+	runtime, err := LoadRuntime()
+	if err != nil {
+		return KafkaShareWorkerConfig{}, err
+	}
+	concurrency, err := strconv.Atoi(strings.TrimSpace(getEnv("KAFKA_SHARE_WORKER_CONCURRENCY", "4")))
+	if err != nil || concurrency < 1 || concurrency > 1000 {
+		return KafkaShareWorkerConfig{}, fmt.Errorf("KAFKA_SHARE_WORKER_CONCURRENCY must be between 1 and 1000")
+	}
+	routes, err := loadKafkaWorkerRoutes()
+	if err != nil {
+		return KafkaShareWorkerConfig{}, err
+	}
+	kafka, err := loadKafkaShareConsumer(routes.Topics())
+	if err != nil {
+		return KafkaShareWorkerConfig{}, err
+	}
+	// Keep the client default independent. For this worker, acquire only one
+	// record per handler unless the user deliberately chooses a larger batch.
+	if _, explicit := os.LookupEnv("KAFKA_SHARE_MAX_POLL_RECORDS"); !explicit {
+		kafka.MaxPollRecords = concurrency
+	}
+	cfg := KafkaShareWorkerConfig{RuntimeConfig: runtime, Kafka: kafka, Routes: routes, Concurrency: concurrency}
+	for _, setting := range []struct {
+		key, fallback string
+		target        *time.Duration
+	}{
+		{"KAFKA_SHARE_HANDLING_TIMEOUT", "10s", &cfg.HandlingTimeout},
+		{"KAFKA_SHARE_ACKNOWLEDGMENT_MARGIN", "3s", &cfg.AcknowledgmentMargin},
+	} {
+		value, err := time.ParseDuration(strings.TrimSpace(getEnv(setting.key, setting.fallback)))
+		if err != nil || value <= 0 {
+			return KafkaShareWorkerConfig{}, fmt.Errorf("%s must be a positive duration", setting.key)
+		}
+		*setting.target = value
+	}
+	return cfg, nil
 }

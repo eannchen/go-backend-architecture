@@ -1,4 +1,4 @@
-package notification
+package worker
 
 import (
 	"context"
@@ -11,28 +11,27 @@ import (
 )
 
 // MessageReader is what this Kafka worker needs from its reader.
-// It receives franz-go records, but maps their JSON into a plain Request before
-// invoking the usecase. The usecase does not need to know Kafka or franz-go.
+// The injected handler selects the workflow and decodes its message.
 type MessageReader interface {
 	FetchRecord(context.Context) (*kgo.Record, error)
 	CommitRecords(context.Context, ...*kgo.Record) error
 	AllowRebalance()
 }
 
-type NotificationWorker struct {
+type Worker struct {
 	reader  MessageReader
 	handler middleware.Handler
 }
 
-func NewNotificationWorker(reader MessageReader, handler middleware.Handler) *NotificationWorker {
-	return &NotificationWorker{reader: reader, handler: handler}
+func NewWorker(reader MessageReader, handler middleware.Handler) *Worker {
+	return &Worker{reader: reader, handler: handler}
 }
 
 // Run repeats: get one message, handle it, save progress if successful.
 // It finishes each message before asking for the next, even when assigned several
 // partitions. This keeps the example easy to follow and avoids saving progress
 // past unfinished work. A larger fetch setting does not make handlers run in parallel.
-func (w *NotificationWorker) Run(ctx context.Context) error {
+func (w *Worker) Run(ctx context.Context) error {
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -44,7 +43,7 @@ func (w *NotificationWorker) Run(ctx context.Context) error {
 			if ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 				return nil
 			}
-			return fmt.Errorf("notification worker fetch: %w", err)
+			return fmt.Errorf("Kafka worker fetch: %w", err)
 		}
 		if err := w.handle(ctx, message); err != nil {
 			if ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
@@ -53,12 +52,12 @@ func (w *NotificationWorker) Run(ctx context.Context) error {
 			// Stop the worker and report where handling failed. Do not save progress
 			// for this message. Restarting the same group can read it again, so a bad
 			// message will keep failing until it is fixed or given a recovery policy.
-			return fmt.Errorf("notification worker topic=%s partition=%d offset=%d: %w", message.Topic, message.Partition, message.Offset, err)
+			return fmt.Errorf("Kafka worker topic=%s partition=%d offset=%d: %w", message.Topic, message.Partition, message.Offset, err)
 		}
 	}
 }
 
-func (w *NotificationWorker) handle(ctx context.Context, message *kgo.Record) error {
+func (w *Worker) handle(ctx context.Context, message *kgo.Record) error {
 	// Step 2: arrange to let partitions move again when this attempt finishes.
 	// "defer" runs the call when this function returns, including on errors.
 	// AllowRebalance does not save progress; only CommitRecords can advance
@@ -75,7 +74,7 @@ func (w *NotificationWorker) handle(ctx context.Context, message *kgo.Record) er
 	// Before adding real sending, we must decide how to avoid sending duplicates.
 	// Cancellation can interrupt the commit too; do not assume progress was saved.
 	if err := w.reader.CommitRecords(ctx, message); err != nil {
-		return fmt.Errorf("commit notification: %w", err)
+		return fmt.Errorf("commit record: %w", err)
 	}
 	return nil
 }

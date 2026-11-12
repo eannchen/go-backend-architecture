@@ -128,7 +128,7 @@ func TestShareReaderPreservesCancellation(t *testing.T) {
 
 func validShareConfig() config.KafkaShareConsumerConfig {
 	return config.KafkaShareConsumerConfig{
-		Brokers: []string{"127.0.0.1:1"}, Topic: "jobs.v1", GroupID: "shared-jobs", MaxPollRecords: 2,
+		Brokers: []string{"127.0.0.1:1"}, Topics: []string{"jobs.v1"}, GroupID: "shared-jobs", MaxPollRecords: 2,
 		FetchMinBytes: 1, FetchMaxBytes: 65536, FetchMaxWait: 100 * time.Millisecond, RequestTimeout: time.Second,
 	}
 }

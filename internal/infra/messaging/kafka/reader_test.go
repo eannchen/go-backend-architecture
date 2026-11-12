@@ -93,7 +93,7 @@ func TestReaderRejectsInvalidConfiguration(t *testing.T) {
 
 func validConsumerConfig() config.KafkaConsumerConfig {
 	return config.KafkaConsumerConfig{
-		Brokers: []string{"127.0.0.1:1"}, Topic: "events.v1", GroupID: "worker-v1",
+		Brokers: []string{"127.0.0.1:1"}, Topics: []string{"events.v1"}, GroupID: "worker-v1",
 		FetchMinBytes: 1, FetchMaxBytes: 65536, FetchMaxWait: 500 * time.Millisecond,
 		RequestTimeout: time.Second, RebalanceTimeout: time.Minute, MaxConcurrentFetches: 1, InitialOffset: config.KafkaInitialEarliest,
 	}

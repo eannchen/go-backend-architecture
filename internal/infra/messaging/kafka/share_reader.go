@@ -74,7 +74,7 @@ func NewShareReader(cfg config.KafkaShareConsumerConfig, tlsConfig *tls.Config, 
 	opts := []kgo.Opt{
 		// Kotel hooks observe network and record activity for this client.
 		kgo.WithHooks(hooks...),
-		kgo.SeedBrokers(cfg.Brokers...), kgo.ConsumeTopics(cfg.Topic), kgo.ShareGroup(cfg.GroupID),
+		kgo.SeedBrokers(cfg.Brokers...), kgo.ConsumeTopics(cfg.Topics...), kgo.ShareGroup(cfg.GroupID),
 		// Ask for a strict record-count limit, then return at most that many records
 		// to the caller. This makes one batch's work finite, even for large log batches.
 		kgo.ShareMaxRecords(int32(cfg.MaxPollRecords)), kgo.ShareMaxRecordsStrict(),

@@ -209,7 +209,7 @@ func LoadKafkaPublisher() (KafkaPublisherConfig, error) {
 	cfg := KafkaPublisherConfig{
 		Security:          security,
 		Brokers:           getCSV("KAFKA_BROKERS", []string{"localhost:9092"}),
-		Topic:             strings.TrimSpace(getEnv("KAFKA_TOPIC", "notifications.requested.v1")),
+		Topic:             strings.TrimSpace(getEnv("KAFKA_PUBLISH_TOPIC", "notifications.requested.v1")),
 		PartitionStrategy: PartitionStrategy(strings.TrimSpace(getEnv("KAFKA_PARTITION_STRATEGY", string(PartitionRoundRobin)))),
 		RequiredAcks:      KafkaAcknowledgments(strings.TrimSpace(getEnv("KAFKA_REQUIRED_ACKS", string(KafkaAcksAll)))),
 		Compression:       KafkaCompression(strings.TrimSpace(getEnv("KAFKA_COMPRESSION", string(CompressionNone)))),

@@ -12,23 +12,44 @@ set -euo pipefail
 # Step 1: choose where to connect and which topic to prepare.
 # Environment variables can override these defaults:
 # - KAFKA_BOOTSTRAP_SERVER: kafka:19092, the broker address reachable from Docker;
-# - KAFKA_TOPIC: notifications.requested.v1, the topic name;
+# - KAFKA_NOTIFICATION_TOPIC and KAFKA_ACTIVITY_TOPIC: worker topic bindings.
+#   Each nonempty binding is prepared; an empty binding disables that workflow.
+#   Each topic is independent and uses the same partition/copy settings below.
 # - KAFKA_TOPIC_PARTITIONS: 3, the number of ordered message streams in the topic.
-# An unset or empty variable uses its default. Three partitions can all live on
-# one broker; three partitions do not require three brokers.
+# Unset variables use their defaults. Empty worker bindings disable workflows.
+# Three partitions can all live on one broker; they do not require three brokers.
 # Creating topics is an infrastructure setup task, separate from sending or
 # receiving messages in the Go application.
 bootstrap_server="${KAFKA_BOOTSTRAP_SERVER:-kafka:19092}"
-topic="${KAFKA_TOPIC:-notifications.requested.v1}"
 partitions="${KAFKA_TOPIC_PARTITIONS:-3}"
 
 # Step 2: reject invalid settings before asking Kafka to create anything.
 # Topic names may contain letters, digits, dots, underscores, and hyphens,
 # have at most 249 characters, and cannot be just "." or "..".
-if [[ ! "$topic" =~ ^[a-zA-Z0-9._-]+$ || "$topic" == "." || "$topic" == ".." || ${#topic} -gt 249 ]]; then
-  echo "KAFKA_TOPIC must be a valid Kafka topic name" >&2
-  exit 1
-fi
+# Collect the publisher topic and consumer subscriptions, trimming spaces and
+# removing duplicates. Validate every name before creating any topics.
+topic_list=""
+# Worker subscriptions come from the named bindings. Empty bindings are disabled.
+for binding in "${KAFKA_NOTIFICATION_TOPIC-notifications.requested.v1}" "${KAFKA_ACTIVITY_TOPIC-activities.recorded.v1}"; do
+  binding="${binding#"${binding%%[![:space:]]*}"}"
+  binding="${binding%"${binding##*[![:space:]]}"}"
+  if [[ -n "$binding" ]]; then topic_list="${topic_list:+$topic_list,}$binding"; fi
+done
+IFS=',' read -r -a requested_topics <<< "$topic_list"
+topics=()
+for candidate in "${requested_topics[@]}"; do
+  candidate="${candidate#"${candidate%%[![:space:]]*}"}"
+  candidate="${candidate%"${candidate##*[![:space:]]}"}"
+  if [[ -z "$candidate" || ! "$candidate" =~ ^[a-zA-Z0-9._-]+$ || "$candidate" == "." || "$candidate" == ".." || ${#candidate} -gt 249 ]]; then
+    echo "Kafka topic names must be nonempty valid names" >&2
+    exit 1
+  fi
+  duplicate=false
+  for existing in "${topics[@]}"; do
+    if [[ "$candidate" == "$existing" ]]; then duplicate=true; break; fi
+  done
+  if [[ "$duplicate" == false ]]; then topics+=("$candidate"); fi
+done
 # The partition count must be a whole number greater than zero.
 if [[ ! "$partitions" =~ ^[1-9][0-9]*$ ]]; then
   echo "KAFKA_TOPIC_PARTITIONS must be a positive integer" >&2
@@ -57,6 +78,9 @@ PROPERTIES
 # create extra copies or change the topic's replication factor.
 # If the topic already exists, this command leaves its settings unchanged.
 # That alone does not prove the settings match, so we check them next.
+# Repeat creation and verification for each topic. This does not connect their
+# messages or require one topic to have data before another can be consumed.
+for topic in "${topics[@]}"; do
 /opt/kafka/bin/kafka-topics.sh \
   --bootstrap-server "$bootstrap_server" --command-config "$client_config" \
   --create --if-not-exists --topic "$topic" \
@@ -97,3 +121,5 @@ fi
 # Publishers and consumers can now use it. This confirms topic setup only;
 # it does not verify application message handling or provide broker redundancy.
 printf 'Verified topic %s: partitions=%s replication-factor=1 min.insync.replicas=1\n' "$topic" "$partitions"
+
+done

@@ -1,4 +1,4 @@
-package notification
+package worker
 
 import (
 	"context"
@@ -33,29 +33,29 @@ func (o ShareWorkerOptions) Validate() error {
 	return nil
 }
 
-type NotificationShareWorker struct {
+type ShareWorker struct {
 	reader  ShareMessageReader
 	handler middleware.Handler
 	options ShareWorkerOptions
 }
 
-func NewNotificationShareWorker(reader ShareMessageReader, handler middleware.Handler, options ShareWorkerOptions) (*NotificationShareWorker, error) {
+func NewShareWorker(reader ShareMessageReader, handler middleware.Handler, options ShareWorkerOptions) (*ShareWorker, error) {
 	if err := options.Validate(); err != nil {
 		return nil, err
 	}
-	return &NotificationShareWorker{reader: reader, handler: handler, options: options}, nil
+	return &ShareWorker{reader: reader, handler: handler, options: options}, nil
 }
 
 // Run owns the reader. It finishes and acknowledges one batch before fetching
 // another. Records within a batch may finish in any order, even in one partition.
-func (w *NotificationShareWorker) Run(ctx context.Context) error {
+func (w *ShareWorker) Run(ctx context.Context) error {
 	for ctx.Err() == nil {
 		records, err := w.reader.FetchRecords(ctx)
 		if err != nil {
 			if ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 				return nil
 			}
-			return fmt.Errorf("share notification fetch: %w", err)
+			return fmt.Errorf("share worker fetch: %w", err)
 		}
 		handleErr := w.handleBatch(ctx, records)
 		// Shutdown uses a fresh cleanup context in App.Shutdown. Leave queued
@@ -65,7 +65,7 @@ func (w *NotificationShareWorker) Run(ctx context.Context) error {
 			flushErr = w.reader.FlushAcknowledgments(ctx)
 		}
 		if err := errors.Join(handleErr, flushErr); err != nil {
-			return fmt.Errorf("share notification batch: %w", err)
+			return fmt.Errorf("share worker batch: %w", err)
 		}
 	}
 	return nil
@@ -76,7 +76,7 @@ type shareOutcome struct {
 	err    error
 }
 
-func (w *NotificationShareWorker) handleBatch(ctx context.Context, records []*kgo.Record) error {
+func (w *ShareWorker) handleBatch(ctx context.Context, records []*kgo.Record) error {
 	batchCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	// Both queues are bounded by this finite batch / configured concurrency.

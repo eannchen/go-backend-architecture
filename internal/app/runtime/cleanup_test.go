@@ -77,3 +77,27 @@ func TestCleanupAfterInitFailureDeadline(t *testing.T) {
 		t.Fatalf("cleanup error = %v, want deadline exceeded", err)
 	}
 }
+
+// TestCleanupAfterInitFailureMultipleResources protects ordered cleanup and
+// error aggregation even when an earlier resource fails to close.
+func TestCleanupAfterInitFailureMultipleResources(t *testing.T) {
+	first, second := errors.New("reader close"), errors.New("telemetry shutdown")
+	var order []string
+	var shared context.Context
+	err := CleanupAfterInitFailure(t.Context(), time.Second,
+		func(ctx context.Context) error { shared = ctx; order = append(order, "reader"); return first },
+		func(ctx context.Context) error {
+			if ctx != shared {
+				t.Fatal("cleanup budget was reset")
+			}
+			order = append(order, "telemetry")
+			return second
+		},
+	)
+	if len(order) != 2 || order[0] != "reader" || order[1] != "telemetry" {
+		t.Fatalf("cleanup order = %v", order)
+	}
+	if !errors.Is(err, first) || !errors.Is(err, second) {
+		t.Fatalf("cleanup errors = %v", err)
+	}
+}

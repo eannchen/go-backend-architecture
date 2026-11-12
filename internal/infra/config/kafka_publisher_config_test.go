@@ -31,7 +31,7 @@ func TestLoadKafkaPublisherPolicies(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.key+"="+tt.value, func(t *testing.T) {
 			t.Setenv("KAFKA_BROKERS", "localhost:9092")
-			t.Setenv("KAFKA_TOPIC", "notifications.requested.v1")
+			t.Setenv("KAFKA_PUBLISH_TOPIC", "notifications.requested.v1")
 			t.Setenv("KAFKA_PARTITION_STRATEGY", "round-robin")
 			t.Setenv("KAFKA_REQUEST_TIMEOUT", "10s")
 			t.Setenv("KAFKA_PRODUCE_TIMEOUT", "10s")
@@ -55,7 +55,7 @@ func TestLoadKafkaPublisherPolicies(t *testing.T) {
 func TestLoadKafkaPublisherIsIndependent(t *testing.T) {
 	setKafkaPublisherTuningDefaults(t)
 	t.Setenv("KAFKA_BROKERS", " localhost:9092 , localhost:19092 ")
-	t.Setenv("KAFKA_TOPIC", " events.v1 ")
+	t.Setenv("KAFKA_PUBLISH_TOPIC", " events.v1 ")
 	t.Setenv("KAFKA_PARTITION_STRATEGY", " key ")
 	t.Setenv("KAFKA_REQUEST_TIMEOUT", " 2s ")
 	t.Setenv("KAFKA_PRODUCE_TIMEOUT", "3s")
@@ -72,7 +72,7 @@ func TestLoadKafkaPublisherIsIndependent(t *testing.T) {
 
 // TestLoadKafkaPublisherDefaults protects standalone publication with documented local defaults.
 func TestLoadKafkaPublisherDefaults(t *testing.T) {
-	for _, key := range []string{"KAFKA_BROKERS", "KAFKA_TOPIC", "KAFKA_PARTITION_STRATEGY", "KAFKA_REQUEST_TIMEOUT", "KAFKA_PRODUCE_TIMEOUT", "KAFKA_MAX_BUFFERED_RECORDS", "KAFKA_BATCH_BYTES", "KAFKA_BATCH_TIMEOUT", "KAFKA_MAX_ATTEMPTS", "KAFKA_WRITE_BACKOFF_MIN", "KAFKA_WRITE_BACKOFF_MAX", "KAFKA_COMPRESSION", "KAFKA_REQUIRED_ACKS", "KAFKA_DELIVERY_TIMEOUT"} {
+	for _, key := range []string{"KAFKA_BROKERS", "KAFKA_PUBLISH_TOPIC", "KAFKA_PARTITION_STRATEGY", "KAFKA_REQUEST_TIMEOUT", "KAFKA_PRODUCE_TIMEOUT", "KAFKA_MAX_BUFFERED_RECORDS", "KAFKA_BATCH_BYTES", "KAFKA_BATCH_TIMEOUT", "KAFKA_MAX_ATTEMPTS", "KAFKA_WRITE_BACKOFF_MIN", "KAFKA_WRITE_BACKOFF_MAX", "KAFKA_COMPRESSION", "KAFKA_REQUIRED_ACKS", "KAFKA_DELIVERY_TIMEOUT"} {
 		t.Setenv(key, "")
 		if err := os.Unsetenv(key); err != nil {
 			t.Fatal(err)
@@ -94,10 +94,10 @@ func TestLoadKafkaPublisherDefaults(t *testing.T) {
 // TestLoadKafkaPublisherRejectsMissingConnection protects publishers from empty cluster addresses and topics without requiring a consumer group.
 func TestLoadKafkaPublisherRejectsMissingConnection(t *testing.T) {
 	setKafkaPublisherTuningDefaults(t)
-	for _, key := range []string{"KAFKA_BROKERS", "KAFKA_TOPIC"} {
+	for _, key := range []string{"KAFKA_BROKERS", "KAFKA_PUBLISH_TOPIC"} {
 		t.Run(key, func(t *testing.T) {
 			t.Setenv("KAFKA_BROKERS", "localhost:9092")
-			t.Setenv("KAFKA_TOPIC", "events.v1")
+			t.Setenv("KAFKA_PUBLISH_TOPIC", "events.v1")
 			t.Setenv("KAFKA_PARTITION_STRATEGY", "round-robin")
 			t.Setenv("KAFKA_REQUEST_TIMEOUT", "10s")
 			t.Setenv("KAFKA_PRODUCE_TIMEOUT", "10s")
@@ -146,7 +146,7 @@ func TestLoadKafkaPublisherTuning(t *testing.T) {
 		t.Run(tt.key+"="+tt.value, func(t *testing.T) {
 			setKafkaPublisherTuningDefaults(t)
 			t.Setenv("KAFKA_BROKERS", "localhost:9092")
-			t.Setenv("KAFKA_TOPIC", "events.v1")
+			t.Setenv("KAFKA_PUBLISH_TOPIC", "events.v1")
 			t.Setenv("KAFKA_PARTITION_STRATEGY", "round-robin")
 			t.Setenv("KAFKA_REQUEST_TIMEOUT", "10s")
 			t.Setenv("KAFKA_PRODUCE_TIMEOUT", "10s")
@@ -219,7 +219,7 @@ func TestLoadKafkaPublisherAcknowledgments(t *testing.T) {
 		t.Run(tt.value, func(t *testing.T) {
 			setKafkaPublisherTuningDefaults(t)
 			t.Setenv("KAFKA_BROKERS", "localhost:9092")
-			t.Setenv("KAFKA_TOPIC", "events.v1")
+			t.Setenv("KAFKA_PUBLISH_TOPIC", "events.v1")
 			t.Setenv("KAFKA_PARTITION_STRATEGY", "round-robin")
 			t.Setenv("KAFKA_REQUEST_TIMEOUT", "10s")
 			t.Setenv("KAFKA_PRODUCE_TIMEOUT", "10s")

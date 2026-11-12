@@ -221,7 +221,7 @@ func TestShareLockExpiryAndRestartRecovery(t *testing.T) {
 	}
 	cfg := validShareConfig()
 	cfg.Brokers = integrationBrokers
-	cfg.Topic = topic
+	cfg.Topics = []string{topic}
 	cfg.GroupID = group
 	cfg.MaxPollRecords = 1
 	first, err := NewShareReader(cfg, nil)
@@ -476,7 +476,7 @@ func newIntegrationShareReader(t *testing.T, topic, group string, maxRecords int
 	t.Helper()
 	cfg := validShareConfig()
 	cfg.Brokers = integrationBrokers
-	cfg.Topic = topic
+	cfg.Topics = []string{topic}
 	cfg.GroupID = group
 	cfg.MaxPollRecords = maxRecords
 	reader, err := NewShareReader(cfg, nil)

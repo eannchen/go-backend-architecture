@@ -10,7 +10,7 @@ import (
 )
 
 // NewNotificationHandler maps the Kafka payload to the transport-free usecase.
-// Both consumer styles use it; their workers own the commit/acknowledgment policy.
+// Topic routing selects this handler; workers own the commit/acknowledgment policy.
 func NewNotificationHandler(usecase notification.Usecase) middleware.Handler {
 	return func(ctx context.Context, record *kgo.Record) error {
 		request, err := decodeNotification(record.Value)

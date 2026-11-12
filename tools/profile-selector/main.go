@@ -184,16 +184,15 @@ func newSelectionPlan(profile string) (selectionPlan, error) {
 		"docker-compose.kafka.yml", "tools/kafka", "make/kafka.mk",
 		"internal/infra/observability/otel/kafka.go", "internal/infra/observability/otel/kafka_test.go",
 		"internal/delivery/kafka", "internal/infra/messaging/kafka",
-		"internal/usecase/notification",
-		"internal/infra/config/kafka_connection_config.go",
-		"internal/infra/config/kafka_security_config.go", "internal/infra/config/kafka_security_config_test.go",
+		"internal/usecase/notification", "internal/usecase/activity",
+		"internal/infra/config/kafka_config.go", "internal/infra/config/kafka_config_test.go",
 		"internal/infra/config/kafka_consumer_config.go", "internal/infra/config/kafka_consumer_config_test.go",
 		"internal/infra/config/kafka_publisher_config.go", "internal/infra/config/kafka_publisher_config_test.go",
 		"internal/infra/config/kafka_share_consumer_config.go", "internal/infra/config/kafka_share_consumer_config_test.go",
-		"internal/infra/config/kafka_migration_config_test.go", "sqlc.kafka.yaml",
+		"sqlc.kafka.yaml",
 	}
-	groupOnly := []string{"cmd/kafkaworker", "internal/app/kafkaworker", "internal/infra/config/kafkaworker_config.go", "internal/infra/config/kafkaworker_config_test.go", "make/kafka-worker.mk", ".air.kafkaworker.toml"}
-	shareOnly := []string{"cmd/kafkashareworker", "internal/app/kafkashareworker", "internal/infra/config/kafkashareworker_config.go", "internal/infra/config/kafkashareworker_config_test.go", "make/kafka-share-worker.mk", ".air.kafkashareworker.toml"}
+	groupOnly := []string{"cmd/kafkaworker", "internal/app/kafkaworker", "make/kafka-worker.mk", ".air.kafkaworker.toml"}
+	shareOnly := []string{"cmd/kafkashareworker", "internal/app/kafkashareworker", "make/kafka-share-worker.mk", ".air.kafkashareworker.toml"}
 	if profile == publicHTTPProfile || profile == serviceGRPCProfile {
 		plan, err := transportSelectionPlan(profile)
 		plan.remove = append(plan.remove, kafkaCommon...)
@@ -219,11 +218,11 @@ func newSelectionPlan(profile string) (selectionPlan, error) {
 	plan := selectionPlan{profile: profile, sqlcSource: "sqlc.kafka.yaml", envFragments: []string{"config/env/common.env.example", "config/env/" + profile + ".env.example"}}
 	if profile == kafkaWorkerProfile {
 		removals = append(removals, shareOnly...)
-		removals = append(removals, "internal/delivery/kafka/handler/notification/notification_share_worker.go")
+		removals = append(removals, "internal/delivery/kafka/worker/share_worker.go")
 		plan.airSource = ".air.kafkaworker.toml"
 	} else {
 		removals = append(removals, groupOnly...)
-		removals = append(removals, "internal/delivery/kafka/handler/notification/notification_worker.go")
+		removals = append(removals, "internal/delivery/kafka/worker/worker.go")
 		plan.airSource = ".air.kafkashareworker.toml"
 	}
 	slices.Sort(removals)
