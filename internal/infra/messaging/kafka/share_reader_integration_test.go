@@ -445,30 +445,7 @@ func waitForIntegrationShareGroupEmpty(t *testing.T, ctx context.Context, group 
 
 func createIntegrationShareGroup(t *testing.T, group string, lockMillis int) string {
 	t.Helper()
-	cleanupIntegrationGroup(t, group)
-	cleanupIntegrationShareConfig(t, group)
-	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
-	defer cancel()
-	req := kmsg.NewPtrIncrementalAlterConfigsRequest()
-	resource := kmsg.NewIncrementalAlterConfigsRequestResource()
-	resource.ResourceType = kmsg.ConfigResourceTypeGroupConfig
-	resource.ResourceName = group
-	for key, value := range map[string]string{"share.auto.offset.reset": "earliest", "share.record.lock.duration.ms": fmt.Sprint(lockMillis)} {
-		config := kmsg.NewIncrementalAlterConfigsRequestResourceConfig()
-		config.Name = key
-		config.Value = kmsg.StringPtr(value)
-		resource.Configs = append(resource.Configs, config)
-	}
-	req.Resources = []kmsg.IncrementalAlterConfigsRequestResource{resource}
-	response, err := integrationAdmin.Request(ctx, req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, result := range response.(*kmsg.IncrementalAlterConfigsResponse).Resources {
-		if err := kerr.ErrorForCode(result.ErrorCode); err != nil {
-			t.Fatal(err)
-		}
-	}
+	integrationBackend.PrepareShareGroup(t, group, lockMillis)
 	return group
 }
 
@@ -494,7 +471,7 @@ func TestShareGroupProvisioningScript(t *testing.T) {
 	topic := createIntegrationTopic(t, 1)
 	group := topic + "-script"
 	cleanupIntegrationGroup(t, group)
-	cleanupIntegrationShareConfig(t, group)
+	integrationBackend.CleanupShareGroupConfig(t, group)
 	script, err := os.ReadFile("../../../../tools/kafka/init-share-group.sh")
 	if err != nil {
 		t.Fatal(err)
@@ -542,35 +519,6 @@ func TestShareGroupProvisioningScript(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-}
-
-func cleanupIntegrationShareConfig(t *testing.T, group string) {
-	t.Helper()
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		req := kmsg.NewPtrIncrementalAlterConfigsRequest()
-		resource := kmsg.NewIncrementalAlterConfigsRequestResource()
-		resource.ResourceType = kmsg.ConfigResourceTypeGroupConfig
-		resource.ResourceName = group
-		for _, key := range []string{"share.auto.offset.reset", "share.record.lock.duration.ms"} {
-			entry := kmsg.NewIncrementalAlterConfigsRequestResourceConfig()
-			entry.Name = key
-			entry.Op = kmsg.IncrementalAlterConfigOpDelete
-			resource.Configs = append(resource.Configs, entry)
-		}
-		req.Resources = []kmsg.IncrementalAlterConfigsRequestResource{resource}
-		response, err := integrationAdmin.Request(ctx, req)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		for _, result := range response.(*kmsg.IncrementalAlterConfigsResponse).Resources {
-			if err := kerr.ErrorForCode(result.ErrorCode); err != nil {
-				t.Error(err)
-			}
-		}
-	})
 }
 
 // TestShareReleaseRemainingAllowsNextPoll verifies actual broker outcomes when

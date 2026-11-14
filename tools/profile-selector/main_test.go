@@ -94,7 +94,9 @@ func contains(values []string, target string) bool {
 }
 
 // TestSelectedProfilesBuild applies each manifest to a disposable source copy.
-// Building the result catches imports left pointing at deleted capabilities.
+// Building the code and compiling retained unit tests catches imports left
+// pointing at deleted capabilities.
+// Kafka integration compilation also catches fixtures referencing removed workers.
 // Copy the working tree so unstaged moves and deletions are included in the check.
 func TestSelectedProfilesBuild(t *testing.T) {
 	source, err := filepath.Abs("../..")
@@ -147,6 +149,21 @@ func TestSelectedProfilesBuild(t *testing.T) {
 			build.Dir = root
 			if output, err := build.CombinedOutput(); err != nil {
 				t.Fatalf("selected build: %v\n%s", err, output)
+			}
+			unitTests := exec.CommandContext(t.Context(), "go", "test", "-run=^$", "./...")
+			unitTests.Dir = root
+			if output, err := unitTests.CombinedOutput(); err != nil {
+				t.Fatalf("selected unit-test compilation: %v\n%s", err, output)
+			}
+			if profile == kafkaWorkerProfile || profile == kafkaShareWorkerProfile {
+				for _, subject := range []string{"internal/infra/messaging/kafka", "internal/delivery/kafka/integration"} {
+					binary := filepath.Join(t.TempDir(), "integration.test")
+					compile := exec.CommandContext(t.Context(), "go", "test", "-tags=integration", "-c", "-o", binary, "./"+subject)
+					compile.Dir = root
+					if output, err := compile.CombinedOutput(); err != nil {
+						t.Fatalf("selected integration compilation: %v\n%s", err, output)
+					}
+				}
 			}
 			target := exec.CommandContext(t.Context(), "make", "-n", "run")
 			target.Dir = root

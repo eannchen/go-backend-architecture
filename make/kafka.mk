@@ -26,11 +26,7 @@ kafka-share-group-init:
 	# Requires dev-kafka-up first; does not start a worker or reset group progress.
 	$(KAFKA_COMPOSE) run --rm --no-deps kafka-share-init
 
-# The Kafka profile owns its disposable-broker integration suite.
-INTEGRATION_PACKAGES += ./internal/infra/messaging/kafka
+# Client guarantees and delivery workflows each own a disposable-broker suite.
+INTEGRATION_PACKAGES += ./internal/infra/messaging/kafka ./internal/delivery/kafka/integration
 
 SQLC_CONFIG ?= $(if $(wildcard sqlc.kafka.yaml),sqlc.kafka.yaml,sqlc.yaml)
-ifneq (,$(wildcard internal/app/kafkashareworker))
-INTEGRATION_PACKAGES += ./internal/app/kafkashareworker
-endif
-INTEGRATION_PACKAGES += ./internal/infra/observability/otel
