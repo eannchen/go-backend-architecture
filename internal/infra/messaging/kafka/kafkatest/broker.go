@@ -67,7 +67,12 @@ func StartBroker(ctx context.Context) (testcontainers.Container, []string, error
 					return err
 				}
 				brokers = []string{address}
-				return wait.ForListeningPort("9092/tcp").WithStartupTimeout(90*time.Second).WaitUntilReady(ctx, c)
+				// A mapped TCP port can accept connections while Kafka is still
+				// starting. Wait until Kafka enables request processing as well.
+				return wait.ForAll(
+					wait.ForLog("Kafka Server started"),
+					wait.ForListeningPort("9092/tcp"),
+				).WithDeadline(90*time.Second).WaitUntilReady(ctx, c)
 			},
 		}}),
 	)
@@ -87,8 +92,8 @@ type Broker struct {
 func RunSuite(m *testing.M, configure func(*Broker)) int {
 	setup, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	container, brokers, err := StartBroker(setup)
-	cancel()
 	if err != nil {
+		cancel()
 		if container != nil {
 			err = errors.Join(err, testcontainers.TerminateContainer(container))
 		}
@@ -97,6 +102,12 @@ func RunSuite(m *testing.M, configure func(*Broker)) int {
 	}
 	broker := &Broker{Container: container, Brokers: brokers}
 	broker.Admin, err = kgo.NewClient(kgo.SeedBrokers(brokers...))
+	if err == nil {
+		// Verify Kafka protocol access through the advertised host address before
+		// tests make administrative requests. Keep the setup deadline active.
+		err = broker.Admin.Ping(setup)
+	}
+	cancel()
 	code := 1
 	if err == nil {
 		configure(broker)
