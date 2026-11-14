@@ -18,8 +18,6 @@ type App struct {
 	Reporter *healthservice.Reporter
 }
 
-var _ appruntime.Application = (*App)(nil)
-
 func New(ctx context.Context) (*App, error) {
 	cfg, err := config.LoadGRPCAPI()
 	if err != nil {
@@ -39,9 +37,10 @@ func New(ctx context.Context) (*App, error) {
 	healthUsecase := wiring.buildHealthUsecase(runtime.DBPool, runtime.RedisClient)
 	components, err := wiring.buildServer(healthUsecase)
 	if err != nil {
-		return nil, errutil.Join(
+		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, runtime.Shutdown)
+		return nil, errors.Join(
 			err,
-			errutil.Step("shutdown runtime after gRPC server init failure", runtime.Shutdown(ctx)),
+			errutil.Step("shutdown runtime after gRPC server init failure", cleanupErr),
 		)
 	}
 
@@ -59,15 +58,9 @@ func (a *App) Start() error {
 }
 
 func (a *App) Shutdown(ctx context.Context) error {
-	var shutdownErr error
-	if err := a.Reporter.Shutdown(ctx); err != nil {
-		shutdownErr = errors.Join(shutdownErr, err)
-	}
-	if err := a.Server.Shutdown(ctx); err != nil {
-		shutdownErr = errors.Join(shutdownErr, err)
-	}
-	if err := a.Runtime.Shutdown(ctx); err != nil {
-		shutdownErr = errors.Join(shutdownErr, err)
-	}
-	return shutdownErr
+	return errors.Join(
+		a.Reporter.Shutdown(ctx),
+		a.Server.Shutdown(ctx),
+		a.Runtime.Shutdown(ctx),
+	)
 }

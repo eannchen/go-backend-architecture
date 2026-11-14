@@ -34,9 +34,6 @@ type LogPolicy func(LogOutcome) (logger.Severity, bool)
 
 // NewAccessLog creates client completion logging governed by dependency policy.
 func NewAccessLog(log logger.Logger, policy LogPolicy) *AccessLog {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
 	return &AccessLog{log: log, policy: policy}
 }
 
@@ -59,7 +56,7 @@ func (l *AccessLog) Record(ctx context.Context, outcome rpcOutcome) {
 		keyRPCSystemName, "grpc",
 		keyRPCMethod, outcome.rpc.method,
 		keyApplicationRPCCallType, outcome.rpc.callType,
-		keyRPCResponseStatusCode, outcome.responseStatusName(),
+		keyRPCStatusCode, outcome.responseStatusName(),
 		keyLogDurationMS, outcome.duration.Milliseconds(),
 	)
 	if outcome.rpc.serverAddress != "" {

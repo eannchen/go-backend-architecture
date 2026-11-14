@@ -14,9 +14,6 @@ type Tracing struct {
 
 // NewTracing creates HTTP server tracing.
 func NewTracing(tracer observability.Tracer) *Tracing {
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
 	return &Tracing{tracer: tracer}
 }
 

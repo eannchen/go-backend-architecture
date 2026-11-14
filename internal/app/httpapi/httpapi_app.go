@@ -17,8 +17,6 @@ type App struct {
 	Server *httpDelivery.Server
 }
 
-var _ appruntime.Application = (*App)(nil)
-
 func New(ctx context.Context) (*App, error) {
 	cfg, err := config.LoadHTTPAPI()
 	if err != nil {
@@ -37,9 +35,10 @@ func New(ctx context.Context) (*App, error) {
 	handlers := wiring.buildHandlers(responder, usecases)
 	server, err := wiring.buildServer(responder, repositories, handlers, usecases)
 	if err != nil {
-		return nil, errutil.Join(
+		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, runtime.Shutdown)
+		return nil, errors.Join(
 			err,
-			errutil.Step("shutdown runtime after server init failure", runtime.Shutdown(ctx)),
+			errutil.Step("shutdown runtime after server init failure", cleanupErr),
 		)
 	}
 
@@ -55,15 +54,8 @@ func (a *App) Start() error {
 }
 
 func (a *App) Shutdown(ctx context.Context) error {
-	var shutdownErr error
-
-	if err := a.Server.Shutdown(ctx); err != nil {
-		shutdownErr = errors.Join(shutdownErr, err)
-	}
-
-	if err := a.Runtime.Shutdown(ctx); err != nil {
-		shutdownErr = errors.Join(shutdownErr, err)
-	}
-
-	return shutdownErr
+	return errors.Join(
+		a.Server.Shutdown(ctx),
+		a.Runtime.Shutdown(ctx),
+	)
 }

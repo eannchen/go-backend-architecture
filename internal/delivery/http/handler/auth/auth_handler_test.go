@@ -21,6 +21,7 @@ import (
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
 	authoauthtest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth/oauthtest"
@@ -31,7 +32,7 @@ import (
 func newHandlerForTest(otp *authotptest.OTPAuthenticator, session *sessiontest.SessionManager) *Handler {
 	return NewHandler(
 		logger.NoopLogger{},
-		nil,
+		observability.NoopTracer{},
 		httpresponse.NewResponder(),
 		otp,
 		&authoauthtest.OAuthAuthenticator{},
@@ -67,7 +68,7 @@ func TestHandlerOAuthFlowBindsCallbackToAuthorizeBrowser(t *testing.T) {
 		},
 	}
 	h := NewHandler(
-		logger.NoopLogger{}, nil, httpresponse.NewResponder(), &authotptest.OTPAuthenticator{}, oauth, session,
+		logger.NoopLogger{}, observability.NoopTracer{}, httpresponse.NewResponder(), &authotptest.OTPAuthenticator{}, oauth, session,
 		SessionCookieConfig{Name: "session_id", TTL: 30 * time.Minute}, nil,
 	)
 	e := newEchoForTest(t)
@@ -335,7 +336,7 @@ func TestHandlerLogoutLogsRevokeFailureAndClearsCookie(t *testing.T) {
 	}
 	h := NewHandler(
 		log,
-		nil,
+		observability.NoopTracer{},
 		httpresponse.NewResponder(),
 		&authotptest.OTPAuthenticator{},
 		&authoauthtest.OAuthAuthenticator{},

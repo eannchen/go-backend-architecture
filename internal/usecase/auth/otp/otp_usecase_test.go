@@ -10,6 +10,7 @@ import (
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
 	"github.com/eannchen/go-backend-architecture/internal/repository/db/dbtest"
 	"github.com/eannchen/go-backend-architecture/internal/repository/external/otp/otptest"
@@ -96,8 +97,8 @@ func TestOTPAuthenticatorSendCode(t *testing.T) {
 			}
 			uc := NewOTPAuthenticator(
 				log,
-				nil,
-				nil,
+				observability.NoopTracer{},
+				observability.NoopMeter{},
 				otpRepo,
 				emailSender,
 				&dbtest.UserRepository{},
@@ -286,7 +287,7 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 					return tt.createUserResult, tt.createUserErr
 				},
 			}
-			uc := NewOTPAuthenticator(log, nil, nil, otpRepo, &otptest.EmailSender{}, userRepo, OTPConfig{})
+			uc := NewOTPAuthenticator(log, observability.NoopTracer{}, observability.NoopMeter{}, otpRepo, &otptest.EmailSender{}, userRepo, OTPConfig{})
 
 			got, err := uc.VerifyCode(context.Background(), tt.email, tt.code)
 

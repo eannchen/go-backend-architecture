@@ -1,12 +1,12 @@
 package observability
 
 const (
+	// keyRPCStatusCode is the OTel native gRPC status name used by logs, spans, and metrics.
+	keyRPCStatusCode = "rpc.status_code"
 	// keyRPCSystemName is the OTel RPC-system attribute; gRPC requires the value "grpc".
 	keyRPCSystemName = "rpc.system.name"
 	// keyRPCMethod is the OTel fully-qualified logical method, such as package.Service/Method.
 	keyRPCMethod = "rpc.method"
-	// keyRPCResponseStatusCode is the OTel native gRPC status name, such as OK or UNAVAILABLE.
-	keyRPCResponseStatusCode = "rpc.response.status_code"
 	// keyServerAddress is the OTel logical destination derived from the configured gRPC target.
 	keyServerAddress = "server.address"
 	// keyServerPort is the OTel logical destination port when it can be parsed safely.

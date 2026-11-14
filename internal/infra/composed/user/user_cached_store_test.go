@@ -8,6 +8,7 @@ import (
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/repository/cache/cachetest"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
 	"github.com/eannchen/go-backend-architecture/internal/repository/db/dbtest"
@@ -86,7 +87,7 @@ func TestCachedUserStoreGetByID(t *testing.T) {
 					return tt.baseUser, tt.baseErr
 				},
 			}
-			store := NewCachedUserStore(log, nil, base, cache)
+			store := NewCachedUserStore(log, observability.NoopTracer{}, base, cache)
 
 			got, err := store.GetByID(context.Background(), 1)
 
@@ -124,7 +125,7 @@ func TestCachedUserStoreDelegatesEmailAndCreate(t *testing.T) {
 		},
 	}
 	cache := &cachetest.UserCacheStore{}
-	store := NewCachedUserStore(logger.NoopLogger{}, nil, base, cache)
+	store := NewCachedUserStore(logger.NoopLogger{}, observability.NoopTracer{}, base, cache)
 
 	gotEmail, err := store.GetByEmail(context.Background(), "user@example.com")
 	if err != nil {
@@ -191,7 +192,7 @@ func TestCachedUserStoreUpsertOAuthUser(t *testing.T) {
 					return tt.deleteErr
 				},
 			}
-			store := NewCachedUserStore(log, nil, base, cache)
+			store := NewCachedUserStore(log, observability.NoopTracer{}, base, cache)
 
 			got, err := store.UpsertOAuthUser(context.Background(), repodb.OAuthUserUpsert{
 				Provider: "google", ProviderUserID: "google-1", Email: "oauth@example.com",

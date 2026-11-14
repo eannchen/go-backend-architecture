@@ -1,4 +1,4 @@
-package requestcontext
+package contextmw
 
 import (
 	"context"
@@ -48,9 +48,7 @@ func New(config Config, responder grpcresponse.Responder) (*Interceptor, error) 
 	if err != nil {
 		return nil, fmt.Errorf("normalize response request ID metadata key: %w", err)
 	}
-	if responder == nil {
-		responder = grpcresponse.NewResponder()
-	}
+
 	return &Interceptor{config: config, responder: responder}, nil
 }
 

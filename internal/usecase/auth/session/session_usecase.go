@@ -41,21 +41,12 @@ func NewServerSessionManager(
 	sessionRepo repokvstore.SessionRepository,
 	ttl time.Duration,
 ) SessionManager {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
-	if meter == nil {
-		meter = observability.NoopMeter{}
-	}
 	return &serverSessionManager{
 		log:         log,
 		tracer:      tracer,
 		sessionRepo: sessionRepo,
 		ttl:         ttl,
-		createTotal: meter.Counter("auth_session_create_total",
+		createTotal: meter.Counter("app.auth.session.creations",
 			observability.MetricOption{Description: "Total sessions created.", Unit: "{session}"},
 		),
 	}

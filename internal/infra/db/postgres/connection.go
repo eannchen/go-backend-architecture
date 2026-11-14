@@ -41,9 +41,6 @@ func NewPool(ctx context.Context, cfg config.DBConfig, log logger.Logger) (*pgxp
 }
 
 func ClosePool(ctx context.Context, pool *pgxpool.Pool, log logger.Logger) {
-	if pool == nil {
-		return
-	}
 	start := time.Now()
 	pool.Close()
 	log.Info(ctx, "database pool closed", logger.FromPairs("duration_ms", time.Since(start).Milliseconds()))

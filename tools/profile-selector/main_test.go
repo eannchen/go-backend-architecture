@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -89,4 +91,92 @@ func contains(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+// TestSelectedProfilesBuild applies each manifest to a disposable source copy.
+// Building the code and compiling retained unit tests catches imports left
+// pointing at deleted capabilities.
+// Kafka integration compilation also catches fixtures referencing removed workers.
+// Copy the working tree so unstaged moves and deletions are included in the check.
+func TestSelectedProfilesBuild(t *testing.T) {
+	source, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+	command.Dir = source
+	output, err := command.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, profile := range []string{publicHTTPProfile, serviceGRPCProfile, kafkaWorkerProfile, kafkaShareWorkerProfile} {
+		t.Run(profile, func(t *testing.T) {
+			root := t.TempDir()
+			for _, relative := range strings.Split(string(output), "\x00") {
+				if relative == "" {
+					continue
+				}
+				info, err := os.Lstat(filepath.Join(source, relative))
+				// git still lists tracked files deleted in the working tree.
+				if errors.Is(err, os.ErrNotExist) {
+					continue
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !info.Mode().IsRegular() {
+					continue
+				}
+				content, err := os.ReadFile(filepath.Join(source, relative))
+				if err != nil {
+					t.Fatal(err)
+				}
+				writeTestFile(t, root, relative, string(content))
+			}
+			plan, err := newSelectionPlan(profile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, relative := range append(append([]string{plan.airSource, plan.sqlcSource}, plan.envFragments...), plan.remove...) {
+				if _, err := os.Stat(filepath.Join(root, relative)); err != nil {
+					t.Fatalf("stale manifest %s: %v", relative, err)
+				}
+			}
+			if err := applySelection(root, plan); err != nil {
+				t.Fatal(err)
+			}
+			build := exec.CommandContext(t.Context(), "go", "build", "./...")
+			build.Dir = root
+			if output, err := build.CombinedOutput(); err != nil {
+				t.Fatalf("selected build: %v\n%s", err, output)
+			}
+			unitTests := exec.CommandContext(t.Context(), "go", "test", "-run=^$", "./...")
+			unitTests.Dir = root
+			if output, err := unitTests.CombinedOutput(); err != nil {
+				t.Fatalf("selected unit-test compilation: %v\n%s", err, output)
+			}
+			if profile == kafkaWorkerProfile || profile == kafkaShareWorkerProfile {
+				for _, subject := range []string{"internal/infra/messaging/kafka", "internal/delivery/kafka/integration"} {
+					binary := filepath.Join(t.TempDir(), "integration.test")
+					compile := exec.CommandContext(t.Context(), "go", "test", "-tags=integration", "-c", "-o", binary, "./"+subject)
+					compile.Dir = root
+					if output, err := compile.CombinedOutput(); err != nil {
+						t.Fatalf("selected integration compilation: %v\n%s", err, output)
+					}
+				}
+			}
+			target := exec.CommandContext(t.Context(), "make", "-n", "run")
+			target.Dir = root
+			// make test can export its profile flags through .env's export directive.
+			// A selected project must be checked as a fresh invocation, not a child profile.
+			target.Env = append(os.Environ(), "PUBLIC_HTTP_PROFILE=", "SERVICE_GRPC_PROFILE=", "KAFKA_WORKER_PROFILE=", "KAFKA_SHARE_WORKER_PROFILE=", "MAKEFLAGS=", "MFLAGS=")
+			output, err := target.CombinedOutput()
+			if err != nil {
+				t.Fatalf("run target: %v\n%s", err, output)
+			}
+			if strings.Contains(profile, "kafka") && !strings.Contains(string(output), "go run ./cmd/kafka") {
+				t.Fatalf("wrong Kafka run target: %s", output)
+			}
+		})
+	}
 }

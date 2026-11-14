@@ -10,9 +10,9 @@ import (
 	grpcdelivery "github.com/eannchen/go-backend-architecture/internal/delivery/grpc"
 	diagnosticsv1 "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/gen/diagnostics/v1"
 	calleridentityinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/calleridentity"
+	contextinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/context"
 	observabilityinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/observability"
 	recoveryinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/recovery"
-	requestcontextinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/requestcontext"
 	grpcresponse "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
 	diagnosticsservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics"
 	healthservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health"
@@ -45,9 +45,9 @@ func (d wiring) buildServer(healthUsecase usecasehealth.Usecase) (serverComponen
 	if err != nil {
 		return serverComponents{}, err
 	}
-	requestContext, err := requestcontextinterceptor.New(requestcontextinterceptor.Config{
+	requestContext, err := contextinterceptor.New(contextinterceptor.Config{
 		Timeout: d.cfg.GRPC.RequestTimeout,
-		RequestID: requestcontextinterceptor.RequestIDConfig{
+		RequestID: contextinterceptor.RequestIDConfig{
 			IncomingMetadataKey: d.cfg.GRPC.RequestID.IncomingKey,
 			ResponseMetadataKey: d.cfg.GRPC.RequestID.ResponseKey,
 			RejectInvalid:       d.cfg.GRPC.RequestID.RejectInvalid,

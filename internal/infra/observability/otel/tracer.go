@@ -105,17 +105,11 @@ type span struct {
 }
 
 func (s *span) SetAttributes(optionalFields ...observability.Fields) {
-	if s == nil || s.span == nil {
-		return
-	}
 	fields := observability.OptionalFields(optionalFields...)
 	s.span.SetAttributes(toTraceAttributes(fields)...)
 }
 
 func (s *span) Finish(err error, description ...string) {
-	if s == nil || s.span == nil {
-		return
-	}
 
 	if err != nil {
 		s.span.RecordError(err)

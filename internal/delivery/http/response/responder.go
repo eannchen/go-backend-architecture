@@ -54,6 +54,8 @@ var codeStatusMap = map[Code]int{
 type Details = httpcontext.Details
 
 // Responder writes transport responses and records metadata for observability middleware.
+// Responder maps delivery outcomes to transport responses. Inject a non-nil
+// implementation from app composition; NewResponder provides the standard mapping.
 type Responder interface {
 	Success(c *echo.Context, status int, payload any) error
 	Error(c *echo.Context, err error, code Code, message string, details ...Details) error

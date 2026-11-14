@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 )
@@ -18,7 +19,7 @@ import (
 // TestUnaryRecoversPanic checks unary panics become controlled server failures instead of escaping the request.
 func TestUnaryRecoversPanic(t *testing.T) {
 	log := &loggertest.Logger{ErrorFunc: func(context.Context, string, error, ...logger.Fields) {}}
-	_, err := New(log, nil).Unary()(context.Background(), nil, &googlegrpc.UnaryServerInfo{FullMethod: "/test.Service/Panic"}, func(context.Context, any) (any, error) {
+	_, err := New(log, response.NewResponder()).Unary()(context.Background(), nil, &googlegrpc.UnaryServerInfo{FullMethod: "/test.Service/Panic"}, func(context.Context, any) (any, error) {
 		panic("secret panic")
 	})
 
@@ -36,7 +37,7 @@ func TestUnaryRecoversPanic(t *testing.T) {
 // TestStreamRecoversPanic checks stream panics receive the same recovery behavior as unary calls.
 func TestStreamRecoversPanic(t *testing.T) {
 	log := &loggertest.Logger{ErrorFunc: func(context.Context, string, error, ...logger.Fields) {}}
-	err := New(log, nil).Stream()(nil, recoveryServerStream{}, &googlegrpc.StreamServerInfo{FullMethod: "/test.Service/Watch"}, func(any, googlegrpc.ServerStream) error {
+	err := New(log, response.NewResponder()).Stream()(nil, recoveryServerStream{}, &googlegrpc.StreamServerInfo{FullMethod: "/test.Service/Watch"}, func(any, googlegrpc.ServerStream) error {
 		panic(errors.New("stream panic"))
 	})
 

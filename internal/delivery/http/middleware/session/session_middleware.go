@@ -17,9 +17,6 @@ type SessionMiddleware struct {
 
 // New creates a session middleware.
 func New(session authsession.SessionManager, cookieName string, responder httpresponse.Responder) *SessionMiddleware {
-	if responder == nil {
-		responder = httpresponse.NewResponder()
-	}
 	return &SessionMiddleware{
 		session:    session,
 		cookieName: cookieName,

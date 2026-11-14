@@ -16,22 +16,19 @@ type RequestMetrics struct {
 	activeStreams appobservability.UpDownCounter
 }
 
-// NewRequestMetrics creates the client instruments with a safe no-op default.
+// NewRequestMetrics creates the client instruments using the injected meter.
 func NewRequestMetrics(meter appobservability.Meter) *RequestMetrics {
-	if meter == nil {
-		meter = appobservability.NoopMeter{}
-	}
 	return &RequestMetrics{
-		requests:      meter.Counter("grpc_client_requests_total", appobservability.MetricOption{Description: "Completed outbound gRPC requests.", Unit: "{request}"}),
-		errors:        meter.Counter("grpc_client_errors_total", appobservability.MetricOption{Description: "Outbound gRPC requests with a non-OK status.", Unit: "{error}"}),
-		duration:      meter.Histogram("grpc_client_request_duration_seconds", appobservability.MetricOption{Description: "Outbound gRPC request duration.", Unit: "s"}),
-		activeStreams: meter.UpDownCounter("grpc_client_active_streams", appobservability.MetricOption{Description: "Currently active outbound gRPC streams.", Unit: "{stream}"}),
+		requests:      meter.Counter("app.grpc.client.requests", appobservability.MetricOption{Description: "Completed outbound gRPC requests.", Unit: "{request}"}),
+		errors:        meter.Counter("app.grpc.client.errors", appobservability.MetricOption{Description: "Outbound gRPC requests with a non-OK status.", Unit: "{error}"}),
+		duration:      meter.Histogram("rpc.client.call.duration", appobservability.MetricOption{Description: "Outbound gRPC request duration.", Unit: "s"}),
+		activeStreams: meter.UpDownCounter("app.grpc.client.active_streams", appobservability.MetricOption{Description: "Currently active outbound gRPC streams.", Unit: "{stream}"}),
 	}
 }
 
 // Record observes one completed RPC.
 func (m *RequestMetrics) Record(ctx context.Context, outcome rpcOutcome) {
-	fields := metricFields(outcome.rpc, outcome.responseStatusName())
+	fields := metricFields(outcome)
 	m.requests.Add(ctx, 1, fields)
 	m.duration.Record(ctx, outcome.duration.Seconds(), fields)
 	if outcome.responseStatusCode != codes.OK {
@@ -50,6 +47,12 @@ func (m *RequestMetrics) StreamFinished(ctx context.Context, outcome rpcOutcome)
 	m.Record(ctx, outcome)
 }
 
-func metricFields(rpc rpcInfo, status string) appobservability.Fields {
-	return appobservability.MergeFields(rpc.spanStartFields(), appobservability.FromPairs(keyRPCResponseStatusCode, status))
+// metricFields derives bounded attributes once for all completed-call metrics.
+func metricFields(outcome rpcOutcome) appobservability.Fields {
+	fields := outcome.rpc.spanStartFields()
+	fields[keyRPCStatusCode] = outcome.responseStatusName()
+	if errorType := outcome.errorType(); errorType != "" {
+		fields[keyErrorType] = errorType
+	}
+	return fields
 }

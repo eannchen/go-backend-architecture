@@ -25,12 +25,6 @@ func NewCachedUserStore(
 	base repodb.UserRepository,
 	cache repocache.UserCacheStore,
 ) *CachedUserStore {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
 	return &CachedUserStore{base: base, cache: cache, log: log, tracer: tracer}
 }
 

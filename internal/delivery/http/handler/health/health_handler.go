@@ -20,15 +20,6 @@ func NewHandler(
 	usecase usecasehealth.Usecase,
 	streamConfig StreamConfig,
 ) *Handler {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
-	if responder == nil {
-		responder = httpresponse.NewResponder()
-	}
 	return &Handler{
 		logger:    log,
 		tracer:    tracer,

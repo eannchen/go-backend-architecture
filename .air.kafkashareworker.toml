@@ -1,0 +1,15 @@
+root = "."
+tmp_dir = "tmp/kafkashareworker"
+
+[build]
+cmd = "go build -o ./tmp/kafkashareworker/kafkashareworker ./cmd/kafkashareworker"
+entrypoint = ["./tmp/kafkashareworker/kafkashareworker"]
+include_ext = ["go", "sql", "yaml", "yml", "env"]
+exclude_dir = ["tmp", ".git", "vendor", "volumes"]
+delay = 1000
+send_interrupt = true
+kill_delay = "15s"
+stop_on_error = true
+
+[log]
+time = true

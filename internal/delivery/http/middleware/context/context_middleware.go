@@ -56,9 +56,7 @@ func NewRequestContextMiddleware(config Config, responder httpresponse.Responder
 	if err != nil {
 		return nil, fmt.Errorf("normalize response request ID header: %w", err)
 	}
-	if responder == nil {
-		responder = httpresponse.NewResponder()
-	}
+
 	m := &RequestContextMiddleware{
 		config:    config,
 		responder: responder,

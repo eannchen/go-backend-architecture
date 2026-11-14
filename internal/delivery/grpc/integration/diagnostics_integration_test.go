@@ -18,9 +18,9 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	diagnosticsv1 "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/gen/diagnostics/v1"
+	contextinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/context"
 	observabilityinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/observability"
 	recoveryinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/recovery"
-	requestcontextinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/requestcontext"
 	grpcresponse "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
 	diagnosticsservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics"
 	grpchealth "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health"
@@ -47,9 +47,9 @@ func TestDetailedAndStandardHealthServicesCoexist(t *testing.T) {
 
 	listener := bufconn.Listen(bufferSize)
 	responder := grpcresponse.NewResponder()
-	requestContext, err := requestcontextinterceptor.New(requestcontextinterceptor.Config{
+	requestContext, err := contextinterceptor.New(contextinterceptor.Config{
 		Timeout: time.Second,
-		RequestID: requestcontextinterceptor.RequestIDConfig{
+		RequestID: contextinterceptor.RequestIDConfig{
 			IncomingMetadataKey: requestIDMetadataKey,
 			ResponseMetadataKey: requestIDMetadataKey,
 		},

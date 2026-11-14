@@ -14,7 +14,7 @@ import (
 
 // TestOTPStoreIntegration checks OTP persistence and consumption against real Redis operations.
 func TestOTPStoreIntegration(t *testing.T) {
-	client := requireRedisTestClient(t)
+	client := redisTestClient
 
 	store := NewOTPStore(client)
 	ctx := context.Background()

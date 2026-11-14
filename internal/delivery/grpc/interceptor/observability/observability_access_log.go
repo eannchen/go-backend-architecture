@@ -14,9 +14,6 @@ type AccessLog struct {
 
 // NewAccessLog creates gRPC request access logging.
 func NewAccessLog(log logger.Logger) *AccessLog {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
 	return &AccessLog{log: log}
 }
 
@@ -27,7 +24,7 @@ func (l *AccessLog) Record(ctx context.Context, outcome rpcOutcome) {
 		keyRPCSystemName, "grpc",
 		keyRPCMethod, outcome.rpc.method,
 		keyApplicationRPCCallType, outcome.rpc.callType,
-		keyRPCResponseStatusCode, outcome.responseStatusName(),
+		keyRPCStatusCode, outcome.responseStatusName(),
 		keyLogDurationMS, outcome.duration.Milliseconds(),
 	)
 	if identity, ok := calleridentity.FromContext(ctx); ok {

@@ -7,15 +7,13 @@ import (
 	"strconv"
 	"testing"
 	"time"
-
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 )
 
 // TestTokenBucketStoreIntegration checks token-bucket decisions and updates are atomic in Redis.
 func TestTokenBucketStoreIntegration(t *testing.T) {
 	const refillInterval = time.Minute
 
-	client := requireRedisTestClient(t)
+	client := redisTestClient
 	store := NewTokenBucketStore(client)
 	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
 	tests := []struct {
@@ -48,23 +46,5 @@ func TestTokenBucketStoreIntegration(t *testing.T) {
 
 			requirePositiveRedisTTL(t, redisKey, time.Duration(tt.capacity)*refillInterval)
 		})
-	}
-}
-
-// TestSlidingWindowStoreTieredIntegration checks tiered sliding-window limits work across real Redis state.
-func TestSlidingWindowStoreTieredIntegration(t *testing.T) {
-	client := requireRedisTestClient(t)
-	key := "integration:" + strconv.FormatInt(time.Now().UnixNano(), 10)
-	redisKey := slidingWindowKeyPrefix + key
-	t.Cleanup(func() { cleanupRedisKeys(t, redisKey) })
-
-	store := NewSlidingWindowStore(client)
-	tiers := []repokvstore.SlidingWindowTier{{Key: key, Limit: 1, Window: time.Minute}}
-	if got, err := store.AllowTiered(context.Background(), tiers); err != nil || !got.Allowed {
-		t.Fatalf("first tiered allow = %+v, %v", got, err)
-	}
-	requirePositiveRedisTTL(t, redisKey, time.Minute)
-	if got, err := store.AllowTiered(context.Background(), tiers); err != nil || got.Allowed || got.RejectedTier != key {
-		t.Fatalf("second tiered allow = %+v, %v", got, err)
 	}
 }

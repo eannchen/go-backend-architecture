@@ -49,12 +49,6 @@ func NewHandler(
 	cookie SessionCookieConfig,
 	sessionMW *sessionmw.SessionMiddleware,
 ) *Handler {
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
-	if responder == nil {
-		responder = httpresponse.NewResponder()
-	}
 	return &Handler{
 		logger:    log,
 		tracer:    tracer,

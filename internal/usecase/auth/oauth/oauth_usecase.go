@@ -55,12 +55,6 @@ func NewOAuthAuthenticator(
 	userRepo repodb.UserRepository,
 	providers ...repoexternal.OAuthProvider,
 ) OAuthAuthenticator {
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
-	if meter == nil {
-		meter = observability.NoopMeter{}
-	}
 
 	pm := make(map[string]repoexternal.OAuthProvider, len(providers))
 	for _, p := range providers {
@@ -72,7 +66,7 @@ func NewOAuthAuthenticator(
 		providers: pm,
 		stateRepo: stateRepo,
 		userRepo:  userRepo,
-		oauthTotal: meter.Counter("auth_oauth_total",
+		oauthTotal: meter.Counter("app.auth.oauth.attempts",
 			observability.MetricOption{Description: "OAuth flow completions by provider and outcome.", Unit: "{attempt}"},
 		),
 	}

@@ -25,9 +25,7 @@ func New(extractor securityidentity.CertificateExtractor, responder grpcresponse
 	if extractor == nil {
 		return nil, fmt.Errorf("certificate identity extractor is required")
 	}
-	if responder == nil {
-		responder = grpcresponse.NewResponder()
-	}
+
 	return &Interceptor{extractor: extractor, responder: responder}, nil
 }
 

@@ -13,7 +13,7 @@ import (
 
 // TestOAuthStateStoreIntegration checks OAuth state storage and consumption against real Redis expiration and key behavior.
 func TestOAuthStateStoreIntegration(t *testing.T) {
-	client := requireRedisTestClient(t)
+	client := redisTestClient
 
 	store := NewOAuthStateStore(client)
 	ctx := context.Background()

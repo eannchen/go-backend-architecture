@@ -9,6 +9,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
@@ -141,7 +142,7 @@ func TestRequestContextMiddlewareEmptyKeysDisableRequestID(t *testing.T) {
 
 // TestNewRequestContextMiddlewareRejectsInvalidHeaderKey checks invalid header configuration fails before serving traffic.
 func TestNewRequestContextMiddlewareRejectsInvalidHeaderKey(t *testing.T) {
-	_, err := NewRequestContextMiddleware(Config{RequestID: RequestIDConfig{IncomingHeaderKey: "request id"}}, nil)
+	_, err := NewRequestContextMiddleware(Config{RequestID: RequestIDConfig{IncomingHeaderKey: "request id"}}, response.NewResponder())
 	if err == nil {
 		t.Fatal("NewRequestContextMiddleware() error = nil, want invalid header error")
 	}
@@ -149,7 +150,7 @@ func TestNewRequestContextMiddlewareRejectsInvalidHeaderKey(t *testing.T) {
 
 func newTestMiddleware(t *testing.T, config Config, opts ...Option) *RequestContextMiddleware {
 	t.Helper()
-	middleware, err := NewRequestContextMiddleware(config, nil, opts...)
+	middleware, err := NewRequestContextMiddleware(config, response.NewResponder(), opts...)
 	if err != nil {
 		t.Fatalf("NewRequestContextMiddleware() error = %v", err)
 	}

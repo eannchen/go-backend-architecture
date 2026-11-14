@@ -19,11 +19,8 @@ type TraceConfig struct {
 	PropagateContext bool
 }
 
-// NewTracing creates client tracing with a safe no-op default.
+// NewTracing creates client tracing using the injected tracer.
 func NewTracing(tracer appobservability.Tracer, config TraceConfig) *Tracing {
-	if tracer == nil {
-		tracer = appobservability.NoopTracer{}
-	}
 	return &Tracing{tracer: tracer, propagateTraceContext: config.PropagateContext}
 }
 
@@ -58,7 +55,7 @@ func (t *Tracing) Start(ctx context.Context, rpc rpcInfo) (context.Context, appo
 
 // Finish records the bounded transport outcome and completes the span.
 func (*Tracing) Finish(span appobservability.Span, outcome rpcOutcome) {
-	fields := appobservability.FromPairs(keyRPCResponseStatusCode, outcome.responseStatusName())
+	fields := appobservability.FromPairs(keyRPCStatusCode, outcome.responseStatusName())
 	if errorType := outcome.errorType(); errorType != "" {
 		fields[keyErrorType] = errorType
 		fields[keyApplicationRPCStatusMessage] = outcome.responseStatusMessage

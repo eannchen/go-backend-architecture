@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	googlegrpc "google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
@@ -13,6 +15,8 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/observability/grpcsemconv"
+	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
 	"github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 )
 
@@ -38,13 +42,13 @@ func TestUnaryRecordsTraceLogAndMetrics(t *testing.T) {
 	if len(log.InfoCalls) != 1 || len(log.ErrorNoStackCalls) != 0 {
 		t.Fatalf("info logs = %d, error logs = %d", len(log.InfoCalls), len(log.ErrorNoStackCalls))
 	}
-	if got := meter.counterValues("grpc_server_requests_total"); len(got) != 1 || got[0] != 1 {
+	if got := meter.counterValues("app.grpc.server.requests"); len(got) != 1 || got[0] != 1 {
 		t.Fatalf("request samples = %v", got)
 	}
-	if got := meter.counterValues("grpc_server_errors_total"); len(got) != 0 {
+	if got := meter.counterValues("app.grpc.server.errors"); len(got) != 0 {
 		t.Fatalf("error samples = %v, want none", got)
 	}
-	if got := meter.histogramCalls["grpc_server_request_duration_seconds"]; got != 1 {
+	if got := meter.histogramCalls["rpc.server.call.duration"]; got != 1 {
 		t.Fatalf("duration samples = %d, want 1", got)
 	}
 }
@@ -98,13 +102,13 @@ func TestUnaryRecordsOriginalServerFailure(t *testing.T) {
 	if len(log.ErrorNoStackCalls) != 1 || !errors.Is(log.ErrorNoStackCalls[0].Err, cause) {
 		t.Fatalf("error logs = %#v, want original cause", log.ErrorNoStackCalls)
 	}
-	if got := meter.counterValues("grpc_server_errors_total"); len(got) != 1 || got[0] != 1 {
+	if got := meter.counterValues("app.grpc.server.errors"); len(got) != 1 || got[0] != 1 {
 		t.Fatalf("error samples = %v", got)
 	}
 	if got := tracer.span.attributes[keyApplicationErrorCauseChain]; got != cause.Error() {
 		t.Fatalf("span error chain = %v, want %q", got, cause.Error())
 	}
-	if got := tracer.span.attributes[keyRPCResponseStatusCode]; got != "INTERNAL" {
+	if got := tracer.span.attributes[keyRPCStatusCode]; got != "INTERNAL" {
 		t.Fatalf("span gRPC status = %v, want INTERNAL", got)
 	}
 	if got := tracer.span.attributes[keyErrorType]; got != "INTERNAL" {
@@ -117,7 +121,7 @@ func TestUnaryRecordsOriginalServerFailure(t *testing.T) {
 		t.Fatalf("span error message = %v, want internal server error", got)
 	}
 	fields := log.ErrorNoStackCalls[0].Fields[0]
-	if fields[keyApplicationErrorCauseChain] != cause.Error() || fields[keyRPCResponseStatusCode] != "INTERNAL" {
+	if fields[keyApplicationErrorCauseChain] != cause.Error() || fields[keyRPCStatusCode] != "INTERNAL" {
 		t.Fatalf("access-log error fields = %#v", fields)
 	}
 }
@@ -152,7 +156,7 @@ func TestUnaryRecordsApplicationErrorDetailsWithoutAddingThemToMetrics(t *testin
 	if got := tracer.span.attributes[keyApplicationErrorDetails]; got != `{"field":"name"}` {
 		t.Fatalf("span error details = %v", got)
 	}
-	if got := tracer.span.attributes[keyRPCResponseStatusCode]; got != "INVALID_ARGUMENT" {
+	if got := tracer.span.attributes[keyRPCStatusCode]; got != "INVALID_ARGUMENT" {
 		t.Fatalf("span gRPC status = %v", got)
 	}
 	if got := tracer.span.attributes[keyApplicationErrorCode]; got != string(apperr.CodeInvalidArgument) {
@@ -168,11 +172,11 @@ func TestUnaryRecordsApplicationErrorDetailsWithoutAddingThemToMetrics(t *testin
 		t.Fatalf("info logs = %d, error logs = %d", len(log.InfoCalls), len(log.ErrorNoStackCalls))
 	}
 	fields := log.InfoCalls[0].Fields[0]
-	if fields[keyApplicationErrorDetails] != `{"field":"name"}` || fields[keyApplicationErrorCode] != string(apperr.CodeInvalidArgument) || fields[keyRPCResponseStatusCode] != "INVALID_ARGUMENT" {
+	if fields[keyApplicationErrorDetails] != `{"field":"name"}` || fields[keyApplicationErrorCode] != string(apperr.CodeInvalidArgument) || fields[keyRPCStatusCode] != "INVALID_ARGUMENT" {
 		t.Fatalf("access-log error fields = %#v", fields)
 	}
-	for _, sample := range meter.counters["grpc_server_errors_total"] {
-		if sample.fields[keyRPCResponseStatusCode] != "INVALID_ARGUMENT" {
+	for _, sample := range meter.counters["app.grpc.server.errors"] {
+		if sample.fields[keyRPCStatusCode] != "INVALID_ARGUMENT" {
 			t.Fatalf("error metric gRPC status = %#v", sample.fields)
 		}
 		if _, exists := sample.fields[keyApplicationErrorDetails]; exists {
@@ -190,7 +194,7 @@ func TestStreamWrapsContextAndTracksActiveStream(t *testing.T) {
 	meter := newRecordingMeter()
 	base := observabilityServerStream{ctx: context.Background()}
 
-	err := New(tracer, nil, meter).Stream()(nil, base, &googlegrpc.StreamServerInfo{
+	err := New(tracer, logger.NoopLogger{}, meter).Stream()(nil, base, &googlegrpc.StreamServerInfo{
 		FullMethod:     "/grpc.health.v1.Health/Watch",
 		IsServerStream: true,
 	}, func(_ any, stream googlegrpc.ServerStream) error {
@@ -199,7 +203,7 @@ func TestStreamWrapsContextAndTracksActiveStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("interceptor error = %v", err)
 	}
-	if got := meter.upDownValues("grpc_server_active_streams"); len(got) != 2 || got[0] != 1 || got[1] != -1 {
+	if got := meter.upDownValues("app.grpc.server.active_streams"); len(got) != 2 || got[0] != 1 || got[1] != -1 {
 		t.Fatalf("active stream samples = %v, want [1 -1]", got)
 	}
 }
@@ -309,3 +313,36 @@ func (observabilityServerStream) SetTrailer(metadata.MD)       {}
 func (s observabilityServerStream) Context() context.Context   { return s.ctx }
 func (observabilityServerStream) SendMsg(any) error            { return nil }
 func (observabilityServerStream) RecvMsg(any) error            { return nil }
+
+// TestRPCDurationMetricAttributes protects standard duration labels and keeps
+// client-caused failures distinct from server failures in error.type.
+func TestRPCDurationMetricAttributes(t *testing.T) {
+	for _, code := range []codes.Code{codes.OK, codes.InvalidArgument, codes.Internal} {
+		t.Run(code.String(), func(t *testing.T) {
+			meter := observabilitytest.NewRecordingMeter()
+			NewRequestMetrics(meter).Record(t.Context(), rpcOutcome{
+				rpc:      newRPCInfo("/example.Service/Call", "unary"),
+				duration: time.Second, responseStatusCode: code,
+			})
+			samples := meter.HistogramSamples("rpc.server.call.duration")
+			if len(samples) != 1 || samples[0].Value != 1 {
+				t.Fatalf("duration=%v", samples)
+			}
+			fields := samples[0].Fields
+			if fields[keyRPCStatusCode] != grpcsemconv.StatusName(code) || fields[keyRPCSystemName] != "grpc" {
+				t.Fatalf("attributes=%v", fields)
+			}
+			if _, exists := fields["rpc.response.status_code"]; exists {
+				t.Fatal("duration uses legacy status attribute")
+			}
+			wantError := grpcsemconv.ServerErrorType(code)
+			if wantError == "" {
+				if _, exists := fields[keyErrorType]; exists {
+					t.Fatal("unexpected server failure")
+				}
+			} else if fields[keyErrorType] != wantError {
+				t.Fatalf("error.type=%v", fields[keyErrorType])
+			}
+		})
+	}
+}

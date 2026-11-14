@@ -14,7 +14,7 @@ import (
 
 // TestSessionStoreIntegration checks session creation, lookup, and deletion against real Redis storage.
 func TestSessionStoreIntegration(t *testing.T) {
-	client := requireRedisTestClient(t)
+	client := redisTestClient
 
 	store := NewSessionStore(client)
 	ctx := context.Background()

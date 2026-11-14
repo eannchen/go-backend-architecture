@@ -1,4 +1,4 @@
-package requestcontext
+package contextmw
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
@@ -132,7 +133,7 @@ func TestUnaryRejectsInvalidRequestIDWhenConfigured(t *testing.T) {
 
 // TestNewRejectsInvalidMetadataKey checks invalid metadata keys fail during construction rather than at request time.
 func TestNewRejectsInvalidMetadataKey(t *testing.T) {
-	_, err := New(Config{RequestID: RequestIDConfig{IncomingMetadataKey: "request id"}}, nil)
+	_, err := New(Config{RequestID: RequestIDConfig{IncomingMetadataKey: "request id"}}, response.NewResponder())
 	if err == nil {
 		t.Fatal("New() error = nil, want invalid metadata key error")
 	}
@@ -207,7 +208,7 @@ func conventionalConfig(timeout time.Duration) Config {
 
 func newTestInterceptor(t *testing.T, config Config) *Interceptor {
 	t.Helper()
-	interceptor, err := New(config, nil)
+	interceptor, err := New(config, response.NewResponder())
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

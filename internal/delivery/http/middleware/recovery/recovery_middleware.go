@@ -20,12 +20,6 @@ type Middleware struct {
 }
 
 func New(log logger.Logger, responder httpresponse.Responder) *Middleware {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
-	if responder == nil {
-		responder = httpresponse.NewResponder()
-	}
 	return &Middleware{log: log, responder: responder}
 }
 

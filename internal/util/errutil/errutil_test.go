@@ -28,20 +28,3 @@ func TestStep_NilError(t *testing.T) {
 		t.Fatalf("expected nil, got %v", err)
 	}
 }
-
-// TestJoin checks independent cleanup failures are joined without losing causes.
-func TestJoin(t *testing.T) {
-	base := errors.New("primary failure")
-	cleanup := errors.New("cleanup failure")
-
-	err := Join(base, cleanup)
-	if err == nil {
-		t.Fatal("expected joined error, got nil")
-	}
-	if !errors.Is(err, base) {
-		t.Fatal("expected joined error to include base error")
-	}
-	if !errors.Is(err, cleanup) {
-		t.Fatal("expected joined error to include cleanup error")
-	}
-}

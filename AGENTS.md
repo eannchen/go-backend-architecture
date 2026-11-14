@@ -4,6 +4,11 @@ Modular Go backend organized with Clean Architecture. Keep business decisions in
 
 The codebase may contain any combination of capabilities. Apply capability-specific rules only when the related source or contract is present, or when the requested change adds that capability. Do not restore a removed capability merely to follow an inapplicable rule.
 
+# Communication
+
+- Use plain language and established technical terms in chat, code comments, and documentation. Prefer names already used in the project. Briefly explain unfamiliar terms instead of inventing terminology.
+- Use one term per concept throughout a conversation and its related changes. Distinguish components with different responsibilities. Repeat names when pronouns would be ambiguous.
+
 # Architecture and dependencies
 
 ```text
@@ -20,22 +25,23 @@ app -> all layers (composition only)
 - **repository** owns outbound capability contracts required by usecases, including persistence, external providers, and replaceable infrastructure-backed operations. Contracts may use domain types but must not expose driver, framework, or vendor types.
 - **shared technical contracts** live in purpose-specific packages such as `internal/logger`, `internal/observability`, and, when required, `internal/security`. They remain outside repository because they provide project-wide facilities rather than capabilities requested by a usecase.
 - **infra** implements repository and shared technical contracts using databases, caches, external services, and third-party libraries. It maps infrastructure-specific types at the boundary.
-- **delivery** owns inbound adapters. Current adapters validate HTTP requests and gRPC calls, invoke usecases, and map outcomes to transport responses. Delivery contains no persistence logic or business policy.
+- **delivery** owns inbound adapters for the transports present, including HTTP, gRPC, and Kafka. Adapters validate transport input, invoke usecases, and map outcomes to responses or message decisions. Delivery contains no persistence logic or business policy.
 - **app** is the composition root. Only app chooses concrete implementations and wires dependencies across layers.
 
 Do not bypass a layer to call another layer's implementation.
 
 # Feature placement and naming
 
-Create only the paths a feature requires: add domain for reusable business rules, repository and infra for outbound capabilities, and a delivery adapter only when the feature is exposed through it. Wire each present adapter in its matching composition files: HTTP in `internal/app/httpapi/httpapi_*_wiring.go` and gRPC in `internal/app/grpcapi/grpcapi_*_wiring.go`.
+Create only the paths a feature requires. Add a domain package for reusable business rules, a repository contract and infra implementation for an outbound capability, and a delivery adapter for incoming requests or messages. Wire each adapter in its matching `internal/app/<executable>/<executable>_*_wiring.go` files.
 
 ```text
-internal/domain/<concept>/                         # only when shared business meaning exists
+internal/domain/<concept>/                           # only when shared business meaning exists
 internal/usecase/<feature>/
 internal/repository/<area>/<feature>_repository.go
 internal/infra/<area>/<backend>/store/<feature>_store.go
 internal/delivery/http/handler/<feature>/             # when HTTP is present
 internal/delivery/grpc/service/<feature>/             # when gRPC is present
+internal/delivery/kafka/handler/<feature>/             # when Kafka is present
 ```
 
 - Store implementations live under backend-specific paths such as `db/postgres/store`, `cache/redis/store`, and `kvstore/redis/store`.
@@ -55,6 +61,8 @@ internal/delivery/grpc/service/<feature>/             # when gRPC is present
 - Generated OpenAPI or Protobuf types remain in their respective delivery adapters and must not appear in usecase, domain, or repository APIs.
 - Keep primitive types aligned with schema intent, such as PostgreSQL `BIGINT` to Go `int64`. Map driver-specific types inside infra.
 - Configuration is typed, validated during startup, and injected. Do not read environment variables throughout business or delivery code.
+- Validate external input where it enters the application, then rely on validated values and declared contracts. Repeat validation only at an independently callable entry point or for a documented failure condition.
+- Treat injected dependencies as required unless documented otherwise. Pass explicit no-op implementations to disable logging or telemetry. Validate dependencies at construction only when needed; do not repeat nil checks in operations.
 
 # Input and business validation
 
@@ -68,6 +76,7 @@ internal/delivery/grpc/service/<feature>/             # when gRPC is present
 - Accept `context.Context` as the first parameter of operations that perform I/O or may block. Propagate it to downstream calls and do not store it in structs.
 - Do not replace an incoming context with `context.Background()`. Use a new root context only for independently owned application lifecycle work, and give cleanup work an explicit timeout.
 - Preserve cancellation and deadline errors through wrapping so the transport responder can map them correctly.
+- Let the operation owner define how normal cancellation is reported. Callers follow that contract. Add cancellation or deadline scopes where the layer owns the operation's lifetime.
 - Bound outbound network calls with deadlines at the client or application boundary.
 - Retry only documented transient failures. Use bounded attempts and backoff, stop when the context ends, and do not retry non-idempotent operations without an idempotency design.
 - Do not start a goroutine without defined ownership, cancellation, panic handling where needed, and a way to wait for completion.
@@ -92,22 +101,24 @@ internal/delivery/grpc/service/<feature>/             # when gRPC is present
 - Do not discard errors silently. Return them with useful context, convert them to the current layer's error type, or log and continue when the failure is non-fatal. If an error is intentionally ignored, comment why that is safe.
 - Infra returns failures with details about the failed operation and preserves the cause with `%w`. Usecases convert dependency failures to `apperr`; each delivery adapter performs its final error mapping.
 - Define stable sentinel errors in the appropriate repository area. Inspect errors with `errors.Is` or `errors.As`, never string matching.
+- Prefer `%w` and `errors.Join` for error propagation. Add custom error types, retries, fallbacks, or panic recovery only for behavior required by a caller or an identified failure scenario.
 - Do not panic while handling an HTTP request, gRPC call, broker message, or background job. Reserve panics for unrecoverable programmer errors during startup or invariant violations that cannot be returned.
 - Log an unexpected failure once at the layer that owns the handling decision. Do not log it again in delivery after a responder has handled it.
 - When an optional dependency fails and processing continues without it or through another dependency, log a warning naming the failed dependency, affected operation, and how processing continued.
 - Never log credentials, session tokens, OTPs, authorization metadata, cookies, private keys, or unredacted sensitive payloads.
 - Authentication establishes caller identity at the delivery boundary; usecases enforce business authorization. Missing or ambiguous identity must fail closed where identity is required.
 - Add structured log fields with `logger.Fields` instead of embedding values in message strings.
-- Only packages under `internal/infra/observability` may import OpenTelemetry; other packages use the contracts in `internal/observability`.
+- Only production code under `internal/infra/observability` may import OpenTelemetry; other production packages use `internal/observability`. Tests may use the SDK to verify telemetry.
 - Metric attributes must be bounded. Put concrete paths, raw errors, IDs, and detailed diagnostics in traces or logs rather than metric dimensions.
 - Add spans around meaningful I/O or expensive work, not every small function. Preserve trace context across supported internal calls and messages.
 
 # Testing
 
 - Test behavior at the layer that owns it. Keep the subject real and replace only dependencies outside that test's scope.
-- Usecase tests replace repositories and assert business rules and error mapping. Delivery tests replace usecases and assert adapter-specific input handling, state changes, and outputs.
+- Usecase unit tests replace repositories and assert business rules and error mapping. Delivery unit tests replace usecases and assert adapter-specific input handling, state changes, and outputs.
 - Add regression coverage in the package where a defect originated: persistence behavior in the adapter test, response behavior in delivery, and business behavior in the usecase or domain test.
-- Keep unit tests beside their source. Name integration files `<subject>_integration_test.go` and guard them with the `integration` build tag.
+- Keep unit tests beside their source. Name test files by replacing the source file’s `.go` suffix with `_test.go` or `_integration_test.go`. Workflow tests name the feature or workflow; shared setup files name the fixture. Guard integration tests with the `integration` build tag. Move or remove tests with the code they verify.
+- Keep backend integration tests in the infra adapter package and transport workflow integration tests in `internal/delivery/<transport>/integration`. App tests own composition and lifecycle assertions. Reusable backend fixtures belong to the subsystem's test support package.
 - Use table-driven tests when cases share one arrange/act/assert flow. Keep stateful and multi-step workflows explicit.
 - For every new or substantively changed test function, add a short comment stating the behavior it protects and why it matters. Explain non-obvious setup or assertions where needed; do not narrate routine code.
 - Add one canonical configurable double under the contract owner's `xxxtest` package when first needed. Use `<Method>Func` for behavior and `<Method>Calls` for observations; unconfigured calls panic.
@@ -155,6 +166,6 @@ These rules apply only to HTTP response DTOs serialized as JSON, including gener
 - A README starts with the component's purpose, then documents responsibilities, boundaries, and extension guidance. Add security, lifecycle, generation, or verification details only when relevant.
 - Keep documentation concise, concrete, and unambiguous; omit unnecessary detail. Keep rules that apply across multiple subsystems, such as dependency direction, testing, error handling, and naming, in `AGENTS.md` instead of repeating them in subsystem READMEs. Update documentation when behavior, ownership, or extension steps change.
 - Match scope to intent. For normal feature work, refactor touched code when its current design obstructs a clean implementation. For an explicitly requested hotfix, prefer the smallest correct change.
-- Extend existing patterns when they fit; introduce a new pattern only when the repository has no suitable seam.
+- Extend existing patterns when they fit; introduce a new pattern only when the existing code has no suitable extension point.
 - Comment non-obvious reasons, business rules, concurrency, tradeoffs, and complex or low-level mechanisms. Describing what the code does is appropriate when the implementation is difficult to follow; do not paraphrase straightforward code.
 - Prefer idiomatic Go and straightforward control flow. Avoid redundant passes over data unless the separation materially improves clarity.

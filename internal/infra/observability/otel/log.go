@@ -8,14 +8,13 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 
 	otellog "go.opentelemetry.io/otel/log"
-	sdklog "go.opentelemetry.io/otel/sdk/log"
 )
 
 type otelLogEmitter struct {
 	logger otellog.Logger
 }
 
-func NewOtelLogEmitter(loggerProvider *sdklog.LoggerProvider, serviceName string) observability.LogEmitter {
+func NewOtelLogEmitter(loggerProvider otellog.LoggerProvider, serviceName string) observability.LogEmitter {
 	return &otelLogEmitter{
 		logger: loggerProvider.Logger(logScopeName(serviceName)),
 	}

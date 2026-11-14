@@ -12,6 +12,7 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 )
@@ -24,7 +25,7 @@ func TestMiddlewareRecoversPanicWithStandardInternalResponse(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	err := New(log, nil).Handler()(func(*echo.Context) error {
+	err := New(log, response.NewResponder()).Handler()(func(*echo.Context) error {
 		panic("database password")
 	})(c)
 	if err != nil {
@@ -60,7 +61,7 @@ func TestMiddlewarePreservesPanicErrorCause(t *testing.T) {
 	e := echo.New()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/panic", nil), httptest.NewRecorder())
 
-	if err := New(nil, nil).Handler()(func(*echo.Context) error {
+	if err := New(logger.NoopLogger{}, response.NewResponder()).Handler()(func(*echo.Context) error {
 		panic(cause)
 	})(c); err != nil {
 		t.Fatalf("middleware error = %v", err)
@@ -79,7 +80,7 @@ func TestMiddlewareDoesNotOverwriteCommittedResponse(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	err := New(log, nil).Handler()(func(c *echo.Context) error {
+	err := New(log, response.NewResponder()).Handler()(func(c *echo.Context) error {
 		if writeErr := c.String(http.StatusOK, "partial"); writeErr != nil {
 			return writeErr
 		}
@@ -102,7 +103,7 @@ func TestMiddlewareDoesNotOverwriteCommittedResponse(t *testing.T) {
 func TestMiddlewarePreservesAbortHandlerPanic(t *testing.T) {
 	e := echo.New()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/abort", nil), httptest.NewRecorder())
-	handler := New(nil, nil).Handler()(func(*echo.Context) error {
+	handler := New(logger.NoopLogger{}, response.NewResponder()).Handler()(func(*echo.Context) error {
 		panic(http.ErrAbortHandler)
 	})
 
@@ -120,7 +121,7 @@ func TestMiddlewareReturnsOrdinaryHandlerErrorUnchanged(t *testing.T) {
 	e := echo.New()
 	c := e.NewContext(httptest.NewRequest(http.MethodGet, "/error", nil), httptest.NewRecorder())
 
-	err := New(nil, nil).Handler()(func(*echo.Context) error { return handlerErr })(c)
+	err := New(logger.NoopLogger{}, response.NewResponder()).Handler()(func(*echo.Context) error { return handlerErr })(c)
 	if err != handlerErr {
 		t.Fatalf("error = %v, want unchanged handler error", err)
 	}

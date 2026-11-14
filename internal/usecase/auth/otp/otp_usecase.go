@@ -58,15 +58,7 @@ func NewOTPAuthenticator(
 	userRepo repodb.UserRepository,
 	cfg OTPConfig,
 ) OTPAuthenticator {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
-	if meter == nil {
-		meter = observability.NoopMeter{}
-	}
+
 	if cfg.CodeLength <= 0 {
 		cfg.CodeLength = 6
 	}
@@ -81,10 +73,10 @@ func NewOTPAuthenticator(
 		userRepo:    userRepo,
 		codeLength:  cfg.CodeLength,
 		ttl:         cfg.TTL,
-		sendTotal: meter.Counter("auth_otp_send_total",
+		sendTotal: meter.Counter("app.auth.otp.sends",
 			observability.MetricOption{Description: "OTP send attempts by outcome.", Unit: "{attempt}"},
 		),
-		verifyTotal: meter.Counter("auth_otp_verify_total",
+		verifyTotal: meter.Counter("app.auth.otp.verifications",
 			observability.MetricOption{Description: "OTP verify attempts by outcome.", Unit: "{attempt}"},
 		),
 	}
