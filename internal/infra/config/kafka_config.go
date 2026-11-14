@@ -42,6 +42,82 @@ type KafkaSASLConfig struct {
 	Password  string
 }
 
+// KafkaWorkerFailurePolicy chooses how one worker's exit affects its siblings.
+type KafkaWorkerFailurePolicy string
+
+const (
+	KafkaWorkersStopAll     KafkaWorkerFailurePolicy = "stop-all"
+	KafkaWorkersIndependent KafkaWorkerFailurePolicy = "independent"
+)
+
+// KafkaWorkerRoutesConfig binds example workflows to configurable topic names.
+// Each nonempty binding becomes a subscription. Empty disables that workflow.
+type KafkaWorkerRoutesConfig struct {
+	NotificationTopic string
+	ActivityTopic     string
+}
+
+// kafkaWorkflow is the single list entry used by both consumer styles.
+// Add a workflow's binding and default groups here when extending the template.
+type kafkaWorkflow struct {
+	prefix            string
+	topic             string
+	defaultGroup      string
+	defaultShareGroup string
+}
+
+func loadKafkaWorkerRoutes() (KafkaWorkerRoutesConfig, error) {
+	cfg := KafkaWorkerRoutesConfig{
+		NotificationTopic: strings.TrimSpace(getEnv("KAFKA_NOTIFICATION_TOPIC", "notifications.requested.v1")),
+		ActivityTopic:     strings.TrimSpace(getEnv("KAFKA_ACTIVITY_TOPIC", "activities.recorded.v1")),
+	}
+	topics := cfg.Topics()
+	if err := validateKafkaTopics(topics); err != nil {
+		return cfg, fmt.Errorf("Kafka worker topic bindings (KAFKA_NOTIFICATION_TOPIC and KAFKA_ACTIVITY_TOPIC): %w", err)
+	}
+
+	return cfg, nil
+}
+
+func (cfg KafkaWorkerRoutesConfig) workflows() []kafkaWorkflow {
+	return []kafkaWorkflow{
+		{
+			prefix:            "KAFKA_NOTIFICATION_",
+			topic:             cfg.NotificationTopic,
+			defaultGroup:      "notification-sender-v1",
+			defaultShareGroup: "shared-workers-v1",
+		},
+		{
+			prefix:            "KAFKA_ACTIVITY_",
+			topic:             cfg.ActivityTopic,
+			defaultGroup:      "activity-workers-v1",
+			defaultShareGroup: "activity-share-workers-v1",
+		},
+	}
+}
+
+// Topics derives subscriptions from enabled workflows.
+func (cfg KafkaWorkerRoutesConfig) Topics() []string {
+	workflows := cfg.workflows()
+	topics := make([]string, 0, len(workflows))
+	for _, workflow := range workflows {
+		if workflow.topic != "" {
+			topics = append(topics, workflow.topic)
+		}
+	}
+	return topics
+}
+
+func loadKafkaWorkerFailurePolicy() (KafkaWorkerFailurePolicy, error) {
+	policy := KafkaWorkerFailurePolicy(strings.TrimSpace(getEnv("KAFKA_WORKER_FAILURE_POLICY", string(KafkaWorkersStopAll))))
+	switch policy {
+	case KafkaWorkersStopAll, KafkaWorkersIndependent:
+		return policy, nil
+	default:
+		return "", fmt.Errorf("KAFKA_WORKER_FAILURE_POLICY must be stop-all or independent")
+	}
+}
+
 // loadKafkaSecurity reads one connection's settings from its environment prefix.
 func loadKafkaSecurity(prefix string) (KafkaSecurityConfig, error) {
 	enabled, err := strconv.ParseBool(strings.TrimSpace(getEnv(prefix+"TLS_ENABLED", "false")))
@@ -64,6 +140,29 @@ func loadKafkaSecurity(prefix string) (KafkaSecurityConfig, error) {
 		},
 	}
 	return cfg, cfg.validate(prefix)
+}
+
+// A typo such as "ten seconds" must fail startup instead of using a default.
+// Durations use Go notation, e.g. "500ms", "10s", or "1m".
+func kafkaDuration(key, fallback string) (time.Duration, error) {
+	value, err := time.ParseDuration(strings.TrimSpace(getEnv(key, fallback)))
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a duration: %w", key, err)
+	}
+	return value, nil
+}
+
+// Worker deadlines must be positive. Client-specific duration bounds are checked
+// by their own config validation after parsing.
+func kafkaPositiveDuration(key, fallback string) (time.Duration, error) {
+	value, err := kafkaDuration(key, fallback)
+	if err != nil {
+		return 0, err
+	}
+	if value <= 0 {
+		return 0, fmt.Errorf("%s must be a positive duration", key)
+	}
+	return value, nil
 }
 
 func (cfg KafkaSecurityConfig) Validate() error {
@@ -90,55 +189,6 @@ func (cfg KafkaSecurityConfig) validate(prefix string) error {
 		return fmt.Errorf("%sSASL_MECHANISM must be none, plain, scram-sha-256, or scram-sha-512", prefix)
 	}
 	return nil
-}
-
-// KafkaWorkerFailurePolicy chooses how one worker's exit affects its siblings.
-type KafkaWorkerFailurePolicy string
-
-const (
-	KafkaWorkersStopAll     KafkaWorkerFailurePolicy = "stop-all"
-	KafkaWorkersIndependent KafkaWorkerFailurePolicy = "independent"
-)
-
-func loadKafkaWorkerFailurePolicy() (KafkaWorkerFailurePolicy, error) {
-	policy := KafkaWorkerFailurePolicy(strings.TrimSpace(getEnv("KAFKA_WORKER_FAILURE_POLICY", string(KafkaWorkersStopAll))))
-	switch policy {
-	case KafkaWorkersStopAll, KafkaWorkersIndependent:
-		return policy, nil
-	default:
-		return "", fmt.Errorf("KAFKA_WORKER_FAILURE_POLICY must be stop-all or independent")
-	}
-}
-
-// KafkaWorkerRoutesConfig binds example workflows to configurable topic names.
-// Each nonempty binding becomes a subscription. Empty disables that workflow.
-type KafkaWorkerRoutesConfig struct {
-	NotificationTopic string
-	ActivityTopic     string
-}
-
-func loadKafkaWorkerRoutes() (KafkaWorkerRoutesConfig, error) {
-	cfg := KafkaWorkerRoutesConfig{
-		NotificationTopic: strings.TrimSpace(getEnv("KAFKA_NOTIFICATION_TOPIC", "notifications.requested.v1")),
-		ActivityTopic:     strings.TrimSpace(getEnv("KAFKA_ACTIVITY_TOPIC", "activities.recorded.v1")),
-	}
-	topics := cfg.Topics()
-	if err := validateKafkaTopics(topics); err != nil {
-		return cfg, fmt.Errorf("Kafka worker topic bindings (KAFKA_NOTIFICATION_TOPIC and KAFKA_ACTIVITY_TOPIC): %w", err)
-	}
-
-	return cfg, nil
-}
-
-// Topics derives subscriptions from enabled workflows.
-func (cfg KafkaWorkerRoutesConfig) Topics() []string {
-	topics := make([]string, 0, 2)
-	for _, topic := range []string{cfg.NotificationTopic, cfg.ActivityTopic} {
-		if topic != "" {
-			topics = append(topics, topic)
-		}
-	}
-	return topics
 }
 
 func validateKafkaSubscription(brokers, topics []string) error {
@@ -186,19 +236,19 @@ func validateKafkaConnection(brokers []string, topic string) error {
 	return nil
 }
 
-// Fail visibly on removed settings instead of accepting tuning that has no effect.
-func rejectKafkaSetting(key, explanation string) error {
-	if _, exists := os.LookupEnv(key); exists {
-		return fmt.Errorf("%s is no longer supported: %s", key, explanation)
-	}
-	return nil
-}
-
 // Bound network overhead before SDK construction so startup errors identify the
 // setting. This is separate from broker-side waits and overall caller deadlines.
 func validateKafkaRequestTimeout(timeout time.Duration) error {
 	if timeout < 100*time.Millisecond || timeout > 15*time.Minute {
 		return fmt.Errorf("KAFKA_REQUEST_TIMEOUT must be between 100ms and 15m")
+	}
+	return nil
+}
+
+// Fail visibly on removed settings instead of accepting tuning that has no effect.
+func rejectKafkaSetting(key, explanation string) error {
+	if _, exists := os.LookupEnv(key); exists {
+		return fmt.Errorf("%s is no longer supported: %s", key, explanation)
 	}
 	return nil
 }

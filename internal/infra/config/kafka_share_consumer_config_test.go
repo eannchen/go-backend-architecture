@@ -23,7 +23,7 @@ func TestKafkaShareConsumerDefaults(t *testing.T) {
 	t.Setenv("KAFKA_REQUIRED_ACKS", "invalid")
 	t.Setenv("KAFKA_NOTIFICATION_REQUEST_TIMEOUT", "invalid")
 	t.Setenv("DB_URL", "")
-	cfg, err := loadKafkaShareConsumer([]string{"notifications.requested.v1"}, "KAFKA_NOTIFICATION_", "shared-workers-v1")
+	cfg, err := loadKafkaShareConsumer([]string{"notifications.requested.v1"}, "KAFKA_NOTIFICATION_", "shared-workers-v1", 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestKafkaShareConsumerOverrides(t *testing.T) {
 	t.Setenv("KAFKA_NOTIFICATION_SHARE_FETCH_MAX_BYTES", "2000000")
 	t.Setenv("KAFKA_NOTIFICATION_SHARE_FETCH_MAX_WAIT", "1s")
 	t.Setenv("KAFKA_NOTIFICATION_SHARE_REQUEST_TIMEOUT", "2s")
-	cfg, err := loadKafkaShareConsumer([]string{"jobs.v1"}, "KAFKA_NOTIFICATION_", "shared-workers-v1")
+	cfg, err := loadKafkaShareConsumer([]string{"jobs.v1"}, "KAFKA_NOTIFICATION_", "shared-workers-v1", 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestKafkaShareConsumerValidation(t *testing.T) {
 		t.Run(tc.key+"="+tc.value, func(t *testing.T) {
 			setShareConsumerEnv(t)
 			t.Setenv(tc.key, tc.value)
-			if _, err := loadKafkaShareConsumer([]string{"jobs.v1"}, "KAFKA_NOTIFICATION_", "shared-workers-v1"); err == nil || !strings.Contains(err.Error(), tc.key) {
+			if _, err := loadKafkaShareConsumer([]string{"jobs.v1"}, "KAFKA_NOTIFICATION_", "shared-workers-v1", 100); err == nil || !strings.Contains(err.Error(), tc.key) {
 				t.Fatalf("error=%v want %s", err, tc.key)
 			}
 		})

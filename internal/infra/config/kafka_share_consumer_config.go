@@ -8,6 +8,28 @@ import (
 	"time"
 )
 
+// KafkaShareWorkerConfig reuses runtime settings, but opens only resources used
+// by this process. Pool settings belong to the worker, not the Kafka client.
+type KafkaShareWorkerConfig struct {
+	RuntimeConfig
+	FailurePolicy KafkaWorkerFailurePolicy
+	Routes        KafkaWorkerRoutesConfig
+	// Each entry owns one reader and one bounded handler pool.
+	Readers []KafkaShareWorkerReaderConfig
+}
+
+// KafkaShareWorkerReaderConfig keeps acquisition and processing limits together.
+type KafkaShareWorkerReaderConfig struct {
+	Kafka KafkaShareConsumerConfig
+	// Maximum simultaneous record handlers in this process.
+	Concurrency int
+	// Each attempt gets this much time, unless its Kafka lock expires sooner.
+	HandlingTimeout time.Duration
+	// Finish this much before the SDK's estimated lock deadline. This leaves
+	// network time for Kafka to confirm outcomes; it does not extend the lock.
+	AcknowledgmentMargin time.Duration
+}
+
 // KafkaShareConsumerConfig is for Kafka Share Groups, where several consumers
 // can handle different records from the same partition at the same time.
 // These are our configuration types; they do not depend on franz-go.
@@ -39,8 +61,63 @@ type KafkaShareConsumerConfig struct {
 	// Initial position and record-lock duration are configured on the Kafka group.
 }
 
+func LoadKafkaShareWorker() (KafkaShareWorkerConfig, error) {
+	runtime, err := LoadRuntime()
+	if err != nil {
+		return KafkaShareWorkerConfig{}, err
+	}
+	routes, err := loadKafkaWorkerRoutes()
+	if err != nil {
+		return KafkaShareWorkerConfig{}, err
+	}
+	policy, err := loadKafkaWorkerFailurePolicy()
+	if err != nil {
+		return KafkaShareWorkerConfig{}, err
+	}
+	cfg := KafkaShareWorkerConfig{RuntimeConfig: runtime, Routes: routes, FailurePolicy: policy}
+	for _, workflow := range routes.workflows() {
+		if workflow.topic == "" {
+			continue
+		}
+		reader, err := loadKafkaShareWorkerReader(workflow)
+		if err != nil {
+			return KafkaShareWorkerConfig{}, err
+		}
+		cfg.Readers = append(cfg.Readers, reader)
+	}
+	return cfg, nil
+}
+
+// loadKafkaShareWorkerReader loads the pool first so the default acquisition
+// batch fits its capacity. An explicit batch size is parsed only once.
+func loadKafkaShareWorkerReader(workflow kafkaWorkflow) (KafkaShareWorkerReaderConfig, error) {
+	key := workflow.prefix + "SHARE_WORKER_CONCURRENCY"
+	concurrency, err := strconv.Atoi(strings.TrimSpace(getEnv(key, "4")))
+	if err != nil || concurrency < 1 || concurrency > 1000 {
+		return KafkaShareWorkerReaderConfig{}, fmt.Errorf("%s must be between 1 and 1000", key)
+	}
+	kafka, err := loadKafkaShareConsumer([]string{workflow.topic}, workflow.prefix, workflow.defaultShareGroup, concurrency)
+	if err != nil {
+		return KafkaShareWorkerReaderConfig{}, err
+	}
+	timeout, err := kafkaPositiveDuration(workflow.prefix+"SHARE_HANDLING_TIMEOUT", "10s")
+	if err != nil {
+		return KafkaShareWorkerReaderConfig{}, err
+	}
+	margin, err := kafkaPositiveDuration(workflow.prefix+"SHARE_ACKNOWLEDGMENT_MARGIN", "3s")
+	if err != nil {
+		return KafkaShareWorkerReaderConfig{}, err
+	}
+	return KafkaShareWorkerReaderConfig{
+		Kafka:                kafka,
+		Concurrency:          concurrency,
+		HandlingTimeout:      timeout,
+		AcknowledgmentMargin: margin,
+	}, nil
+}
+
 // loadKafkaShareConsumer loads client settings using the share worker's derived subscriptions.
-func loadKafkaShareConsumer(topics []string, prefix, defaultGroup string) (KafkaShareConsumerConfig, error) {
+func loadKafkaShareConsumer(topics []string, prefix, defaultGroup string, defaultMaxPollRecords int) (KafkaShareConsumerConfig, error) {
 	security, err := loadKafkaSecurity(prefix)
 	if err != nil {
 		return KafkaShareConsumerConfig{}, err
@@ -55,7 +132,7 @@ func loadKafkaShareConsumer(topics []string, prefix, defaultGroup string) (Kafka
 		key, fallback string
 		target        *int
 	}{
-		{prefix + "SHARE_MAX_POLL_RECORDS", "100", &cfg.MaxPollRecords},
+		{prefix + "SHARE_MAX_POLL_RECORDS", strconv.Itoa(defaultMaxPollRecords), &cfg.MaxPollRecords},
 		{prefix + "SHARE_FETCH_MIN_BYTES", "1", &cfg.FetchMinBytes},
 		{prefix + "SHARE_FETCH_MAX_BYTES", "1000000", &cfg.FetchMaxBytes},
 	} {
@@ -72,9 +149,9 @@ func loadKafkaShareConsumer(topics []string, prefix, defaultGroup string) (Kafka
 		{prefix + "SHARE_FETCH_MAX_WAIT", "500ms", &cfg.FetchMaxWait},
 		{prefix + "SHARE_REQUEST_TIMEOUT", "10s", &cfg.RequestTimeout},
 	} {
-		value, err := time.ParseDuration(strings.TrimSpace(getEnv(s.key, s.fallback)))
+		value, err := kafkaDuration(s.key, s.fallback)
 		if err != nil {
-			return KafkaShareConsumerConfig{}, fmt.Errorf("%s must be a duration: %w", s.key, err)
+			return KafkaShareConsumerConfig{}, err
 		}
 		*s.target = value
 	}
@@ -116,88 +193,4 @@ func (cfg KafkaShareConsumerConfig) validate(prefix string) error {
 		return fmt.Errorf("%sSHARE_REQUEST_TIMEOUT must be between 100ms and 15m", prefix)
 	}
 	return nil
-}
-
-// KafkaShareWorkerConfig reuses runtime settings, but opens only resources used
-// by this process. Pool settings belong to the worker, not the Kafka client.
-type KafkaShareWorkerConfig struct {
-	RuntimeConfig
-	FailurePolicy KafkaWorkerFailurePolicy
-	Routes        KafkaWorkerRoutesConfig
-	// Each entry owns one reader and one bounded handler pool.
-	Readers []KafkaShareWorkerReaderConfig
-}
-
-// KafkaShareWorkerReaderConfig keeps acquisition and processing limits together.
-type KafkaShareWorkerReaderConfig struct {
-	Kafka KafkaShareConsumerConfig
-	// Maximum simultaneous record handlers in this process.
-	Concurrency int
-	// Each attempt gets this much time, unless its Kafka lock expires sooner.
-	HandlingTimeout time.Duration
-	// Finish this much before the SDK's estimated lock deadline. This leaves
-	// network time for Kafka to confirm outcomes; it does not extend the lock.
-	AcknowledgmentMargin time.Duration
-}
-
-func LoadKafkaShareWorker() (KafkaShareWorkerConfig, error) {
-	runtime, err := LoadRuntime()
-	if err != nil {
-		return KafkaShareWorkerConfig{}, err
-	}
-	routes, err := loadKafkaWorkerRoutes()
-	if err != nil {
-		return KafkaShareWorkerConfig{}, err
-	}
-	policy, err := loadKafkaWorkerFailurePolicy()
-	if err != nil {
-		return KafkaShareWorkerConfig{}, err
-	}
-	cfg := KafkaShareWorkerConfig{RuntimeConfig: runtime, Routes: routes, FailurePolicy: policy}
-	for _, workflow := range []struct{ prefix, topic, group string }{
-		{"KAFKA_NOTIFICATION_", routes.NotificationTopic, "shared-workers-v1"},
-		{"KAFKA_ACTIVITY_", routes.ActivityTopic, "activity-share-workers-v1"},
-	} {
-		if workflow.topic == "" {
-			continue
-		}
-		kafka, err := loadKafkaShareConsumer([]string{workflow.topic}, workflow.prefix, workflow.group)
-		if err != nil {
-			return KafkaShareWorkerConfig{}, err
-		}
-		reader := KafkaShareWorkerReaderConfig{Kafka: kafka}
-		key := workflow.prefix + "SHARE_WORKER_CONCURRENCY"
-		reader.Concurrency, err = strconv.Atoi(strings.TrimSpace(getEnv(key, "4")))
-		if err != nil || reader.Concurrency < 1 || reader.Concurrency > 1000 {
-			return KafkaShareWorkerConfig{}, fmt.Errorf("%s must be between 1 and 1000", key)
-		}
-		// One acquired record per handler by default. Each workflow can override it.
-		reader.Kafka.MaxPollRecords, err = strconv.Atoi(strings.TrimSpace(getEnv(workflow.prefix+"SHARE_MAX_POLL_RECORDS", strconv.Itoa(reader.Concurrency))))
-		if err != nil {
-			return KafkaShareWorkerConfig{}, fmt.Errorf("%sSHARE_MAX_POLL_RECORDS must be an integer: %w", workflow.prefix, err)
-		}
-		if err := reader.Kafka.validate(workflow.prefix); err != nil {
-			return KafkaShareWorkerConfig{}, err
-		}
-		for _, setting := range []struct {
-			suffix string
-			target *time.Duration
-		}{
-			{"SHARE_HANDLING_TIMEOUT", &reader.HandlingTimeout},
-			{"SHARE_ACKNOWLEDGMENT_MARGIN", &reader.AcknowledgmentMargin},
-		} {
-			fallback := "10s"
-			if setting.suffix == "SHARE_ACKNOWLEDGMENT_MARGIN" {
-				fallback = "3s"
-			}
-			key := workflow.prefix + setting.suffix
-			value, err := time.ParseDuration(strings.TrimSpace(getEnv(key, fallback)))
-			if err != nil || value <= 0 {
-				return KafkaShareWorkerConfig{}, fmt.Errorf("%s must be a positive duration", key)
-			}
-			*setting.target = value
-		}
-		cfg.Readers = append(cfg.Readers, reader)
-	}
-	return cfg, nil
 }

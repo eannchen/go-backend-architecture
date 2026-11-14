@@ -73,7 +73,7 @@ func TestKafkaProfilesLoadSecurity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	share, err := loadKafkaShareConsumer([]string{"events.v1"}, "KAFKA_NOTIFICATION_", "shared-workers-v1")
+	share, err := loadKafkaShareConsumer([]string{"events.v1"}, "KAFKA_NOTIFICATION_", "shared-workers-v1", 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestWorkerSubscriptionsDeriveFromBindings(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		shared, err := loadKafkaShareConsumer(topics, "KAFKA_NOTIFICATION_", "shared-workers-v1")
+		shared, err := loadKafkaShareConsumer(topics, "KAFKA_NOTIFICATION_", "shared-workers-v1", 100)
 		if err != nil {
 			t.Fatal(err)
 		}

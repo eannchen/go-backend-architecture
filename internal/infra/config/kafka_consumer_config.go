@@ -18,6 +18,23 @@ const (
 	KafkaInitialLatest   KafkaInitialOffset = "latest"
 )
 
+// KafkaWorkerConfig combines shared runtime settings with the consumer profile.
+type KafkaWorkerConfig struct {
+	RuntimeConfig
+	FailurePolicy KafkaWorkerFailurePolicy
+	Routes        KafkaWorkerRoutesConfig
+	// Each entry owns one reader, its subscribed topics, and processing settings.
+	Readers []KafkaWorkerReaderConfig
+}
+
+// KafkaWorkerReaderConfig describes one consumer and its sequential worker.
+type KafkaWorkerReaderConfig struct {
+	Kafka KafkaConsumerConfig
+	// Cooperative limit for one processing attempt; handlers must honor context.
+	// Leave enough rebalance time for processing and the subsequent commit.
+	HandlingTimeout time.Duration
+}
+
 type KafkaConsumerConfig struct {
 	Security KafkaSecurityConfig
 	// Addresses used to find the Kafka cluster, e.g. localhost:9092.
@@ -71,6 +88,46 @@ type KafkaConsumerConfig struct {
 	InitialOffset KafkaInitialOffset
 }
 
+func LoadKafkaWorker() (KafkaWorkerConfig, error) {
+	runtime, err := LoadRuntime()
+	if err != nil {
+		return KafkaWorkerConfig{}, err
+	}
+	routes, err := loadKafkaWorkerRoutes()
+	if err != nil {
+		return KafkaWorkerConfig{}, err
+	}
+	policy, err := loadKafkaWorkerFailurePolicy()
+	if err != nil {
+		return KafkaWorkerConfig{}, err
+	}
+	cfg := KafkaWorkerConfig{RuntimeConfig: runtime, Routes: routes, FailurePolicy: policy}
+	for _, workflow := range routes.workflows() {
+		if workflow.topic == "" {
+			continue
+		}
+		reader, err := loadKafkaWorkerReader(workflow)
+		if err != nil {
+			return KafkaWorkerConfig{}, err
+		}
+		cfg.Readers = append(cfg.Readers, reader)
+	}
+	return cfg, nil
+}
+
+// loadKafkaWorkerReader keeps one workflow's Kafka and handling settings together.
+func loadKafkaWorkerReader(workflow kafkaWorkflow) (KafkaWorkerReaderConfig, error) {
+	kafka, err := loadKafkaConsumer([]string{workflow.topic}, workflow.prefix, workflow.defaultGroup)
+	if err != nil {
+		return KafkaWorkerReaderConfig{}, err
+	}
+	timeout, err := kafkaPositiveDuration(workflow.prefix+"HANDLING_TIMEOUT", "10s")
+	if err != nil {
+		return KafkaWorkerReaderConfig{}, err
+	}
+	return KafkaWorkerReaderConfig{Kafka: kafka, HandlingTimeout: timeout}, nil
+}
+
 // loadKafkaConsumer loads client settings using the worker's derived subscriptions.
 func loadKafkaConsumer(topics []string, prefix, defaultGroup string) (KafkaConsumerConfig, error) {
 	security, err := loadKafkaSecurity(prefix)
@@ -117,9 +174,9 @@ func loadKafkaConsumer(topics []string, prefix, defaultGroup string) (KafkaConsu
 		{prefix + "REBALANCE_TIMEOUT", "1m", &cfg.RebalanceTimeout},
 		{prefix + "REQUEST_TIMEOUT", "10s", &cfg.RequestTimeout},
 	} {
-		value, err := time.ParseDuration(strings.TrimSpace(getEnv(setting.key, setting.fallback)))
+		value, err := kafkaDuration(setting.key, setting.fallback)
 		if err != nil {
-			return KafkaConsumerConfig{}, fmt.Errorf("%s must be a duration: %w", setting.key, err)
+			return KafkaConsumerConfig{}, err
 		}
 		*setting.target = value
 	}
@@ -172,66 +229,4 @@ func (cfg KafkaConsumerConfig) validate(prefix string) error {
 		return fmt.Errorf("%sINITIAL_OFFSET must be earliest or latest, got %q", prefix, cfg.InitialOffset)
 	}
 	return nil
-}
-
-// KafkaWorkerConfig combines shared runtime settings with the consumer profile.
-type KafkaWorkerConfig struct {
-	RuntimeConfig
-	FailurePolicy KafkaWorkerFailurePolicy
-	Routes        KafkaWorkerRoutesConfig
-	// Each entry owns one reader, its subscribed topics, and processing settings.
-	Readers []KafkaWorkerReaderConfig
-}
-
-// KafkaWorkerReaderConfig describes one consumer and its sequential worker.
-type KafkaWorkerReaderConfig struct {
-	Kafka KafkaConsumerConfig
-	// Cooperative limit for one processing attempt; handlers must honor context.
-	// Leave enough rebalance time for processing and the subsequent commit.
-	HandlingTimeout time.Duration
-}
-
-func LoadKafkaWorker() (KafkaWorkerConfig, error) {
-	runtime, err := LoadRuntime()
-	if err != nil {
-		return KafkaWorkerConfig{}, err
-	}
-	routes, err := loadKafkaWorkerRoutes()
-	if err != nil {
-		return KafkaWorkerConfig{}, err
-	}
-	policy, err := loadKafkaWorkerFailurePolicy()
-	if err != nil {
-		return KafkaWorkerConfig{}, err
-	}
-	cfg := KafkaWorkerConfig{RuntimeConfig: runtime, Routes: routes, FailurePolicy: policy}
-	for _, workflow := range []struct{ prefix, topic, group string }{
-		{"KAFKA_NOTIFICATION_", routes.NotificationTopic, "notification-sender-v1"},
-		{"KAFKA_ACTIVITY_", routes.ActivityTopic, "activity-workers-v1"},
-	} {
-		if workflow.topic == "" {
-			continue
-		}
-		kafka, err := loadKafkaConsumer([]string{workflow.topic}, workflow.prefix, workflow.group)
-		if err != nil {
-			return KafkaWorkerConfig{}, err
-		}
-		reader := KafkaWorkerReaderConfig{Kafka: kafka}
-		for _, setting := range []struct {
-			suffix string
-			target *time.Duration
-		}{
-			{"HANDLING_TIMEOUT", &reader.HandlingTimeout},
-		} {
-			fallback := "10s"
-			key := workflow.prefix + setting.suffix
-			value, err := time.ParseDuration(strings.TrimSpace(getEnv(key, fallback)))
-			if err != nil || value <= 0 {
-				return KafkaWorkerConfig{}, fmt.Errorf("%s must be a positive duration", key)
-			}
-			*setting.target = value
-		}
-		cfg.Readers = append(cfg.Readers, reader)
-	}
-	return cfg, nil
 }

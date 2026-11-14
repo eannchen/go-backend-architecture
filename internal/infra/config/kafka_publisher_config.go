@@ -124,72 +124,6 @@ type KafkaPublisherConfig struct {
 	Compression KafkaCompression
 }
 
-// Validate rejects invalid settings before we construct the Kafka client.
-func (cfg KafkaPublisherConfig) Validate() error {
-	if err := cfg.Security.Validate(); err != nil {
-		return err
-	}
-	if err := validateKafkaConnection(cfg.Brokers, cfg.Topic); err != nil {
-		return err
-	}
-	switch cfg.PartitionStrategy {
-	case PartitionByKey, PartitionRoundRobin:
-	default:
-		return fmt.Errorf("KAFKA_PARTITION_STRATEGY must be key or round-robin, got %q", cfg.PartitionStrategy)
-	}
-	switch cfg.RequiredAcks {
-	case KafkaAcksAll, KafkaAcksLeader, KafkaAcksNone:
-	default:
-		return fmt.Errorf("KAFKA_REQUIRED_ACKS must be all, leader, or none, got %q", cfg.RequiredAcks)
-	}
-
-	for _, setting := range []struct {
-		key   string
-		value time.Duration
-	}{
-		{"KAFKA_REQUEST_TIMEOUT", cfg.RequestTimeout},
-		{"KAFKA_PRODUCE_TIMEOUT", cfg.ProduceTimeout},
-		{"KAFKA_DELIVERY_TIMEOUT", cfg.DeliveryTimeout},
-		{"KAFKA_BATCH_TIMEOUT", cfg.BatchTimeout},
-		{"KAFKA_WRITE_BACKOFF_MIN", cfg.WriteBackoffMin},
-		{"KAFKA_WRITE_BACKOFF_MAX", cfg.WriteBackoffMax},
-	} {
-		if setting.value <= 0 {
-			return fmt.Errorf("%s must be > 0", setting.key)
-		}
-	}
-	if cfg.MaxBufferedRecords <= 0 {
-		return fmt.Errorf("KAFKA_MAX_BUFFERED_RECORDS must be > 0")
-	}
-	if cfg.BatchBytes < 512 || cfg.BatchBytes > 1<<30 {
-		return fmt.Errorf("KAFKA_BATCH_BYTES must be between 512 and 1073741824")
-	}
-	if cfg.MaxAttempts <= 0 {
-		return fmt.Errorf("KAFKA_MAX_ATTEMPTS must be > 0")
-	}
-	if cfg.WriteBackoffMin > cfg.WriteBackoffMax {
-		return fmt.Errorf("KAFKA_WRITE_BACKOFF_MIN must be <= KAFKA_WRITE_BACKOFF_MAX")
-	}
-	if err := validateKafkaRequestTimeout(cfg.RequestTimeout); err != nil {
-		return err
-	}
-	if cfg.ProduceTimeout < 100*time.Millisecond || cfg.ProduceTimeout > time.Duration(math.MaxInt32)*time.Millisecond {
-		return fmt.Errorf("KAFKA_PRODUCE_TIMEOUT must be between 100ms and 2147483647ms")
-	}
-	if cfg.DeliveryTimeout < time.Second {
-		return fmt.Errorf("KAFKA_DELIVERY_TIMEOUT must be >= 1s")
-	}
-	if cfg.BatchTimeout > time.Minute {
-		return fmt.Errorf("KAFKA_BATCH_TIMEOUT must be <= 1m")
-	}
-	switch cfg.Compression {
-	case CompressionNone, CompressionGzip, CompressionSnappy, CompressionLz4, CompressionZstd:
-	default:
-		return fmt.Errorf("KAFKA_COMPRESSION must be none, gzip, snappy, lz4, or zstd, got %q", cfg.Compression)
-	}
-	return nil
-}
-
 // LoadKafkaPublisher reads only the settings needed to publish messages.
 // A publisher does not need a consumer group, database, or Redis configuration.
 func LoadKafkaPublisher() (KafkaPublisherConfig, error) {
@@ -257,12 +191,68 @@ func LoadKafkaPublisher() (KafkaPublisherConfig, error) {
 	return cfg, nil
 }
 
-// A typo such as "ten seconds" must fail startup instead of using a default.
-// Durations use Go notation, e.g. "500ms", "10s", or "1m".
-func kafkaDuration(key, fallback string) (time.Duration, error) {
-	value, err := time.ParseDuration(strings.TrimSpace(getEnv(key, fallback)))
-	if err != nil {
-		return 0, fmt.Errorf("%s must be a duration: %w", key, err)
+// Validate rejects invalid settings before we construct the Kafka client.
+func (cfg KafkaPublisherConfig) Validate() error {
+	if err := cfg.Security.Validate(); err != nil {
+		return err
 	}
-	return value, nil
+	if err := validateKafkaConnection(cfg.Brokers, cfg.Topic); err != nil {
+		return err
+	}
+	switch cfg.PartitionStrategy {
+	case PartitionByKey, PartitionRoundRobin:
+	default:
+		return fmt.Errorf("KAFKA_PARTITION_STRATEGY must be key or round-robin, got %q", cfg.PartitionStrategy)
+	}
+	switch cfg.RequiredAcks {
+	case KafkaAcksAll, KafkaAcksLeader, KafkaAcksNone:
+	default:
+		return fmt.Errorf("KAFKA_REQUIRED_ACKS must be all, leader, or none, got %q", cfg.RequiredAcks)
+	}
+
+	for _, setting := range []struct {
+		key   string
+		value time.Duration
+	}{
+		{"KAFKA_REQUEST_TIMEOUT", cfg.RequestTimeout},
+		{"KAFKA_PRODUCE_TIMEOUT", cfg.ProduceTimeout},
+		{"KAFKA_DELIVERY_TIMEOUT", cfg.DeliveryTimeout},
+		{"KAFKA_BATCH_TIMEOUT", cfg.BatchTimeout},
+		{"KAFKA_WRITE_BACKOFF_MIN", cfg.WriteBackoffMin},
+		{"KAFKA_WRITE_BACKOFF_MAX", cfg.WriteBackoffMax},
+	} {
+		if setting.value <= 0 {
+			return fmt.Errorf("%s must be > 0", setting.key)
+		}
+	}
+	if cfg.MaxBufferedRecords <= 0 {
+		return fmt.Errorf("KAFKA_MAX_BUFFERED_RECORDS must be > 0")
+	}
+	if cfg.BatchBytes < 512 || cfg.BatchBytes > 1<<30 {
+		return fmt.Errorf("KAFKA_BATCH_BYTES must be between 512 and 1073741824")
+	}
+	if cfg.MaxAttempts <= 0 {
+		return fmt.Errorf("KAFKA_MAX_ATTEMPTS must be > 0")
+	}
+	if cfg.WriteBackoffMin > cfg.WriteBackoffMax {
+		return fmt.Errorf("KAFKA_WRITE_BACKOFF_MIN must be <= KAFKA_WRITE_BACKOFF_MAX")
+	}
+	if err := validateKafkaRequestTimeout(cfg.RequestTimeout); err != nil {
+		return err
+	}
+	if cfg.ProduceTimeout < 100*time.Millisecond || cfg.ProduceTimeout > time.Duration(math.MaxInt32)*time.Millisecond {
+		return fmt.Errorf("KAFKA_PRODUCE_TIMEOUT must be between 100ms and 2147483647ms")
+	}
+	if cfg.DeliveryTimeout < time.Second {
+		return fmt.Errorf("KAFKA_DELIVERY_TIMEOUT must be >= 1s")
+	}
+	if cfg.BatchTimeout > time.Minute {
+		return fmt.Errorf("KAFKA_BATCH_TIMEOUT must be <= 1m")
+	}
+	switch cfg.Compression {
+	case CompressionNone, CompressionGzip, CompressionSnappy, CompressionLz4, CompressionZstd:
+	default:
+		return fmt.Errorf("KAFKA_COMPRESSION must be none, gzip, snappy, lz4, or zstd, got %q", cfg.Compression)
+	}
+	return nil
 }
