@@ -182,6 +182,7 @@ func transportSelectionPlan(profile string) (selectionPlan, error) {
 func newSelectionPlan(profile string) (selectionPlan, error) {
 	kafkaCommon := []string{
 		"docker-compose.kafka.yml", "tools/kafka", "make/kafka.mk",
+		"internal/app/runtime/workers.go", "internal/app/runtime/workers_test.go",
 		"internal/infra/observability/otel/kafka.go", "internal/infra/observability/otel/kafka_test.go",
 		"internal/delivery/kafka", "internal/infra/messaging/kafka",
 		"internal/usecase/notification", "internal/usecase/activity",

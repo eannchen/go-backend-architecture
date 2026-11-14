@@ -16,7 +16,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
 )
 
-func buildWorker(reader *kafkaclient.Reader, telemetry *appruntime.Telemetry, cfg config.KafkaWorkerConfig) (*worker.Worker, error) {
+func buildWorker(reader *kafkaclient.Reader, telemetry *appruntime.Telemetry, cfg config.KafkaWorkerReaderConfig, routes config.KafkaWorkerRoutesConfig) (*worker.Worker, error) {
 	// Apply the same middleware order to each route, with a distinct operation
 	// name so logs, traces, and metrics identify the selected workflow.
 	decorate := func(handler middleware.Handler, operation string) middleware.Handler {
@@ -29,8 +29,8 @@ func buildWorker(reader *kafkaclient.Reader, telemetry *appruntime.Telemetry, cf
 		)
 	}
 	handler, err := router.New(cfg.Kafka.Topics, map[string]middleware.Handler{
-		cfg.Routes.NotificationTopic: decorate(notificationhandler.NewNotificationHandler(notification.New(telemetry.Logger)), "notification.consume"),
-		cfg.Routes.ActivityTopic:     decorate(activityhandler.NewActivityHandler(activity.New(telemetry.Logger)), "activity.consume"),
+		routes.NotificationTopic: decorate(notificationhandler.NewNotificationHandler(notification.New(telemetry.Logger)), "notification.consume"),
+		routes.ActivityTopic:     decorate(activityhandler.NewActivityHandler(activity.New(telemetry.Logger)), "activity.consume"),
 	})
 	if err != nil {
 		return nil, err

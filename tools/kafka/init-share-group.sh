@@ -9,19 +9,47 @@ set -euo pipefail
 # earliest means old retained records are eligible when the group starts;
 # latest means only future records. Neither choice rewinds existing progress.
 bootstrap_server="${KAFKA_BOOTSTRAP_SERVER:-kafka:19092}"
-group="${KAFKA_SHARE_GROUP_ID:-shared-workers-v1}"
-initial_offset="${KAFKA_SHARE_INITIAL_OFFSET:-earliest}"
-lock_ms="${KAFKA_SHARE_RECORD_LOCK_MS:-30000}"
-if [[ ! "$group" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ || ${#group} -gt 249 ]]; then
-  echo "KAFKA_SHARE_GROUP_ID must be a simple group name (letters, digits, dot, underscore, hyphen; start with a letter/digit; maximum 249 characters)" >&2
-  exit 1
-fi
-if [[ "$initial_offset" != "earliest" && "$initial_offset" != "latest" ]]; then
-  echo "KAFKA_SHARE_INITIAL_OFFSET must be earliest or latest" >&2
-  exit 1
-fi
-if [[ ! "$lock_ms" =~ ^[1-9][0-9]*$ ]]; then
-  echo "KAFKA_SHARE_RECORD_LOCK_MS must be a positive whole number of milliseconds" >&2
+# Validate both workflows before making changes. Empty TOPIC disables one.
+groups=()
+offsets=()
+locks=()
+for workflow in NOTIFICATION ACTIVITY; do
+  prefix="KAFKA_${workflow}_"
+  if [[ "$workflow" == NOTIFICATION ]]; then
+    default_topic=notifications.requested.v1
+    default_group=shared-workers-v1
+  else
+    default_topic=activities.recorded.v1
+    default_group=activity-share-workers-v1
+  fi
+  key="${prefix}TOPIC"
+  topic="${!key-$default_topic}"
+  if [[ -z "${topic//[[:space:]]/}" ]]; then continue; fi
+  key="${prefix}SHARE_GROUP_ID"
+  group="${!key-$default_group}"
+  key="${prefix}SHARE_INITIAL_OFFSET"
+  initial_offset="${!key-earliest}"
+  key="${prefix}SHARE_RECORD_LOCK_MS"
+  lock_ms="${!key-30000}"
+  if [[ ! "$group" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]*$ || ${#group} -gt 249 ]]; then
+    echo "${prefix}SHARE_GROUP_ID must be a simple group name (letters, digits, dot, underscore, hyphen; start with a letter/digit; maximum 249 characters)" >&2
+    exit 1
+  fi
+  if [[ "$initial_offset" != "earliest" && "$initial_offset" != "latest" ]]; then
+    echo "${prefix}SHARE_INITIAL_OFFSET must be earliest or latest" >&2
+    exit 1
+  fi
+  if [[ ! "$lock_ms" =~ ^[1-9][0-9]*$ ]]; then
+    echo "${prefix}SHARE_RECORD_LOCK_MS must be a positive whole number of milliseconds" >&2
+    exit 1
+  fi
+
+  groups+=("$group")
+  offsets+=("$initial_offset")
+  locks+=("$lock_ms")
+done
+if [[ ${#groups[@]} -eq 0 ]]; then
+  echo "Enable at least one workflow topic before group setup" >&2
   exit 1
 fi
 
@@ -55,11 +83,17 @@ esac
 # A lock gives a consumer time to handle a record; expiry allows another attempt.
 # It does not stop the original handler, so duplicate effects remain possible.
 # Kafka validates this duration against the broker's allowed minimum/maximum.
-/opt/kafka/bin/kafka-configs.sh --bootstrap-server "$bootstrap_server" \
-  --command-config "$client_config" --alter --entity-type groups --entity-name "$group" \
-  --add-config "share.auto.offset.reset=$initial_offset,share.record.lock.duration.ms=$lock_ms"
+for i in "${!groups[@]}"; do
+  group="${groups[$i]}"
+  initial_offset="${offsets[$i]}"
+  lock_ms="${locks[$i]}"
+  /opt/kafka/bin/kafka-configs.sh --bootstrap-server "$bootstrap_server" \
+    --command-config "$client_config" --alter --entity-type groups --entity-name "$group" \
+    --add-config "share.auto.offset.reset=$initial_offset,share.record.lock.duration.ms=$lock_ms"
 
-# Step 5: print the group configuration so the chosen values can be reviewed.
-# Membership begins when a ShareReader actually connects using this group ID.
-/opt/kafka/bin/kafka-configs.sh --bootstrap-server "$bootstrap_server" \
-  --command-config "$client_config" --describe --entity-type groups --entity-name "$group"
+  # Step 5: print the group configuration so the chosen values can be reviewed.
+  # Membership begins when a ShareReader actually connects using this group ID.
+  /opt/kafka/bin/kafka-configs.sh --bootstrap-server "$bootstrap_server" \
+    --command-config "$client_config" --describe --entity-type groups --entity-name "$group"
+
+done

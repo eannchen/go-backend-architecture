@@ -225,7 +225,7 @@ func newIntegrationReader(t *testing.T, topic, group string) *Reader {
 	t.Helper()
 	cfg := validConsumerConfig()
 	cfg.Brokers = integrationBrokers
-	cfg.Topic = topic
+	cfg.Topics = []string{topic}
 	cfg.GroupID = group
 	reader, err := NewReader(cfg, nil)
 	if err != nil {

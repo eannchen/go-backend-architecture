@@ -72,15 +72,15 @@ type KafkaConsumerConfig struct {
 }
 
 // loadKafkaConsumer loads client settings using the worker's derived subscriptions.
-func loadKafkaConsumer(topics []string) (KafkaConsumerConfig, error) {
-	security, err := LoadKafkaSecurity()
+func loadKafkaConsumer(topics []string, prefix, defaultGroup string) (KafkaConsumerConfig, error) {
+	security, err := loadKafkaSecurity(prefix)
 	if err != nil {
 		return KafkaConsumerConfig{}, err
 	}
 	for _, setting := range [][2]string{
-		{"KAFKA_START_OFFSET", "use KAFKA_INITIAL_OFFSET; this chooses a starting point only without saved group progress and does not rewind commits"},
-		{"KAFKA_READ_BATCH_TIMEOUT", "there is no batch-read timer; use KAFKA_REQUEST_TIMEOUT for network overhead and KAFKA_REBALANCE_TIMEOUT for partition reassignment"},
-		{"KAFKA_QUEUE_CAPACITY", "there is no record-count queue; use KAFKA_MAX_CONCURRENT_FETCHES and KAFKA_FETCH_MAX_BYTES for fetch buffering"},
+		{"KAFKA_START_OFFSET", "use " + prefix + "INITIAL_OFFSET; this chooses a starting point only without saved group progress and does not rewind commits"},
+		{"KAFKA_READ_BATCH_TIMEOUT", "use " + prefix + "REQUEST_TIMEOUT for network overhead and " + prefix + "REBALANCE_TIMEOUT for partition reassignment"},
+		{"KAFKA_QUEUE_CAPACITY", "use " + prefix + "MAX_CONCURRENT_FETCHES and " + prefix + "FETCH_MAX_BYTES for fetch buffering"},
 	} {
 		if err := rejectKafkaSetting(setting[0], setting[1]); err != nil {
 			return KafkaConsumerConfig{}, err
@@ -90,8 +90,8 @@ func loadKafkaConsumer(topics []string) (KafkaConsumerConfig, error) {
 		Security:      security,
 		Brokers:       getCSV("KAFKA_BROKERS", []string{"localhost:9092"}),
 		Topics:        topics,
-		GroupID:       strings.TrimSpace(getEnv("KAFKA_GROUP_ID", "notification-sender-v1")),
-		InitialOffset: KafkaInitialOffset(strings.TrimSpace(getEnv("KAFKA_INITIAL_OFFSET", string(KafkaInitialEarliest)))),
+		GroupID:       strings.TrimSpace(getEnv(prefix+"GROUP_ID", defaultGroup)),
+		InitialOffset: KafkaInitialOffset(strings.TrimSpace(getEnv(prefix+"INITIAL_OFFSET", string(KafkaInitialEarliest)))),
 	}
 	// Start with small responses and one fetch at a time. MinBytes=1 lets Kafka
 	// reply as soon as data is available; FetchMaxWait is not a fixed delay.
@@ -99,9 +99,9 @@ func loadKafkaConsumer(topics []string) (KafkaConsumerConfig, error) {
 		key, fallback string
 		target        *int
 	}{
-		{"KAFKA_FETCH_MIN_BYTES", "1", &cfg.FetchMinBytes},
-		{"KAFKA_FETCH_MAX_BYTES", "1000000", &cfg.FetchMaxBytes},
-		{"KAFKA_MAX_CONCURRENT_FETCHES", "1", &cfg.MaxConcurrentFetches},
+		{prefix + "FETCH_MIN_BYTES", "1", &cfg.FetchMinBytes},
+		{prefix + "FETCH_MAX_BYTES", "1000000", &cfg.FetchMaxBytes},
+		{prefix + "MAX_CONCURRENT_FETCHES", "1", &cfg.MaxConcurrentFetches},
 	} {
 		value, err := strconv.Atoi(strings.TrimSpace(getEnv(setting.key, setting.fallback)))
 		if err != nil {
@@ -113,9 +113,9 @@ func loadKafkaConsumer(topics []string) (KafkaConsumerConfig, error) {
 		key, fallback string
 		target        *time.Duration
 	}{
-		{"KAFKA_FETCH_MAX_WAIT", "10s", &cfg.FetchMaxWait},
-		{"KAFKA_REBALANCE_TIMEOUT", "1m", &cfg.RebalanceTimeout},
-		{"KAFKA_REQUEST_TIMEOUT", "10s", &cfg.RequestTimeout},
+		{prefix + "FETCH_MAX_WAIT", "10s", &cfg.FetchMaxWait},
+		{prefix + "REBALANCE_TIMEOUT", "1m", &cfg.RebalanceTimeout},
+		{prefix + "REQUEST_TIMEOUT", "10s", &cfg.RequestTimeout},
 	} {
 		value, err := time.ParseDuration(strings.TrimSpace(getEnv(setting.key, setting.fallback)))
 		if err != nil {
@@ -123,7 +123,7 @@ func loadKafkaConsumer(topics []string) (KafkaConsumerConfig, error) {
 		}
 		*setting.target = value
 	}
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(prefix); err != nil {
 		return KafkaConsumerConfig{}, err
 	}
 	return cfg, nil
@@ -132,40 +132,44 @@ func loadKafkaConsumer(topics []string) (KafkaConsumerConfig, error) {
 // Validate rejects invalid settings before we construct the Kafka client.
 // Constructors also call this when configuration was built directly in Go.
 func (cfg KafkaConsumerConfig) Validate() error {
-	if err := cfg.Security.Validate(); err != nil {
+	return cfg.validate("KAFKA_")
+}
+
+func (cfg KafkaConsumerConfig) validate(prefix string) error {
+	if err := cfg.Security.validate(prefix); err != nil {
 		return err
 	}
 	if err := validateKafkaSubscription(cfg.Brokers, cfg.Topics); err != nil {
 		return err
 	}
 	if strings.TrimSpace(cfg.GroupID) == "" {
-		return fmt.Errorf("KAFKA_GROUP_ID must not be empty")
+		return fmt.Errorf("%sGROUP_ID must not be empty", prefix)
 	}
 	if cfg.FetchMinBytes <= 0 {
-		return fmt.Errorf("KAFKA_FETCH_MIN_BYTES must be > 0")
+		return fmt.Errorf("%sFETCH_MIN_BYTES must be > 0", prefix)
 	}
 	if cfg.FetchMaxBytes <= 0 || cfg.FetchMaxBytes > 1<<30 {
-		return fmt.Errorf("KAFKA_FETCH_MAX_BYTES must be between 1 and 1073741824")
+		return fmt.Errorf("%sFETCH_MAX_BYTES must be between 1 and 1073741824", prefix)
 	}
 	if cfg.FetchMinBytes > cfg.FetchMaxBytes {
-		return fmt.Errorf("KAFKA_FETCH_MIN_BYTES must be <= KAFKA_FETCH_MAX_BYTES")
+		return fmt.Errorf("%sFETCH_MIN_BYTES must be <= FetchMaxBytes", prefix)
 	}
 	if cfg.MaxConcurrentFetches <= 0 {
-		return fmt.Errorf("KAFKA_MAX_CONCURRENT_FETCHES must be > 0")
+		return fmt.Errorf("%sMAX_CONCURRENT_FETCHES must be > 0", prefix)
 	}
 	if cfg.FetchMaxWait < 10*time.Millisecond || cfg.FetchMaxWait > time.Duration(math.MaxInt32)*time.Millisecond {
-		return fmt.Errorf("KAFKA_FETCH_MAX_WAIT must be between 10ms and 2147483647ms")
+		return fmt.Errorf("%sFETCH_MAX_WAIT must be between 10ms and 2147483647ms", prefix)
 	}
 	if cfg.RebalanceTimeout < 100*time.Millisecond || cfg.RebalanceTimeout > time.Duration(math.MaxInt32)*time.Millisecond {
-		return fmt.Errorf("KAFKA_REBALANCE_TIMEOUT must be between 100ms and 2147483647ms")
+		return fmt.Errorf("%sREBALANCE_TIMEOUT must be between 100ms and 2147483647ms", prefix)
 	}
 	if err := validateKafkaRequestTimeout(cfg.RequestTimeout); err != nil {
-		return err
+		return fmt.Errorf("%sREQUEST_TIMEOUT: %w", prefix, err)
 	}
 	switch cfg.InitialOffset {
 	case KafkaInitialEarliest, KafkaInitialLatest:
 	default:
-		return fmt.Errorf("KAFKA_INITIAL_OFFSET must be earliest or latest, got %q", cfg.InitialOffset)
+		return fmt.Errorf("%sINITIAL_OFFSET must be earliest or latest, got %q", prefix, cfg.InitialOffset)
 	}
 	return nil
 }
@@ -173,15 +177,22 @@ func (cfg KafkaConsumerConfig) Validate() error {
 // KafkaWorkerConfig combines shared runtime settings with the consumer profile.
 type KafkaWorkerConfig struct {
 	RuntimeConfig
-	Routes KafkaWorkerRoutesConfig
-	Kafka  KafkaConsumerConfig
+	FailurePolicy KafkaWorkerFailurePolicy
+	Routes        KafkaWorkerRoutesConfig
+	// Each entry owns one reader, its subscribed topics, and processing settings.
+	Readers []KafkaWorkerReaderConfig
+}
+
+// KafkaWorkerReaderConfig describes one consumer and its sequential worker.
+type KafkaWorkerReaderConfig struct {
+	Kafka KafkaConsumerConfig
 	// Cooperative limit for one processing attempt; handlers must honor context.
 	// Leave enough rebalance time for processing and the subsequent commit.
 	HandlingTimeout time.Duration
 }
 
 func LoadKafkaWorker() (KafkaWorkerConfig, error) {
-	runtimeConfig, err := LoadRuntime()
+	runtime, err := LoadRuntime()
 	if err != nil {
 		return KafkaWorkerConfig{}, err
 	}
@@ -189,13 +200,38 @@ func LoadKafkaWorker() (KafkaWorkerConfig, error) {
 	if err != nil {
 		return KafkaWorkerConfig{}, err
 	}
-	consumerConfig, err := loadKafkaConsumer(routes.Topics())
+	policy, err := loadKafkaWorkerFailurePolicy()
 	if err != nil {
 		return KafkaWorkerConfig{}, err
 	}
-	timeout, err := time.ParseDuration(strings.TrimSpace(getEnv("KAFKA_HANDLING_TIMEOUT", "10s")))
-	if err != nil || timeout <= 0 {
-		return KafkaWorkerConfig{}, fmt.Errorf("KAFKA_HANDLING_TIMEOUT must be a positive duration")
+	cfg := KafkaWorkerConfig{RuntimeConfig: runtime, Routes: routes, FailurePolicy: policy}
+	for _, workflow := range []struct{ prefix, topic, group string }{
+		{"KAFKA_NOTIFICATION_", routes.NotificationTopic, "notification-sender-v1"},
+		{"KAFKA_ACTIVITY_", routes.ActivityTopic, "activity-workers-v1"},
+	} {
+		if workflow.topic == "" {
+			continue
+		}
+		kafka, err := loadKafkaConsumer([]string{workflow.topic}, workflow.prefix, workflow.group)
+		if err != nil {
+			return KafkaWorkerConfig{}, err
+		}
+		reader := KafkaWorkerReaderConfig{Kafka: kafka}
+		for _, setting := range []struct {
+			suffix string
+			target *time.Duration
+		}{
+			{"HANDLING_TIMEOUT", &reader.HandlingTimeout},
+		} {
+			fallback := "10s"
+			key := workflow.prefix + setting.suffix
+			value, err := time.ParseDuration(strings.TrimSpace(getEnv(key, fallback)))
+			if err != nil || value <= 0 {
+				return KafkaWorkerConfig{}, fmt.Errorf("%s must be a positive duration", key)
+			}
+			*setting.target = value
+		}
+		cfg.Readers = append(cfg.Readers, reader)
 	}
-	return KafkaWorkerConfig{RuntimeConfig: runtimeConfig, Kafka: consumerConfig, Routes: routes, HandlingTimeout: timeout}, nil
+	return cfg, nil
 }

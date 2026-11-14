@@ -131,13 +131,14 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP_SERVER: kafka:19092
-      KAFKA_SHARE_GROUP_ID: "${KAFKA_SHARE_GROUP_ID:-shared-workers-v1}"
-      # Share Groups default to latest on Kafka. Choose earliest explicitly so
-      # this learning group can read requests already waiting in the topic.
-      KAFKA_SHARE_INITIAL_OFFSET: "${KAFKA_SHARE_INITIAL_OFFSET:-earliest}"
-      # Kafka holds a record for a consumer for this long before redelivery is
-      # possible. This does not cancel its Go handler or prevent duplicates.
-      KAFKA_SHARE_RECORD_LOCK_MS: "${KAFKA_SHARE_RECORD_LOCK_MS:-30000}"
+      KAFKA_NOTIFICATION_TOPIC: "${KAFKA_NOTIFICATION_TOPIC-notifications.requested.v1}"
+      KAFKA_NOTIFICATION_SHARE_GROUP_ID: "${KAFKA_NOTIFICATION_SHARE_GROUP_ID-shared-workers-v1}"
+      KAFKA_NOTIFICATION_SHARE_INITIAL_OFFSET: "${KAFKA_NOTIFICATION_SHARE_INITIAL_OFFSET-earliest}"
+      KAFKA_NOTIFICATION_SHARE_RECORD_LOCK_MS: "${KAFKA_NOTIFICATION_SHARE_RECORD_LOCK_MS-30000}"
+      KAFKA_ACTIVITY_TOPIC: "${KAFKA_ACTIVITY_TOPIC-activities.recorded.v1}"
+      KAFKA_ACTIVITY_SHARE_GROUP_ID: "${KAFKA_ACTIVITY_SHARE_GROUP_ID-activity-share-workers-v1}"
+      KAFKA_ACTIVITY_SHARE_INITIAL_OFFSET: "${KAFKA_ACTIVITY_SHARE_INITIAL_OFFSET-earliest}"
+      KAFKA_ACTIVITY_SHARE_RECORD_LOCK_MS: "${KAFKA_ACTIVITY_SHARE_RECORD_LOCK_MS-30000}"
     volumes:
       - ./tools/kafka/init-share-group.sh:/opt/template/init-share-group.sh:ro
     entrypoint: ["/bin/bash", "/opt/template/init-share-group.sh"]

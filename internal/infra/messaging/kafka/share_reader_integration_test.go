@@ -506,7 +506,7 @@ func TestShareGroupProvisioningScript(t *testing.T) {
 	}
 	writer := newIntegrationWriter(t, topic)
 	for run := range 2 {
-		code, output, err := integrationContainer.Exec(ctx, []string{"env", "KAFKA_BOOTSTRAP_SERVER=localhost:19092", "KAFKA_SHARE_GROUP_ID=" + group, "/bin/bash", "/tmp/init-share-group.sh"})
+		code, output, err := integrationContainer.Exec(ctx, []string{"env", "KAFKA_BOOTSTRAP_SERVER=localhost:19092", "KAFKA_NOTIFICATION_SHARE_GROUP_ID=" + group, "KAFKA_ACTIVITY_TOPIC=", "/bin/bash", "/tmp/init-share-group.sh"})
 		if err != nil {
 			t.Fatal(err)
 		}

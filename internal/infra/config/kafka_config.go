@@ -42,49 +42,72 @@ type KafkaSASLConfig struct {
 	Password  string
 }
 
-func LoadKafkaSecurity() (KafkaSecurityConfig, error) {
-	enabled, err := strconv.ParseBool(strings.TrimSpace(getEnv("KAFKA_TLS_ENABLED", "false")))
+// loadKafkaSecurity reads one connection's settings from its environment prefix.
+func loadKafkaSecurity(prefix string) (KafkaSecurityConfig, error) {
+	enabled, err := strconv.ParseBool(strings.TrimSpace(getEnv(prefix+"TLS_ENABLED", "false")))
 	if err != nil {
-		return KafkaSecurityConfig{}, fmt.Errorf("KAFKA_TLS_ENABLED must be a boolean")
+		return KafkaSecurityConfig{}, fmt.Errorf("%sTLS_ENABLED must be a boolean", prefix)
 	}
 	cfg := KafkaSecurityConfig{
 		TLS: KafkaTLSConfig{
 			Enabled:        enabled,
-			ServerCAFile:   strings.TrimSpace(getEnv("KAFKA_TLS_SERVER_CA_FILE", "")),
-			ClientCertFile: strings.TrimSpace(getEnv("KAFKA_TLS_CLIENT_CERT_FILE", "")),
-			ClientKeyFile:  strings.TrimSpace(getEnv("KAFKA_TLS_CLIENT_KEY_FILE", "")),
-			ServerName:     strings.TrimSpace(getEnv("KAFKA_TLS_SERVER_NAME", "")),
+			ServerCAFile:   strings.TrimSpace(getEnv(prefix+"TLS_SERVER_CA_FILE", "")),
+			ClientCertFile: strings.TrimSpace(getEnv(prefix+"TLS_CLIENT_CERT_FILE", "")),
+			ClientKeyFile:  strings.TrimSpace(getEnv(prefix+"TLS_CLIENT_KEY_FILE", "")),
+			ServerName:     strings.TrimSpace(getEnv(prefix+"TLS_SERVER_NAME", "")),
 		},
 		SASL: KafkaSASLConfig{
-			Mechanism: KafkaSASLMechanism(strings.ToLower(strings.TrimSpace(getEnv("KAFKA_SASL_MECHANISM", "none")))),
+			Mechanism: KafkaSASLMechanism(strings.ToLower(strings.TrimSpace(getEnv(prefix+"SASL_MECHANISM", "none")))),
 			// Credentials are opaque: whitespace may be part of a username or password.
-			Username: getEnv("KAFKA_SASL_USERNAME", ""),
-			Password: getEnv("KAFKA_SASL_PASSWORD", ""),
+			Username: getEnv(prefix+"SASL_USERNAME", ""),
+			Password: getEnv(prefix+"SASL_PASSWORD", ""),
 		},
 	}
-	return cfg, cfg.Validate()
+	return cfg, cfg.validate(prefix)
 }
 
 func (cfg KafkaSecurityConfig) Validate() error {
+	return cfg.validate("KAFKA_")
+}
+
+func (cfg KafkaSecurityConfig) validate(prefix string) error {
 	if !cfg.TLS.Enabled && (cfg.TLS.ServerCAFile != "" || cfg.TLS.ClientCertFile != "" || cfg.TLS.ClientKeyFile != "" || cfg.TLS.ServerName != "") {
-		return fmt.Errorf("KAFKA_TLS_ENABLED must be true when TLS files or server name are configured")
+		return fmt.Errorf("%sTLS_ENABLED must be true when TLS files or server name are configured", prefix)
 	}
 	if (cfg.TLS.ClientCertFile == "") != (cfg.TLS.ClientKeyFile == "") {
-		return fmt.Errorf("KAFKA_TLS_CLIENT_CERT_FILE and KAFKA_TLS_CLIENT_KEY_FILE must be configured together")
+		return fmt.Errorf("%sTLS_CLIENT_CERT_FILE and %sTLS_CLIENT_KEY_FILE must be configured together", prefix, prefix)
 	}
 	switch cfg.SASL.Mechanism {
 	case "", KafkaSASLNone:
 		if cfg.SASL.Username != "" || cfg.SASL.Password != "" {
-			return fmt.Errorf("KAFKA_SASL_MECHANISM must be enabled when credentials are configured")
+			return fmt.Errorf("%sSASL_MECHANISM must be enabled when credentials are configured", prefix)
 		}
 	case KafkaSASLPlain, KafkaSASLScramSHA256, KafkaSASLScramSHA512:
 		if cfg.SASL.Username == "" || cfg.SASL.Password == "" {
-			return fmt.Errorf("KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD are required for SASL")
+			return fmt.Errorf("%sSASL_USERNAME and %sSASL_PASSWORD are required for SASL", prefix, prefix)
 		}
 	default:
-		return fmt.Errorf("KAFKA_SASL_MECHANISM must be none, plain, scram-sha-256, or scram-sha-512")
+		return fmt.Errorf("%sSASL_MECHANISM must be none, plain, scram-sha-256, or scram-sha-512", prefix)
 	}
 	return nil
+}
+
+// KafkaWorkerFailurePolicy chooses how one worker's exit affects its siblings.
+type KafkaWorkerFailurePolicy string
+
+const (
+	KafkaWorkersStopAll     KafkaWorkerFailurePolicy = "stop-all"
+	KafkaWorkersIndependent KafkaWorkerFailurePolicy = "independent"
+)
+
+func loadKafkaWorkerFailurePolicy() (KafkaWorkerFailurePolicy, error) {
+	policy := KafkaWorkerFailurePolicy(strings.TrimSpace(getEnv("KAFKA_WORKER_FAILURE_POLICY", string(KafkaWorkersStopAll))))
+	switch policy {
+	case KafkaWorkersStopAll, KafkaWorkersIndependent:
+		return policy, nil
+	default:
+		return "", fmt.Errorf("KAFKA_WORKER_FAILURE_POLICY must be stop-all or independent")
+	}
 }
 
 // KafkaWorkerRoutesConfig binds example workflows to configurable topic names.

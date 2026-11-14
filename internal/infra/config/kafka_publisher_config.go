@@ -193,7 +193,7 @@ func (cfg KafkaPublisherConfig) Validate() error {
 // LoadKafkaPublisher reads only the settings needed to publish messages.
 // A publisher does not need a consumer group, database, or Redis configuration.
 func LoadKafkaPublisher() (KafkaPublisherConfig, error) {
-	security, err := LoadKafkaSecurity()
+	security, err := loadKafkaSecurity("KAFKA_")
 	if err != nil {
 		return KafkaPublisherConfig{}, err
 	}
