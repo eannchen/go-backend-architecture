@@ -13,7 +13,9 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	httpdeliverytest "github.com/eannchen/go-backend-architecture/internal/delivery/http/httptest"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
@@ -34,7 +36,7 @@ func TestGetHealthSuccess(t *testing.T) {
 			}, nil
 		},
 	}
-	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
+	h := NewHandler(logger.NoopLogger{}, observability.NoopTracer{}, response.NewResponder(), uc, streamConfig())
 
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t)
@@ -64,7 +66,7 @@ func TestGetHealthSuccess(t *testing.T) {
 // TestGetHealthInvalidQuery checks malformed health queries fail before invoking the usecase.
 func TestGetHealthInvalidQuery(t *testing.T) {
 	uc := &healthtest.Usecase{}
-	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
+	h := NewHandler(logger.NoopLogger{}, observability.NoopTracer{}, response.NewResponder(), uc, streamConfig())
 
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t)
@@ -104,7 +106,7 @@ func TestGetHealthUnavailableReturnsPartialResult(t *testing.T) {
 			}, apperr.New(apperr.CodeUnavailable, "database readiness failed")
 		},
 	}
-	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
+	h := NewHandler(logger.NoopLogger{}, observability.NoopTracer{}, response.NewResponder(), uc, streamConfig())
 
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t)
@@ -135,7 +137,7 @@ func TestGetHealthUnexpectedErrorReturnsInternalResponse(t *testing.T) {
 			return usecasehealth.Result{}, errors.New("unexpected failure")
 		},
 	}
-	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
+	h := NewHandler(logger.NoopLogger{}, observability.NoopTracer{}, response.NewResponder(), uc, streamConfig())
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t)
 	rec := httptest.NewRecorder()

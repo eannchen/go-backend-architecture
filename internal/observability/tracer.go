@@ -52,6 +52,7 @@ type TraceContext struct {
 // context's values, cancellation, and deadline. With a valid parent, the new span
 // keeps its trace ID and gets a new span ID; without one, a new trace begins.
 // Recording and export depend on the configured telemetry and sampling policy.
+// Inject a non-nil Tracer; use NoopTracer to disable tracing.
 type Tracer interface {
 	// Start begins an internal operation, such as usecase or message processing.
 	// scope identifies the instrumented component, e.g. "delivery.kafka".

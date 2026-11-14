@@ -3,16 +3,14 @@ package observability
 import (
 	"context"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
 type Tracing struct{ tracer observability.Tracer }
 
 func NewTracing(tracer observability.Tracer) *Tracing {
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
 	return &Tracing{tracer: tracer}
 }
 

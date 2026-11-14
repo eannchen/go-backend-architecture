@@ -70,9 +70,6 @@ func newServer(
 	streamInterceptors []googlegrpc.StreamServerInterceptor,
 	registrars ...ServiceRegistrar,
 ) *Server {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
 
 	options := make([]googlegrpc.ServerOption, 0, 5)
 	if cfg.TransportCredentials != nil {

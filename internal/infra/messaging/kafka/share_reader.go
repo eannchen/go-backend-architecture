@@ -8,8 +8,9 @@ import (
 	"io"
 	"sync"
 
-	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 )
 
 var (
@@ -93,7 +94,7 @@ func NewShareReader(cfg config.KafkaShareConsumerConfig, tlsConfig *tls.Config, 
 		// rejection. Observe the actual results here and expose failures to callers.
 		kgo.ShareAckCallback(r.recordAckResults),
 		// Do not add DisableAutoCommit or BlockRebalanceOnPoll: those belong to
-		// ordinary consumer groups, not Share Groups. Topics are provisioned separately.
+		// consumer groups, not Share Groups. Topics are provisioned separately.
 	}
 	opts = append(opts, security...)
 	client, err := kgo.NewClient(opts...)

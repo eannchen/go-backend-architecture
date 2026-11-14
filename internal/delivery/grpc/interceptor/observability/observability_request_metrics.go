@@ -18,9 +18,7 @@ type RequestMetrics struct {
 
 // NewRequestMetrics creates gRPC server request metrics.
 func NewRequestMetrics(meter appobservability.Meter) *RequestMetrics {
-	if meter == nil {
-		meter = appobservability.NoopMeter{}
-	}
+
 	// Duration follows OTel RPC conventions. Counts and active streams are custom.
 	return &RequestMetrics{
 		requests:      meter.Counter("app.grpc.server.requests", appobservability.MetricOption{Description: "Completed gRPC requests.", Unit: "{request}"}),

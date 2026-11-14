@@ -4,8 +4,8 @@ This package loads and validates environment-backed configuration before applica
 
 ## Responsibilities and boundaries
 
-- `LoadRuntime` reads shared settings; `LoadHTTPAPI`, `LoadGRPCAPI`, and `LoadKafkaWorker` add the settings for their executable.
-- Configuration values are normalized and validated once, then injected into constructors.
+- `LoadRuntime` reads shared settings; each executable has a loader for its own settings.
+- Loaders normalize and validate environment values before injection. Client constructors also validate configuration supplied directly in Go.
 - Profile-specific configuration and tests remain in separate files so the profile selector can remove unused pairs.
 
 ## Extending

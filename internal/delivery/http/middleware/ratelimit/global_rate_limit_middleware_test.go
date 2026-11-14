@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo/v5"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit/globalratelimittest"
@@ -56,7 +57,7 @@ func TestGlobalRateLimitMiddleware(t *testing.T) {
 				},
 			}
 			meter := observabilitytest.NewRecordingMeter()
-			middleware := NewGlobalRateLimit(limiter, nil, meter)
+			middleware := NewGlobalRateLimit(limiter, response.NewResponder(), meter)
 			e := echo.New()
 			rec := httptest.NewRecorder()
 			c := e.NewContext(httptest.NewRequest(http.MethodGet, "/", nil), rec)

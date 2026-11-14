@@ -2,7 +2,7 @@ package observability
 
 import "context"
 
-// Runtime is the observability facade exposed to app wiring.
+// Runtime is the observability contract used by app composition.
 type Runtime interface {
 	LogEmitter() LogEmitter
 	Tracer() Tracer
@@ -10,7 +10,7 @@ type Runtime interface {
 	Shutdown(ctx context.Context) error
 }
 
-// NoopRuntime is a no-op observability facade.
+// NoopRuntime is a no-op implementation of Runtime.
 type NoopRuntime struct{}
 
 func (NoopRuntime) LogEmitter() LogEmitter { return NoopLogEmitter{} }

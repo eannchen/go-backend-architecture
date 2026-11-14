@@ -34,9 +34,6 @@ type LogPolicy func(LogOutcome) (logger.Severity, bool)
 
 // NewAccessLog creates client completion logging governed by dependency policy.
 func NewAccessLog(log logger.Logger, policy LogPolicy) *AccessLog {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
 	return &AccessLog{log: log, policy: policy}
 }
 

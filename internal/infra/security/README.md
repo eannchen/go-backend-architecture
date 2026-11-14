@@ -12,4 +12,4 @@ This directory implements cryptographic material loading and machine-identity ex
 
 - Keep file I/O, certificate parsing, and identity conventions in infrastructure.
 - Add protocol credential wrappers in app composition, not in reusable TLS code.
-- Put authorization policy in usecases or a dedicated delivery adapter.
+- Keep business authorization in usecases; delivery may enforce transport access rules.

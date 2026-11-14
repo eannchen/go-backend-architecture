@@ -7,10 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
+	"github.com/eannchen/go-backend-architecture/internal/logger"
 	contracts "github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
-
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 // TestProcessingTracing protects the processing span context and failure
@@ -28,7 +29,7 @@ func TestProcessingTracing(t *testing.T) {
 		return context.WithValue(ctx, key{}, "processing"), span
 	}}
 	failure := errors.New("workflow failed")
-	handler := New(tracer, nil, nil).Handler("activity.consume")(func(ctx context.Context, _ *kgo.Record) error {
+	handler := New(tracer, logger.NoopLogger{}, contracts.NoopMeter{}).Handler("activity.consume")(func(ctx context.Context, _ *kgo.Record) error {
 		if ctx.Value(key{}) != "processing" {
 			t.Error("span context not passed to handler")
 		}

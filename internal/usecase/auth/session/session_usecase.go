@@ -41,15 +41,6 @@ func NewServerSessionManager(
 	sessionRepo repokvstore.SessionRepository,
 	ttl time.Duration,
 ) SessionManager {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
-	if meter == nil {
-		meter = observability.NoopMeter{}
-	}
 	return &serverSessionManager{
 		log:         log,
 		tracer:      tracer,

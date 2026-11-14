@@ -4,9 +4,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 // Config bounds one processing attempt. App configuration validates a positive
@@ -25,9 +26,6 @@ type Middleware struct {
 }
 
 func New(tracer observability.Tracer, config Config) *Middleware {
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
 	return &Middleware{tracer: tracer, config: config}
 }
 
@@ -41,7 +39,7 @@ func (m *Middleware) Handler() middleware.Middleware {
 			// consumer can get the record. Finish before the SDK's estimated lock
 			// deadline, leaving margin for sending the acknowledgment.
 			//
-			// Traditional groups assign whole partitions and have no per-record
+			// Consumer groups assign whole partitions and have no per-record
 			// lock. AcquisitionDeadline returns zero for those records, so they
 			// use the configured handling timeout (or an earlier parent deadline).
 			// Their partition ownership can still change through a rebalance or

@@ -50,12 +50,3 @@ func runPostgresStoreIntegrationTests(m *testing.M) int {
 	}
 	return exitCode
 }
-
-func requirePostgresTestPool(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-
-	if postgresTestPool == nil {
-		t.Fatal("PostgreSQL integration pool is not initialized")
-	}
-	return postgresTestPool
-}

@@ -58,15 +58,7 @@ func NewOTPAuthenticator(
 	userRepo repodb.UserRepository,
 	cfg OTPConfig,
 ) OTPAuthenticator {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
-	if meter == nil {
-		meter = observability.NoopMeter{}
-	}
+
 	if cfg.CodeLength <= 0 {
 		cfg.CodeLength = 6
 	}

@@ -149,7 +149,7 @@ func TestReporterShutdownHonorsContextWhileRefreshIsBlocked(t *testing.T) {
 func TestNewReporterRejectsInvalidRefreshInterval(t *testing.T) {
 	_, err := NewReporter(
 		ReporterConfig{},
-		nil,
+		logger.NoopLogger{},
 		&healthtest.Usecase{},
 		&recordingStandardHealthServer{},
 		"",

@@ -15,9 +15,7 @@ type RequestMetrics struct {
 
 // NewRequestMetrics creates HTTP server request metrics.
 func NewRequestMetrics(meter observability.Meter) *RequestMetrics {
-	if meter == nil {
-		meter = observability.NoopMeter{}
-	}
+
 	// Duration follows OTel HTTP conventions; the additional counters are custom.
 	return &RequestMetrics{
 		requests: meter.Counter("app.http.server.requests", observability.MetricOption{Description: "Completed HTTP requests.", Unit: "{request}"}),

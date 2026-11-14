@@ -20,8 +20,6 @@ type App struct {
 	done    chan struct{}
 }
 
-var _ appruntime.Application = (*App)(nil)
-
 func New(ctx context.Context) (_ *App, err error) {
 	cfg, err := config.LoadKafkaShareWorker()
 	if err != nil {

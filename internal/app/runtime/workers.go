@@ -51,10 +51,6 @@ func (g WorkerGroup) Run(ctx context.Context) error {
 			return errors.New("worker requires a name, run function, and shutdown function")
 		}
 	}
-	log := g.Logger
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	// One result per worker. Sending never blocks reader cleanup or shutdown.
@@ -86,7 +82,7 @@ func (g WorkerGroup) Run(ctx context.Context) error {
 		result := <-results
 		if result.err != nil {
 			failures = append(failures, fmt.Errorf("worker %s: %w", result.name, result.err))
-			log.Error(ctx, "worker stopped with error", result.err, logger.FromPairs("worker.name", result.name))
+			g.Logger.Error(ctx, "worker stopped with error", result.err, logger.FromPairs("worker.name", result.name))
 		}
 	}
 	if len(failures) > 0 {

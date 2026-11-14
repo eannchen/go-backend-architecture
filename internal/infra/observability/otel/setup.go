@@ -2,6 +2,7 @@ package otel
 
 import (
 	"context"
+	"errors"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -68,7 +69,7 @@ func (r *Runtime) Meter() observability.Meter {
 }
 
 func (r *Runtime) Shutdown(ctx context.Context) error {
-	return errutil.Join(
+	return errors.Join(
 		errutil.Step("shutdown meter provider", r.meterProvider.Shutdown(ctx)),
 		errutil.Step("shutdown logger provider", r.loggerProvider.Shutdown(ctx)),
 		errutil.Step("shutdown tracer provider", r.traceProvider.Shutdown(ctx)),
@@ -137,7 +138,7 @@ func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv strin
 
 	logExporter, err := otlploghttp.New(ctx, logOptions...)
 	if err != nil {
-		return nil, errutil.Join(
+		return nil, errors.Join(
 			err,
 			errutil.Step("shutdown tracer provider after log exporter init failure", tracerProvider.Shutdown(ctx)),
 		)
@@ -149,7 +150,7 @@ func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv strin
 
 	metricExporter, err := otlpmetrichttp.New(ctx, metricOptions...)
 	if err != nil {
-		return nil, errutil.Join(
+		return nil, errors.Join(
 			err,
 			errutil.Step("shutdown logger provider after metric exporter init failure", loggerProvider.Shutdown(ctx)),
 			errutil.Step("shutdown tracer provider after metric exporter init failure", tracerProvider.Shutdown(ctx)),

@@ -12,9 +12,6 @@ type ProcessingMetrics struct {
 }
 
 func NewProcessingMetrics(meter observability.Meter) *ProcessingMetrics {
-	if meter == nil {
-		meter = observability.NoopMeter{}
-	}
 	return &ProcessingMetrics{
 		attempts: meter.Counter("app.kafka.processing.attempts", observability.MetricOption{Description: "Completed record processing attempts", Unit: "{attempt}"}),
 		duration: meter.Histogram("app.kafka.processing.duration", observability.MetricOption{Description: "Record processing duration", Unit: "s"}),

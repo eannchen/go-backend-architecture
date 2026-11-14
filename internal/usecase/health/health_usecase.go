@@ -49,12 +49,6 @@ func New(
 	cacheHealth repocache.CacheHealthStore,
 	kvHealth repokvstore.KVHealthStore,
 ) Usecase {
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
-	if meter == nil {
-		meter = observability.NoopMeter{}
-	}
 	return &impl{
 		tracer: tracer,
 		checkTotal: meter.Counter("app.health.checks",

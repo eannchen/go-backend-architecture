@@ -17,9 +17,6 @@ type Tracing struct {
 
 // NewTracing creates gRPC server tracing.
 func NewTracing(tracer appobservability.Tracer) *Tracing {
-	if tracer == nil {
-		tracer = appobservability.NoopTracer{}
-	}
 	return &Tracing{tracer: tracer}
 }
 

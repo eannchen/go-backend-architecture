@@ -7,6 +7,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 )
 
+// Lifecycle requires startup, shutdown, and logging dependencies from app composition.
 type Lifecycle struct {
 	Start       func() error
 	Shutdown    func(context.Context) error
@@ -16,10 +17,6 @@ type Lifecycle struct {
 }
 
 func RunLifecycle(rootCtx context.Context, stop context.CancelFunc, application Lifecycle) int {
-	if application.Logger == nil {
-		application.Logger = logger.NoopLogger{}
-	}
-
 	shutdownDone := make(chan struct{})
 	var shutdownErr error
 	go func() {
@@ -28,16 +25,14 @@ func RunLifecycle(rootCtx context.Context, stop context.CancelFunc, application 
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), application.GracePeriod)
 		defer cancel()
 
-		if application.Shutdown != nil {
-			shutdownErr = application.Shutdown(shutdownCtx)
-		}
+		shutdownErr = application.Shutdown(shutdownCtx)
 	}()
 
 	exitCode := 0
 	if err := application.Start(); err != nil {
 		application.Logger.Error(
 			context.Background(),
-			"server exited with error",
+			"application exited with error",
 			err,
 			logger.FromPairs("component", application.Component),
 		)

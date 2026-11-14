@@ -19,11 +19,8 @@ type TraceConfig struct {
 	PropagateContext bool
 }
 
-// NewTracing creates client tracing with a safe no-op default.
+// NewTracing creates client tracing using the injected tracer.
 func NewTracing(tracer appobservability.Tracer, config TraceConfig) *Tracing {
-	if tracer == nil {
-		tracer = appobservability.NoopTracer{}
-	}
 	return &Tracing{tracer: tracer, propagateTraceContext: config.PropagateContext}
 }
 

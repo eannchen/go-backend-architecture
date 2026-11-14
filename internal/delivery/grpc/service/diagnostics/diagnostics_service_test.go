@@ -10,6 +10,7 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	diagnosticsv1 "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/gen/diagnostics/v1"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
@@ -25,7 +26,7 @@ func TestGetHealthMapsReadyResult(t *testing.T) {
 		},
 	}
 
-	got, err := NewService(uc, nil).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
+	got, err := NewService(uc, response.NewResponder()).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
 	if err != nil {
 		t.Fatalf("GetHealth() error = %v", err)
 	}
@@ -59,7 +60,7 @@ func TestGetHealthMapsLiveMode(t *testing.T) {
 		},
 	}
 
-	got, err := NewService(uc, nil).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{
+	got, err := NewService(uc, response.NewResponder()).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{
 		Mode: diagnosticsv1.HealthCheckMode_HEALTH_CHECK_MODE_LIVE,
 	})
 	if err != nil {
@@ -84,7 +85,7 @@ func TestGetHealthReturnsUnavailableAsDetailedResult(t *testing.T) {
 		},
 	}
 
-	got, err := NewService(uc, nil).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
+	got, err := NewService(uc, response.NewResponder()).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
 	if err != nil {
 		t.Fatalf("GetHealth() error = %v", err)
 	}
@@ -120,7 +121,7 @@ func TestGetHealthReturnsWrappedContextErrorsAsStatuses(t *testing.T) {
 				},
 			}
 
-			_, err := NewService(uc, nil).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
+			_, err := NewService(uc, response.NewResponder()).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
 
 			if status.Code(err) != tt.want {
 				t.Fatalf("status code = %v, want %v", status.Code(err), tt.want)
@@ -143,7 +144,7 @@ func TestGetHealthDoesNotMaskReturnedErrorWhenContextIsCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := NewService(uc, nil).GetHealth(ctx, &diagnosticsv1.GetHealthRequest{})
+	_, err := NewService(uc, response.NewResponder()).GetHealth(ctx, &diagnosticsv1.GetHealthRequest{})
 
 	if status.Code(err) != codes.Internal {
 		t.Fatalf("status code = %v, want %v", status.Code(err), codes.Internal)
@@ -157,7 +158,7 @@ func TestGetHealthDoesNotMaskReturnedErrorWhenContextIsCanceled(t *testing.T) {
 func TestGetHealthRejectsUnknownMode(t *testing.T) {
 	uc := &healthtest.Usecase{}
 
-	_, err := NewService(uc, nil).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{
+	_, err := NewService(uc, response.NewResponder()).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{
 		Mode: diagnosticsv1.HealthCheckMode(99),
 	})
 	if status.Code(err) != codes.InvalidArgument {
@@ -176,7 +177,7 @@ func TestGetHealthHidesUnexpectedErrors(t *testing.T) {
 		},
 	}
 
-	_, err := NewService(uc, nil).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
+	_, err := NewService(uc, response.NewResponder()).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
 	if status.Code(err) != codes.Internal {
 		t.Fatalf("status code = %v, want %v", status.Code(err), codes.Internal)
 	}

@@ -22,7 +22,7 @@ func TestWorkerGroupStopAll(t *testing.T) {
 	failure := errors.New("processing failed")
 	cleanupFailure := errors.New("flush failed")
 	var closed atomic.Int32
-	group := WorkerGroup{
+	group := WorkerGroup{Logger: logger.NoopLogger{},
 		StopOnError: true, ShutdownTimeout: time.Second,
 		Workers: []Worker{
 			{Name: "activity", Run: func(ctx context.Context) error {
@@ -81,7 +81,7 @@ func TestWorkerGroupIndependent(t *testing.T) {
 	failedClosed := make(chan struct{})
 	failure := errors.New("activity failed")
 	var closed atomic.Int32
-	group := WorkerGroup{ShutdownTimeout: time.Second, Workers: []Worker{
+	group := WorkerGroup{Logger: logger.NoopLogger{}, ShutdownTimeout: time.Second, Workers: []Worker{
 		{Name: "activity", Run: func(ctx context.Context) error { return failure },
 			Shutdown: func(ctx context.Context) error { close(failedClosed); closed.Add(1); return nil }},
 		{Name: "notification", Run: func(ctx context.Context) error { siblingCtx <- ctx; <-ctx.Done(); return nil },
@@ -159,7 +159,7 @@ func TestWorkerGroupUnexpectedExit(t *testing.T) {
 // and its failure is preserved when application shutdown interrupted processing.
 func TestWorkerGroupShutdownDeadline(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
-	group := WorkerGroup{ShutdownTimeout: 10 * time.Millisecond, Workers: []Worker{
+	group := WorkerGroup{Logger: logger.NoopLogger{}, ShutdownTimeout: 10 * time.Millisecond, Workers: []Worker{
 		{Name: "worker", Run: func(ctx context.Context) error { cancel(); <-ctx.Done(); return nil },
 			Shutdown: func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() }},
 	}}
@@ -173,7 +173,7 @@ func TestWorkerGroupShutdownDeadline(t *testing.T) {
 func TestWorkerGroupPreservesJoinedFailure(t *testing.T) {
 	failure := errors.New("processing failed")
 	ctx, cancel := context.WithCancel(t.Context())
-	group := WorkerGroup{ShutdownTimeout: time.Second, Workers: []Worker{
+	group := WorkerGroup{Logger: logger.NoopLogger{}, ShutdownTimeout: time.Second, Workers: []Worker{
 		{Name: "worker", Run: func(context.Context) error {
 			cancel()
 			return errors.Join(context.Canceled, failure)

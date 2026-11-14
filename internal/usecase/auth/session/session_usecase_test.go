@@ -10,6 +10,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 	"github.com/eannchen/go-backend-architecture/internal/repository/kvstore/kvstoretest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
@@ -47,7 +48,7 @@ func TestServerSessionManagerCreate(t *testing.T) {
 				},
 			}
 			ttl := 20 * time.Minute
-			mgr := NewServerSessionManager(nil, nil, nil, repo, ttl)
+			mgr := NewServerSessionManager(observability.NoopTracer{}, logger.NoopLogger{}, observability.NoopMeter{}, repo, ttl)
 			identity := auth.Identity{UserID: 42, Email: "test@example.com", Method: auth.MethodOTP}
 
 			got, err := mgr.Create(context.Background(), identity)
@@ -148,7 +149,7 @@ func TestServerSessionManagerValidate(t *testing.T) {
 				},
 				DeleteFunc: func(context.Context, string) error { return nil },
 			}
-			mgr := NewServerSessionManager(nil, nil, nil, repo, 15*time.Minute)
+			mgr := NewServerSessionManager(observability.NoopTracer{}, logger.NoopLogger{}, observability.NoopMeter{}, repo, 15*time.Minute)
 
 			got, err := mgr.Validate(context.Background(), tt.token)
 
@@ -182,7 +183,7 @@ func TestServerSessionManagerValidateLogsExpiredSessionCleanupFailure(t *testing
 		DeleteFunc: func(context.Context, string) error { return deleteErr },
 	}
 	log := &loggertest.Logger{WarnFunc: func(context.Context, string, ...logger.Fields) {}}
-	mgr := NewServerSessionManager(nil, log, nil, repo, time.Minute)
+	mgr := NewServerSessionManager(observability.NoopTracer{}, log, observability.NoopMeter{}, repo, time.Minute)
 
 	_, err := mgr.Validate(context.Background(), token)
 
@@ -232,7 +233,7 @@ func TestServerSessionManagerRevoke(t *testing.T) {
 					return tt.repoErr
 				},
 			}
-			mgr := NewServerSessionManager(nil, nil, nil, repo, 15*time.Minute)
+			mgr := NewServerSessionManager(observability.NoopTracer{}, logger.NoopLogger{}, observability.NoopMeter{}, repo, 15*time.Minute)
 
 			err := mgr.Revoke(context.Background(), "token-1")
 

@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
-
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 // TestContextDeadline protects caller cancellation, the earlier parent deadline,
@@ -34,7 +34,7 @@ func TestContextDeadline(t *testing.T) {
 			}
 			failure := errors.New("handler failed")
 			var handling context.Context
-			handler := New(nil, Config{HandlingTimeout: timeout, AcknowledgmentMargin: time.Hour}).Handler()(func(ctx context.Context, _ *kgo.Record) error {
+			handler := New(observability.NoopTracer{}, Config{HandlingTimeout: timeout, AcknowledgmentMargin: time.Hour}).Handler()(func(ctx context.Context, _ *kgo.Record) error {
 				handling = ctx
 				deadline, ok := ctx.Deadline()
 				if !ok {

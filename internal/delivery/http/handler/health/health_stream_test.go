@@ -13,8 +13,10 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	httpdeliverytest "github.com/eannchen/go-backend-architecture/internal/delivery/http/httptest"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
@@ -46,7 +48,7 @@ func TestStreamHealthWritesInitialHealthEvent(t *testing.T) {
 			return result, nil
 		},
 	}
-	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
+	h := NewHandler(logger.NoopLogger{}, observability.NoopTracer{}, response.NewResponder(), uc, streamConfig())
 
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t)
@@ -74,7 +76,7 @@ func TestStreamHealthWritesInitialHealthEvent(t *testing.T) {
 // TestStreamHealthRejectsInvalidQueryBeforeOpeningStream checks invalid queries are rejected before response headers start a stream.
 func TestStreamHealthRejectsInvalidQueryBeforeOpeningStream(t *testing.T) {
 	uc := &healthtest.Usecase{}
-	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
+	h := NewHandler(logger.NoopLogger{}, observability.NoopTracer{}, response.NewResponder(), uc, streamConfig())
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t)
 	rec := httptest.NewRecorder()
@@ -108,7 +110,7 @@ func TestStreamHealthEmitsDependencyFailureAndLogsWarning(t *testing.T) {
 	log := &loggertest.Logger{
 		WarnFunc: func(context.Context, string, ...logger.Fields) {},
 	}
-	h := NewHandler(log, nil, nil, uc, streamConfig())
+	h := NewHandler(log, observability.NoopTracer{}, response.NewResponder(), uc, streamConfig())
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t)
 	req := httptest.NewRequest(http.MethodGet, StreamPath, nil).WithContext(ctx)
@@ -136,7 +138,7 @@ func TestStreamHealthStopsAfterEventWriteFailure(t *testing.T) {
 	log := &loggertest.Logger{
 		WarnFunc: func(context.Context, string, ...logger.Fields) {},
 	}
-	h := NewHandler(log, nil, nil, uc, streamConfig())
+	h := NewHandler(log, observability.NoopTracer{}, response.NewResponder(), uc, streamConfig())
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t)
 	w := &failingHealthStreamWriter{header: make(http.Header), err: wantErr}

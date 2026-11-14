@@ -16,11 +16,8 @@ type RequestMetrics struct {
 	activeStreams appobservability.UpDownCounter
 }
 
-// NewRequestMetrics creates the client instruments with a safe no-op default.
+// NewRequestMetrics creates the client instruments using the injected meter.
 func NewRequestMetrics(meter appobservability.Meter) *RequestMetrics {
-	if meter == nil {
-		meter = appobservability.NoopMeter{}
-	}
 	return &RequestMetrics{
 		requests:      meter.Counter("app.grpc.client.requests", appobservability.MetricOption{Description: "Completed outbound gRPC requests.", Unit: "{request}"}),
 		errors:        meter.Counter("app.grpc.client.errors", appobservability.MetricOption{Description: "Outbound gRPC requests with a non-OK status.", Unit: "{error}"}),

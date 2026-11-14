@@ -11,9 +11,6 @@ import (
 type AccessLog struct{ log logger.Logger }
 
 func NewAccessLog(log logger.Logger) *AccessLog {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
 	return &AccessLog{log: log}
 }
 

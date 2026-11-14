@@ -14,9 +14,6 @@ type AccessLog struct {
 
 // NewAccessLog creates gRPC request access logging.
 func NewAccessLog(log logger.Logger) *AccessLog {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
 	return &AccessLog{log: log}
 }
 

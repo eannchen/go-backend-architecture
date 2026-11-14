@@ -52,9 +52,6 @@ func NewReporter(
 	if cfg.RefreshInterval <= 0 {
 		return nil, fmt.Errorf("standard gRPC health refresh interval must be positive")
 	}
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
 
 	services := []string{overallService}
 	server.SetServingStatus(overallService, healthpb.HealthCheckResponse_NOT_SERVING)

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	contextmw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/context"
@@ -20,8 +22,6 @@ import (
 	otelinfra "github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
-
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 var backend *kafkatest.Broker
@@ -162,7 +162,7 @@ func startWorkers(t *testing.T, want error, flows ...*workflow) *runningWorkers 
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	running := &runningWorkers{cancel: cancel, done: make(chan struct{})}
 	go func() {
-		running.err = (appruntime.WorkerGroup{Workers: tasks, StopOnError: true, ShutdownTimeout: 10 * time.Second}).Run(ctx)
+		running.err = (appruntime.WorkerGroup{Logger: logger.NoopLogger{}, Workers: tasks, StopOnError: true, ShutdownTimeout: 10 * time.Second}).Run(ctx)
 		close(running.done)
 	}()
 	t.Cleanup(func() {

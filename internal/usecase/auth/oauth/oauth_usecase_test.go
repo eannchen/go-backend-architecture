@@ -9,6 +9,7 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
 	"github.com/eannchen/go-backend-architecture/internal/repository/db/dbtest"
 	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external/oauth"
@@ -65,7 +66,7 @@ func TestOAuthAuthenticatorAuthorize(t *testing.T) {
 					return "https://oauth.test/authorize?state=" + state
 				},
 			}
-			uc := NewOAuthAuthenticator(nil, nil, stateRepo, &dbtest.UserRepository{}, provider)
+			uc := NewOAuthAuthenticator(observability.NoopTracer{}, observability.NoopMeter{}, stateRepo, &dbtest.UserRepository{}, provider)
 
 			got, err := uc.Authorize(context.Background(), tt.provider)
 
@@ -213,7 +214,7 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 					return tt.upsertResult, tt.upsertErr
 				},
 			}
-			uc := NewOAuthAuthenticator(nil, nil, stateRepo, userRepo, provider)
+			uc := NewOAuthAuthenticator(observability.NoopTracer{}, observability.NoopMeter{}, stateRepo, userRepo, provider)
 
 			got, err := uc.HandleCallback(context.Background(), tt.provider, tt.code, "state-1", "binding-1")
 
@@ -256,7 +257,7 @@ func TestOAuthAuthenticatorHandleCallbackRejectsMismatchedBrowserBinding(t *test
 		},
 	}
 	provider := &oauthtest.OAuthProvider{ProviderName: "google"}
-	uc := NewOAuthAuthenticator(nil, nil, stateRepo, &dbtest.UserRepository{}, provider)
+	uc := NewOAuthAuthenticator(observability.NoopTracer{}, observability.NoopMeter{}, stateRepo, &dbtest.UserRepository{}, provider)
 
 	_, err := uc.HandleCallback(context.Background(), "google", "code", "state", "wrong")
 	assertAppCode(t, err, apperr.CodeUnauthorized)

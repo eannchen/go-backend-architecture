@@ -21,9 +21,6 @@ type Usecase interface {
 type impl struct{ log logger.Logger }
 
 func New(log logger.Logger) Usecase {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
 	return &impl{log: log}
 }
 

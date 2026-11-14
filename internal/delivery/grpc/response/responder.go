@@ -11,6 +11,8 @@ import (
 )
 
 // Responder maps delivery and application errors to gRPC statuses.
+// Responder maps delivery outcomes to transport responses. Inject a non-nil
+// implementation from app composition; NewResponder provides the standard mapping.
 type Responder interface {
 	Error(cause error, code codes.Code, message string) error
 	AppError(err error) error

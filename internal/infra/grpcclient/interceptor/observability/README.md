@@ -13,5 +13,5 @@ This optional interceptor records client spans, completion logs, and metrics sel
 ## Extending
 
 - Put typed response interpretation and business telemetry in the remote dependency adapter.
-- Add only bounded dependency, method, destination, call-shape, and status metric fields.
+- Add only bounded dependency, method, destination, call-type, and status metric fields.
 - Preserve stream wrapping when adding lifecycle behavior.

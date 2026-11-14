@@ -1,16 +1,16 @@
-// Program profile-selector reduces the source template to one project shape:
+// Program profile-selector keeps one executable profile from the source template:
 //
 //   - public-http keeps the browser/public HTTP API, OpenAPI contract, sessions,
 //     OTP/OAuth, rate limiting, and their user persistence.
 //   - service-grpc keeps the service-to-service gRPC API, protobuf contract, mTLS,
 //     caller identity, and outbound gRPC support.
 //
-// Kafka worker profiles keep either an ordinary consumer or a Share Group worker.
+// Kafka worker profiles keep either a consumer group or a Share Group worker.
 //
 // Run it once on a clean template checkout, before bootstrap-template.sh. Without
 // --apply it only prints the planned deletions. With --apply it installs the chosen
-// profile's conventional .air.toml, sqlc.yaml, and .env.example; deletes the other
-// profile; writes .template-profile; and removes this one-time selector. It never
+// profile's conventional .air.toml, sqlc.yaml, and .env.example; deletes unused
+// profiles; writes .template-profile; and removes this one-time selector. It never
 // connects to a database or changes deployed infrastructure.
 package main
 
@@ -36,7 +36,7 @@ const (
 
 // selectionPlan is the complete file-level transformation for one choice. Profile
 // ownership is explicit so adding a capability requires deliberately deciding
-// whether it is shared, public-HTTP-only, or service-gRPC-only.
+// which profiles need it.
 type selectionPlan struct {
 	profile      string
 	remove       []string
@@ -76,9 +76,8 @@ func main() {
 	fmt.Println("Then run: make check test")
 }
 
-// newSelectionPlan answers “what remains?” Common removals are inputs needed only
-// while selecting. The chosen case then removes every capability owned exclusively
-// by the other profile and identifies the chosen configuration fragments.
+// transportSelectionPlan selects the HTTP or gRPC configuration and removes
+// files used only by the other API. Worker selection reuses these removal lists.
 func transportSelectionPlan(profile string) (selectionPlan, error) {
 	commonRemovals := []string{
 		".github/workflows/profile-selector.yml",
@@ -157,7 +156,8 @@ func transportSelectionPlan(profile string) (selectionPlan, error) {
 				"internal/infra/kvstore/redis/store/oauth_state_store_integration_test.go",
 				"internal/infra/kvstore/redis/store/otp_store.go",
 				"internal/infra/kvstore/redis/store/otp_store_integration_test.go",
-				"internal/infra/kvstore/redis/store/rate_limit_store_integration_test.go",
+				"internal/infra/kvstore/redis/store/token_bucket_store_integration_test.go",
+				"internal/infra/kvstore/redis/store/sliding_window_store_integration_test.go",
 				"internal/infra/kvstore/redis/store/session_store.go",
 				"internal/infra/kvstore/redis/store/session_store_integration_test.go",
 				"internal/infra/kvstore/redis/store/sliding_window_store.go",

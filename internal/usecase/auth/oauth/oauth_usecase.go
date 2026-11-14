@@ -55,12 +55,6 @@ func NewOAuthAuthenticator(
 	userRepo repodb.UserRepository,
 	providers ...repoexternal.OAuthProvider,
 ) OAuthAuthenticator {
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
-	if meter == nil {
-		meter = observability.NoopMeter{}
-	}
 
 	pm := make(map[string]repoexternal.OAuthProvider, len(providers))
 	for _, p := range providers {

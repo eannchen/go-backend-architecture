@@ -21,9 +21,6 @@ type Service struct {
 }
 
 func NewService(health usecasehealth.Usecase, responder grpcresponse.Responder) *Service {
-	if responder == nil {
-		responder = grpcresponse.NewResponder()
-	}
 	return &Service{health: health, responder: responder}
 }
 

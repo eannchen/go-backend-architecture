@@ -24,6 +24,7 @@ type Histogram interface {
 }
 
 // Meter creates and owns metric instruments for app layers.
+// Inject a non-nil Meter; use NoopMeter to disable metrics.
 type Meter interface {
 	Counter(name string, options ...MetricOption) Counter
 	UpDownCounter(name string, options ...MetricOption) UpDownCounter

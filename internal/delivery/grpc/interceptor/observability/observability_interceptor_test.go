@@ -3,13 +3,11 @@ package observability
 import (
 	"context"
 	"errors"
-	"github.com/eannchen/go-backend-architecture/internal/observability/grpcsemconv"
-	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
-	"google.golang.org/grpc/codes"
 	"testing"
 	"time"
 
 	googlegrpc "google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
@@ -17,6 +15,8 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/observability/grpcsemconv"
+	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
 	"github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 )
 
@@ -194,7 +194,7 @@ func TestStreamWrapsContextAndTracksActiveStream(t *testing.T) {
 	meter := newRecordingMeter()
 	base := observabilityServerStream{ctx: context.Background()}
 
-	err := New(tracer, nil, meter).Stream()(nil, base, &googlegrpc.StreamServerInfo{
+	err := New(tracer, logger.NoopLogger{}, meter).Stream()(nil, base, &googlegrpc.StreamServerInfo{
 		FullMethod:     "/grpc.health.v1.Health/Watch",
 		IsServerStream: true,
 	}, func(_ any, stream googlegrpc.ServerStream) error {

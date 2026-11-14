@@ -9,8 +9,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 )
 
 // Reader receives messages from subscribed topics as a member of a consumer group.
@@ -73,7 +74,7 @@ func NewReader(cfg config.KafkaConsumerConfig, tlsConfig *tls.Config, hooks ...k
 		// This configures that rebalance time allowance. It is NOT a new timer
 		// starting each time we fetch a record, and does not automatically call
 		// AllowRebalance or cancel our Go handler when time runs out.
-		// If a worker hold up the rebalance too long, Kafka can remove the worker from the group.
+		// If a worker holds up the rebalance too long, Kafka can remove the worker from the group.
 		// Kafka uses the largest configured allowance among the group's members;
 		// our workers should finish comfortably within the configured timeout.
 		kgo.RebalanceTimeout(cfg.RebalanceTimeout),
@@ -87,7 +88,7 @@ func NewReader(cfg config.KafkaConsumerConfig, tlsConfig *tls.Config, hooks ...k
 		// Draining that buffer frees the slot; committing is a separate operation.
 		// Fetching does not remove records from Kafka or start parallel handlers.
 		// Default 1 allows background fetching between polls, even while the worker
-		// handles a record. It still handles one record at a time. Ordinary groups
+		// handles a record. It still handles one record at a time. Consumer groups
 		// do not acquire Share Group record locks, so fetching ahead is useful here.
 		// The SDK's special 0 mode fetches only during polling; the share reader uses it.
 		kgo.MaxConcurrentFetches(cfg.MaxConcurrentFetches),
@@ -216,7 +217,7 @@ func (r *Reader) Close(ctx context.Context) error {
 // 1. Several workers share one job stream
 //    Goal: add workers to share the topic's partitions.
 //    Settings:
-//      Topic                = jobs.v1
+//      Topics               = [jobs.v1]
 //      GroupID              = job-workers-v1 (same for all instances)
 //      FetchMinBytes        = 1
 //      MaxConcurrentFetches = 1
@@ -255,7 +256,7 @@ func (r *Reader) Close(ctx context.Context) error {
 // 5. Fan-out to notification handling and auditing
 //    Goal: both workflows independently read the same topic.
 //    Settings:
-//      Topic   = events.v1 (same topic for both workflows)
+//      Topics  = [events.v1] (same topic for both workflows)
 //      GroupID = notifications-v1 / audit-v1 (different for each workflow)
 //    Each group saves its own progress. A group that does not need a particular
 //    payload type must deliberately skip and commit it to move on. Kafka does

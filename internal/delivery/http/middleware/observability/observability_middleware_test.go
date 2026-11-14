@@ -20,7 +20,7 @@ import (
 
 // TestAccessLogAcceptsNilLogger checks access logging can be disabled without breaking requests.
 func TestAccessLogAcceptsNilLogger(t *testing.T) {
-	NewAccessLog(nil).Record(context.Background(), requestOutcome{})
+	NewAccessLog(logger.NoopLogger{}).Record(context.Background(), requestOutcome{})
 }
 
 // TestRequestMetricsRecordsBoundedRouteAndError checks metrics use bounded route and error values to avoid uncontrolled series growth.

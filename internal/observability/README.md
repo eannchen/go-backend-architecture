@@ -8,6 +8,7 @@ This package defines vendor-neutral tracing, metrics, log-emission, and propagat
 - Carrier interfaces support server extraction and client injection without exposing transport types.
 - Request IDs use explicit context helpers; trace identity remains in the native active span context.
 - Shared error formatting keeps tracing and logging outcomes consistent.
+- Inject non-nil contracts. Use `NoopTracer`, `NoopMeter`, or `NoopRuntime` when a capability is disabled.
 
 ## Extending
 

@@ -7,11 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/recovery"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
-	"github.com/twmb/franz-go/pkg/kgo"
+	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
 // TestProcessingLogs protects completion severity, trace-context propagation, and
@@ -44,7 +46,7 @@ func TestProcessingLogs(t *testing.T) {
 					panic("secret payload")
 				}
 				return tc.err
-			}, New(nil, log, nil).Handler("notification.consume"), recovery.New(log).Handler())
+			}, New(appobservability.NoopTracer{}, log, appobservability.NoopMeter{}).Handler("notification.consume"), recovery.New(log).Handler())
 			record := &kgo.Record{Topic: "notifications", Partition: 2, Offset: 7, Key: []byte("secret key"), Value: []byte("secret payload"), Headers: []kgo.RecordHeader{{Key: "token", Value: []byte("secret header")}}}
 			err := handler(ctx, record)
 			want := tc.err

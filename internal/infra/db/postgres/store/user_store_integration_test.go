@@ -18,7 +18,7 @@ import (
 
 // TestUserStoreIntegration checks user persistence and retrieval against actual SQL and schema constraints.
 func TestUserStoreIntegration(t *testing.T) {
-	pool := requirePostgresTestPool(t)
+	pool := postgresTestPool
 
 	store := NewUserStore(pool, observability.NoopTracer{})
 	ctx := context.Background()
@@ -85,7 +85,7 @@ func TestUserStoreIntegration(t *testing.T) {
 
 // TestUserStoreIntegration_MissingUserMapsNotFound checks a missing user maps the database result to the repository sentinel.
 func TestUserStoreIntegration_MissingUserMapsNotFound(t *testing.T) {
-	store := NewUserStore(requirePostgresTestPool(t), observability.NoopTracer{})
+	store := NewUserStore(postgresTestPool, observability.NoopTracer{})
 	ctx := context.Background()
 	missingEmail := "missing-" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com"
 

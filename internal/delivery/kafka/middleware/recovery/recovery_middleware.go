@@ -6,18 +6,16 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 // Middleware logs handler panics and converts them into safe processing failures.
 type Middleware struct{ log logger.Logger }
 
 func New(log logger.Logger) *Middleware {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
 	return &Middleware{log: log}
 }
 

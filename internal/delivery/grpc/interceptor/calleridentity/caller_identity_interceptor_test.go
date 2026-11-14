@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
+	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
 	securityidentity "github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 )
 
@@ -96,7 +97,7 @@ func TestStreamPublishesVerifiedURIIdentity(t *testing.T) {
 
 // TestNewRejectsMissingCertificateExtractor checks the interceptor cannot start without its certificate identity extractor.
 func TestNewRejectsMissingCertificateExtractor(t *testing.T) {
-	if _, err := New(nil, nil); err == nil {
+	if _, err := New(nil, response.NewResponder()); err == nil {
 		t.Fatal("New() error = nil, want missing extractor error")
 	}
 }
@@ -106,7 +107,7 @@ func newTestInterceptor(
 	extract func(*x509.Certificate) (securityidentity.Identity, error),
 ) *Interceptor {
 	t.Helper()
-	interceptor, err := New(certificateExtractorFunc(extract), nil)
+	interceptor, err := New(certificateExtractorFunc(extract), response.NewResponder())
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

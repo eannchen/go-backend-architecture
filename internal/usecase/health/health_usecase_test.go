@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/repository/cache/cachetest"
 	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
 	"github.com/eannchen/go-backend-architecture/internal/repository/db/dbtest"
@@ -26,7 +27,7 @@ func TestCheckReadySuccess(t *testing.T) {
 	}
 	cache := &cachetest.CacheHealthStore{PingFunc: func(context.Context) error { return nil }}
 	kv := &kvstoretest.KVHealthStore{PingFunc: func(context.Context) error { return nil }}
-	uc := New(nil, nil, db, cache, kv)
+	uc := New(observability.NoopTracer{}, observability.NoopMeter{}, db, cache, kv)
 
 	got, err := uc.Check(context.Background(), "")
 	if err != nil {
@@ -49,7 +50,7 @@ func TestCheckLiveSkipsDependencies(t *testing.T) {
 	db := &dbtest.DBHealthRepository{}
 	cache := &cachetest.CacheHealthStore{}
 	kv := &kvstoretest.KVHealthStore{}
-	uc := New(nil, nil, db, cache, kv)
+	uc := New(observability.NoopTracer{}, observability.NoopMeter{}, db, cache, kv)
 
 	got, err := uc.Check(context.Background(), CheckModeLive)
 	if err != nil {
@@ -65,7 +66,7 @@ func TestCheckLiveSkipsDependencies(t *testing.T) {
 
 // TestCheckInvalidMode checks unsupported health modes fail before probing dependencies.
 func TestCheckInvalidMode(t *testing.T) {
-	uc := New(nil, nil, &dbtest.DBHealthRepository{}, &cachetest.CacheHealthStore{}, &kvstoretest.KVHealthStore{})
+	uc := New(observability.NoopTracer{}, observability.NoopMeter{}, &dbtest.DBHealthRepository{}, &cachetest.CacheHealthStore{}, &kvstoretest.KVHealthStore{})
 
 	_, err := uc.Check(context.Background(), CheckMode("bad"))
 	if err == nil {
@@ -90,7 +91,7 @@ func TestCheckCacheFailure(t *testing.T) {
 	}
 	cache := &cachetest.CacheHealthStore{PingFunc: func(context.Context) error { return errors.New("cache down") }}
 	kv := &kvstoretest.KVHealthStore{}
-	uc := New(nil, nil, db, cache, kv)
+	uc := New(observability.NoopTracer{}, observability.NoopMeter{}, db, cache, kv)
 
 	got, err := uc.Check(context.Background(), CheckModeReady)
 	if err == nil {
@@ -110,7 +111,7 @@ func TestCheckCacheFailure(t *testing.T) {
 
 // TestNewWithNilTracerDoesNotPanic checks missing optional tracing does not break health checks.
 func TestNewWithNilTracerDoesNotPanic(t *testing.T) {
-	uc := New(nil, nil, &dbtest.DBHealthRepository{}, &cachetest.CacheHealthStore{}, &kvstoretest.KVHealthStore{})
+	uc := New(observability.NoopTracer{}, observability.NoopMeter{}, &dbtest.DBHealthRepository{}, &cachetest.CacheHealthStore{}, &kvstoretest.KVHealthStore{})
 
 	if _, err := uc.Check(context.Background(), CheckModeLive); err != nil {
 		t.Fatalf("expected nil error, got %v", err)

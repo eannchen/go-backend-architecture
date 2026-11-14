@@ -3,23 +3,26 @@ package otel
 import (
 	"context"
 	"errors"
-	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
-	contextmw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/context"
-	observabilitymw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/observability"
-	recoverymw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/recovery"
-	otelapi "go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/codes"
-	observabilitymetric "go.opentelemetry.io/otel/metric/noop"
-	"go.opentelemetry.io/otel/propagation"
 	"testing"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
+	otelapi "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	observabilitymetric "go.opentelemetry.io/otel/metric/noop"
+	"go.opentelemetry.io/otel/propagation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
+	contextmw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/context"
+	observabilitymw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/observability"
+	recoverymw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/recovery"
+	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
 // TestKafkaHooksTraceAndMetrics verifies the configured hooks use runtime
@@ -156,7 +159,7 @@ func TestKafkaProcessingContinuesReceiveSpan(t *testing.T) {
 				}
 				cancel()
 				return ctx.Err()
-			}, contextmw.New(tracer, contextmw.Config{HandlingTimeout: time.Second}).Handler(), observabilitymw.New(tracer, nil, nil).Handler("test.consume"), recoverymw.New(nil).Handler())
+			}, contextmw.New(tracer, contextmw.Config{HandlingTimeout: time.Second}).Handler(), observabilitymw.New(tracer, logger.NoopLogger{}, observability.NoopMeter{}).Handler("test.consume"), recoverymw.New(logger.NoopLogger{}).Handler())
 			if err := handler(ctx, record); !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}

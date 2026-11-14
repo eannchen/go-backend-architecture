@@ -9,8 +9,9 @@ type LogSinkFunc func(ctx context.Context, severity Severity, message string, fi
 // ContextFieldsProviderFunc extracts context-bound fields (e.g. request/trace IDs) for every log and sink export.
 type ContextFieldsProviderFunc func(ctx context.Context) Fields
 
-// Logger defines the project logging contract.
-// Context is included in every call so tracing metadata can be attached later without changing call sites.
+// Logger defines the project logging contract. Inject a non-nil implementation;
+// use NoopLogger when logging is disabled.
+// Context carries request and trace identifiers into each log entry.
 type Logger interface {
 	Debug(ctx context.Context, message string, fields ...Fields)
 	Info(ctx context.Context, message string, fields ...Fields)

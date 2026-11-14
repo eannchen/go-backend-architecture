@@ -19,12 +19,6 @@ type Interceptor struct {
 }
 
 func New(log logger.Logger, responder grpcresponse.Responder) *Interceptor {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
-	if responder == nil {
-		responder = grpcresponse.NewResponder()
-	}
 	return &Interceptor{log: log, responder: responder}
 }
 

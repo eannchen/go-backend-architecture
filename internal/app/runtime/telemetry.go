@@ -26,7 +26,7 @@ func NewTelemetry(ctx context.Context, cfg config.RuntimeConfig) (*Telemetry, er
 	log, err := zaplogger.New(cfg.Log)
 	if err != nil {
 		cleanupErr := CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, obs.Shutdown)
-		return nil, errutil.Join(err, errutil.Step("shutdown observability after logger init failure", cleanupErr))
+		return nil, errors.Join(err, errutil.Step("shutdown observability after logger init failure", cleanupErr))
 	}
 	log.SetLogSink(logEmitterToLogSink(obs.LogEmitter()))
 	log.SetContextFieldsProvider(contextFieldsProvider(obs.Tracer()))
@@ -35,15 +35,8 @@ func NewTelemetry(ctx context.Context, cfg config.RuntimeConfig) (*Telemetry, er
 
 // Shutdown flushes exported telemetry before syncing the local logger.
 func (t *Telemetry) Shutdown(ctx context.Context) error {
-	if t == nil {
-		return nil
-	}
-	var err error
-	if t.Observability != nil {
-		err = errors.Join(err, errutil.Step("shutdown observability", t.Observability.Shutdown(ctx)))
-	}
-	if t.Logger != nil {
-		err = errors.Join(err, errutil.Step("sync logger", t.Logger.Sync()))
-	}
-	return err
+	return errors.Join(
+		errutil.Step("shutdown observability", t.Observability.Shutdown(ctx)),
+		errutil.Step("sync logger", t.Logger.Sync()),
+	)
 }

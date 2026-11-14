@@ -23,15 +23,6 @@ func TestMain(m *testing.M) {
 	}))
 }
 
-func requireRedisTestClient(t *testing.T) *goredis.Client {
-	t.Helper()
-
-	if redisTestClient == nil {
-		t.Fatal("Redis integration client is not initialized")
-	}
-	return redisTestClient
-}
-
 func requirePositiveRedisTTL(t *testing.T, key string, maximum time.Duration) {
 	t.Helper()
 

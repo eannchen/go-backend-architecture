@@ -30,9 +30,6 @@ type ipLimiter struct {
 }
 
 func NewIPLimiter(repo repokvstore.TokenBucketRepository, log logger.Logger, cfg Config) Limiter {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
 	return &ipLimiter{repo, log, cfg}
 }
 

@@ -39,7 +39,7 @@ type KafkaShareConsumerConfig struct {
 	// Topic names to subscribe to. Delivery routes each record by its topic.
 	Topics []string
 	// All share readers with this ID cooperate on the same records. Use an ID
-	// different from an existing ordinary consumer group's ID.
+	// different from an existing consumer group's ID.
 	GroupID string
 	// Maximum records returned by FetchRecords AND requested from the broker.
 	// It bounds one batch of work, not how many handlers run in parallel.

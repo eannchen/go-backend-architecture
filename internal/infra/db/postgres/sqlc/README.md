@@ -5,7 +5,7 @@ This directory contains the SQL schema and queries used to generate the PostgreS
 ## Responsibilities and boundaries
 
 - Schema and query files are editable generation inputs; `gen` contains generated Go code.
-- Profile-specific sqlc configuration selects the schema and query files present in that project shape.
+- Profile-specific sqlc configuration selects the schema and query files kept by that profile.
 - Generated database types remain inside infrastructure adapters.
 
 ## Extending

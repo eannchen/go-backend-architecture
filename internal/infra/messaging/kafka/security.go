@@ -4,15 +4,16 @@ import (
 	"crypto/tls"
 	"fmt"
 
-	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/sasl/plain"
 	"github.com/twmb/franz-go/pkg/sasl/scram"
+
+	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 )
 
 // securityOptions translates settings already validated by each client constructor
 // into broker connection options.
-// The writer, traditional reader, and Share Group reader all use these options.
+// The writer, consumer group reader, and Share Group reader all use these options.
 // Here, "client" means any application connecting to Kafka, including a producer.
 // App wiring loads TLS material through the shared tlsconfig package and injects
 // it into each constructor. The broker authenticates the connection before allowing
