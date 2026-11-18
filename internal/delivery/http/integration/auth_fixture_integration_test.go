@@ -12,6 +12,7 @@ import (
 	"time"
 
 	authhttp "github.com/eannchen/go-backend-architecture/internal/delivery/http/handler/auth"
+	authtest "github.com/eannchen/go-backend-architecture/internal/delivery/http/handler/auth/authtest"
 	sessionmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/session"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
@@ -21,11 +22,10 @@ import (
 	rediskvstore "github.com/eannchen/go-backend-architecture/internal/infra/kvstore/redis/store"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
-	emailtest "github.com/eannchen/go-backend-architecture/internal/repository/external/otp/otptest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
-	oauthauthtest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth/oauthtest"
 	authotp "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp"
+	otptest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp/otptest"
 	authsession "github.com/eannchen/go-backend-architecture/internal/usecase/auth/session"
 )
 
@@ -38,7 +38,7 @@ var errUnexpectedOAuth = errors.New("OAuth is outside this test flow")
 
 type authFixture struct {
 	*serverFixture
-	emailSender *emailtest.EmailSender
+	emailSender *otptest.EmailSender
 }
 
 // newAuthFixture wires the real OTP, user, and session adapters while keeping email delivery observable in the test.
@@ -55,7 +55,7 @@ func newAuthFixture(t *testing.T, email string) *authFixture {
 	users := composeduser.NewCachedUserStore(log, tracer, dbUsers, userCache)
 	otps := rediskvstore.NewOTPStore(redisClient)
 	sessions := rediskvstore.NewSessionStore(redisClient)
-	emailSender := &emailtest.EmailSender{
+	emailSender := &otptest.EmailSender{
 		SendOTPFunc: func(context.Context, string, string) error { return nil },
 	}
 	otpAuthenticator := authotp.NewOTPAuthenticator(log, tracer, meter, otps, emailSender, users, authotp.OTPConfig{
@@ -70,7 +70,7 @@ func newAuthFixture(t *testing.T, email string) *authFixture {
 		tracer,
 		responder,
 		otpAuthenticator,
-		&oauthauthtest.OAuthAuthenticator{
+		&authtest.OAuthAuthenticator{
 			AuthorizeFunc: func(context.Context, string) (authoauth.Authorization, error) {
 				return authoauth.Authorization{}, errUnexpectedOAuth
 			},
@@ -93,16 +93,16 @@ func (f *authFixture) sendOTP(t *testing.T, inputEmail, deliveredTo string) stri
 	t.Helper()
 
 	f.sendJSON(t, http.MethodPost, "/auth/otp/send", map[string]string{"email": inputEmail}, nil, http.StatusOK)
-	if f.emailSender.SendOTPCalls != 1 {
-		t.Fatalf("email send calls = %d, want 1", f.emailSender.SendOTPCalls)
+	if len(f.emailSender.SendOTPCalls) != 1 {
+		t.Fatalf("email send calls = %d, want 1", len(f.emailSender.SendOTPCalls))
 	}
-	if f.emailSender.SendOTPEmail != deliveredTo {
-		t.Fatalf("OTP delivered to %q, want %q", f.emailSender.SendOTPEmail, deliveredTo)
+	if f.emailSender.SendOTPCalls[0].Email != deliveredTo {
+		t.Fatalf("OTP delivered to %q, want %q", f.emailSender.SendOTPCalls[0].Email, deliveredTo)
 	}
-	if f.emailSender.SendOTPCode == "" {
+	if f.emailSender.SendOTPCalls[0].Code == "" {
 		t.Fatal("OTP email contained an empty code")
 	}
-	return f.emailSender.SendOTPCode
+	return f.emailSender.SendOTPCalls[0].Code
 }
 
 func (f *authFixture) verifyOTP(t *testing.T, email, code string) (openapi.AuthResponse, *http.Cookie) {

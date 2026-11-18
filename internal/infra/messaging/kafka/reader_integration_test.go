@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka/kafkatest"
-
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
+
+	"github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka/kafkatest"
 )
 
 var integrationBackend *kafkatest.Broker

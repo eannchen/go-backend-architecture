@@ -30,7 +30,7 @@ type RequestIDConfig struct {
 // RequestContextMiddleware enriches request context with request ID and timeout.
 type RequestContextMiddleware struct {
 	config      Config
-	responder   httpresponse.Responder
+	responder   *httpresponse.Responder
 	skipTimeout func(c *echo.Context) bool
 }
 
@@ -46,7 +46,7 @@ func WithTimeoutSkipper(skip func(c *echo.Context) bool) Option {
 }
 
 // NewRequestContextMiddleware creates request context middleware with optional timeout.
-func NewRequestContextMiddleware(config Config, responder httpresponse.Responder, opts ...Option) (*RequestContextMiddleware, error) {
+func NewRequestContextMiddleware(config Config, responder *httpresponse.Responder, opts ...Option) (*RequestContextMiddleware, error) {
 	var err error
 	config.RequestID.IncomingHeaderKey, err = normalizeHeaderKey(config.RequestID.IncomingHeaderKey)
 	if err != nil {

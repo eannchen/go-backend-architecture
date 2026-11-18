@@ -17,11 +17,11 @@ import (
 // Interceptor publishes verified mTLS caller identities to downstream contexts.
 type Interceptor struct {
 	extractor securityidentity.CertificateExtractor
-	responder grpcresponse.Responder
+	responder *grpcresponse.Responder
 }
 
 // New creates caller-identity interceptors with an injected certificate policy.
-func New(extractor securityidentity.CertificateExtractor, responder grpcresponse.Responder) (*Interceptor, error) {
+func New(extractor securityidentity.CertificateExtractor, responder *grpcresponse.Responder) (*Interceptor, error) {
 	if extractor == nil {
 		return nil, fmt.Errorf("certificate identity extractor is required")
 	}

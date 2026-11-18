@@ -5,8 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 )
 
 // TestRoutesSelectOneHandler protects topic isolation, context propagation, and

@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
 	notificationhandler "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/notification"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
-
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 // notificationJSON is a wire example, independent of Go DTO serialization.

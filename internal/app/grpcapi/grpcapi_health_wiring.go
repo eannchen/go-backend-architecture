@@ -10,7 +10,7 @@ import (
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
-func (d wiring) buildHealthUsecase(pool *pgxpool.Pool, redisClient *goredis.Client) usecasehealth.Usecase {
+func (d wiring) buildHealthUsecase(pool *pgxpool.Pool, redisClient *goredis.Client) *usecasehealth.Usecase {
 	return usecasehealth.New(
 		d.tracer,
 		d.meter,

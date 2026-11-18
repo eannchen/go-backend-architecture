@@ -34,11 +34,11 @@ type RequestIDConfig struct {
 // Interceptor enriches RPC contexts with correlation and deadline metadata.
 type Interceptor struct {
 	config    Config
-	responder grpcresponse.Responder
+	responder *grpcresponse.Responder
 }
 
 // New validates metadata policy and creates request-context interceptors.
-func New(config Config, responder grpcresponse.Responder) (*Interceptor, error) {
+func New(config Config, responder *grpcresponse.Responder) (*Interceptor, error) {
 	var err error
 	config.RequestID.IncomingMetadataKey, err = grpcmetadata.NormalizeKey(config.RequestID.IncomingMetadataKey)
 	if err != nil {

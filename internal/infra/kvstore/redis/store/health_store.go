@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	goredis "github.com/redis/go-redis/v9"
-
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 )
 
 type HealthStore struct {
@@ -23,5 +21,3 @@ func (s *HealthStore) Ping(ctx context.Context) error {
 	}
 	return nil
 }
-
-var _ repokvstore.KVHealthStore = (*HealthStore)(nil)

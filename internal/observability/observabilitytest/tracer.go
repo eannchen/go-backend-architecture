@@ -6,126 +6,113 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
-// Tracer is the canonical configurable double for observability.Tracer.
+// Tracer is a configurable double for its parent package's Tracer contract.
 type Tracer struct {
-	StartFunc           func(context.Context, string, string, ...observability.Fields) (context.Context, observability.Span)
-	StartCalls          int
-	StartScope          string
-	StartSpanName       string
-	StartFields         []observability.Fields
-	StartServerFunc     func(context.Context, string, string, ...observability.Fields) (context.Context, observability.Span)
-	StartServerCalls    int
-	StartServerScope    string
-	StartServerSpanName string
-	StartServerFields   []observability.Fields
-	StartClientFunc     func(context.Context, string, string, ...observability.Fields) (context.Context, observability.Span)
-	StartClientCalls    int
-	StartClientScope    string
-	StartClientSpanName string
-	StartClientFields   []observability.Fields
-	ExtractFunc         func(context.Context, observability.TextMapCarrier) context.Context
-	ExtractCalls        int
-	ExtractCarrier      observability.TextMapCarrier
-	InjectFunc          func(context.Context, observability.TextMapCarrier)
-	InjectCalls         int
-	InjectCarrier       observability.TextMapCarrier
-	TraceContextFunc    func(context.Context) (observability.TraceContext, bool)
-	TraceContextCalls   int
+	StartFunc         func(ctx context.Context, scope, spanName string, fields ...observability.Fields) (context.Context, observability.Span)
+	StartCalls        []TracerStartCall
+	StartServerFunc   func(ctx context.Context, scope, spanName string, fields ...observability.Fields) (context.Context, observability.Span)
+	StartServerCalls  []TracerStartServerCall
+	StartClientFunc   func(ctx context.Context, scope, spanName string, fields ...observability.Fields) (context.Context, observability.Span)
+	StartClientCalls  []TracerStartClientCall
+	ExtractFunc       func(ctx context.Context, carrier observability.TextMapCarrier) context.Context
+	ExtractCalls      []TracerExtractCall
+	InjectFunc        func(ctx context.Context, carrier observability.TextMapCarrier)
+	InjectCalls       []TracerInjectCall
+	TraceContextFunc  func(ctx context.Context) (observability.TraceContext, bool)
+	TraceContextCalls []TracerTraceContextCall
 }
 
-func (t *Tracer) Start(ctx context.Context, scope, spanName string, fields ...observability.Fields) (context.Context, observability.Span) {
-	t.StartCalls++
-	t.StartScope = scope
-	t.StartSpanName = spanName
-	t.StartFields = fields
-	if t.StartFunc == nil {
+// TracerStartCall records one Tracer.Start invocation.
+type TracerStartCall struct {
+	Context  context.Context
+	Scope    string
+	SpanName string
+	Fields   []observability.Fields
+}
+
+func (d *Tracer) Start(ctx context.Context, scope, spanName string, fields ...observability.Fields) (context.Context, observability.Span) {
+	d.StartCalls = append(d.StartCalls, TracerStartCall{Context: ctx, Scope: scope, SpanName: spanName, Fields: append([]observability.Fields(nil), fields...)})
+	fn := d.StartFunc
+	if fn == nil {
 		panic("unexpected Tracer.Start call")
 	}
-	return t.StartFunc(ctx, scope, spanName, fields...)
+	return fn(ctx, scope, spanName, fields...)
 }
 
-func (t *Tracer) StartServer(ctx context.Context, scope, spanName string, fields ...observability.Fields) (context.Context, observability.Span) {
-	t.StartServerCalls++
-	t.StartServerScope = scope
-	t.StartServerSpanName = spanName
-	t.StartServerFields = fields
-	if t.StartServerFunc == nil {
+// TracerStartServerCall records one Tracer.StartServer invocation.
+type TracerStartServerCall struct {
+	Context  context.Context
+	Scope    string
+	SpanName string
+	Fields   []observability.Fields
+}
+
+func (d *Tracer) StartServer(ctx context.Context, scope, spanName string, fields ...observability.Fields) (context.Context, observability.Span) {
+	d.StartServerCalls = append(d.StartServerCalls, TracerStartServerCall{Context: ctx, Scope: scope, SpanName: spanName, Fields: append([]observability.Fields(nil), fields...)})
+	fn := d.StartServerFunc
+	if fn == nil {
 		panic("unexpected Tracer.StartServer call")
 	}
-	return t.StartServerFunc(ctx, scope, spanName, fields...)
+	return fn(ctx, scope, spanName, fields...)
 }
 
-func (t *Tracer) StartClient(ctx context.Context, scope, spanName string, fields ...observability.Fields) (context.Context, observability.Span) {
-	t.StartClientCalls++
-	t.StartClientScope = scope
-	t.StartClientSpanName = spanName
-	t.StartClientFields = fields
-	if t.StartClientFunc == nil {
+// TracerStartClientCall records one Tracer.StartClient invocation.
+type TracerStartClientCall struct {
+	Context  context.Context
+	Scope    string
+	SpanName string
+	Fields   []observability.Fields
+}
+
+func (d *Tracer) StartClient(ctx context.Context, scope, spanName string, fields ...observability.Fields) (context.Context, observability.Span) {
+	d.StartClientCalls = append(d.StartClientCalls, TracerStartClientCall{Context: ctx, Scope: scope, SpanName: spanName, Fields: append([]observability.Fields(nil), fields...)})
+	fn := d.StartClientFunc
+	if fn == nil {
 		panic("unexpected Tracer.StartClient call")
 	}
-	return t.StartClientFunc(ctx, scope, spanName, fields...)
+	return fn(ctx, scope, spanName, fields...)
 }
 
-func (t *Tracer) Extract(ctx context.Context, carrier observability.TextMapCarrier) context.Context {
-	t.ExtractCalls++
-	t.ExtractCarrier = carrier
-	if t.ExtractFunc == nil {
+// TracerExtractCall records one Tracer.Extract invocation.
+type TracerExtractCall struct {
+	Context context.Context
+	Carrier observability.TextMapCarrier
+}
+
+func (d *Tracer) Extract(ctx context.Context, carrier observability.TextMapCarrier) context.Context {
+	d.ExtractCalls = append(d.ExtractCalls, TracerExtractCall{Context: ctx, Carrier: carrier})
+	fn := d.ExtractFunc
+	if fn == nil {
 		panic("unexpected Tracer.Extract call")
 	}
-	return t.ExtractFunc(ctx, carrier)
+	return fn(ctx, carrier)
 }
 
-func (t *Tracer) Inject(ctx context.Context, carrier observability.TextMapCarrier) {
-	t.InjectCalls++
-	t.InjectCarrier = carrier
-	if t.InjectFunc == nil {
+// TracerInjectCall records one Tracer.Inject invocation.
+type TracerInjectCall struct {
+	Context context.Context
+	Carrier observability.TextMapCarrier
+}
+
+func (d *Tracer) Inject(ctx context.Context, carrier observability.TextMapCarrier) {
+	d.InjectCalls = append(d.InjectCalls, TracerInjectCall{Context: ctx, Carrier: carrier})
+	fn := d.InjectFunc
+	if fn == nil {
 		panic("unexpected Tracer.Inject call")
 	}
-	t.InjectFunc(ctx, carrier)
+	fn(ctx, carrier)
 }
 
-func (t *Tracer) TraceContext(ctx context.Context) (observability.TraceContext, bool) {
-	t.TraceContextCalls++
-	if t.TraceContextFunc == nil {
+// TracerTraceContextCall records one Tracer.TraceContext invocation.
+type TracerTraceContextCall struct {
+	Context context.Context
+}
+
+func (d *Tracer) TraceContext(ctx context.Context) (observability.TraceContext, bool) {
+	d.TraceContextCalls = append(d.TraceContextCalls, TracerTraceContextCall{Context: ctx})
+	fn := d.TraceContextFunc
+	if fn == nil {
 		panic("unexpected Tracer.TraceContext call")
 	}
-	return t.TraceContextFunc(ctx)
+	return fn(ctx)
 }
-
-// Span is the canonical configurable double for observability.Span.
-type Span struct {
-	SetAttributesFunc  func(...observability.Fields)
-	SetAttributesCalls []SetAttributesCall
-	FinishFunc         func(error, ...string)
-	FinishCalls        []FinishCall
-}
-
-// SetAttributesCall records one Span.SetAttributes invocation.
-type SetAttributesCall struct {
-	Fields []observability.Fields
-}
-
-// FinishCall records one Span.Finish invocation.
-type FinishCall struct {
-	Err         error
-	Description []string
-}
-
-func (s *Span) SetAttributes(fields ...observability.Fields) {
-	s.SetAttributesCalls = append(s.SetAttributesCalls, SetAttributesCall{Fields: fields})
-	if s.SetAttributesFunc == nil {
-		panic("unexpected Span.SetAttributes call")
-	}
-	s.SetAttributesFunc(fields...)
-}
-
-func (s *Span) Finish(err error, description ...string) {
-	s.FinishCalls = append(s.FinishCalls, FinishCall{Err: err, Description: description})
-	if s.FinishFunc == nil {
-		panic("unexpected Span.Finish call")
-	}
-	s.FinishFunc(err, description...)
-}
-
-var _ observability.Tracer = (*Tracer)(nil)
-var _ observability.Span = (*Span)(nil)

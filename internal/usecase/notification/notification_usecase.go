@@ -14,17 +14,14 @@ type Request struct {
 	Content   string
 }
 
-type Usecase interface {
-	Handle(context.Context, Request) error
+// Usecase implements the notification workflow.
+type Usecase struct{ log logger.Logger }
+
+func New(log logger.Logger) *Usecase {
+	return &Usecase{log: log}
 }
 
-type impl struct{ log logger.Logger }
-
-func New(log logger.Logger) Usecase {
-	return &impl{log: log}
-}
-
-func (u *impl) Handle(ctx context.Context, request Request) error {
+func (u *Usecase) Handle(ctx context.Context, request Request) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

@@ -21,7 +21,7 @@ type SSEStream struct {
 }
 
 // StartSSE opens an SSE response and returns its event writer.
-func (r *responder) StartSSE(c *echo.Context) (*SSEStream, error) {
+func (r *Responder) StartSSE(c *echo.Context) (*SSEStream, error) {
 	w := c.Response()
 	if !supportsFlushing(w) {
 		return nil, ErrStreamingUnsupported

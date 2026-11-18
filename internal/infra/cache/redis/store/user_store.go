@@ -10,7 +10,6 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
-	repocache "github.com/eannchen/go-backend-architecture/internal/repository/cache"
 )
 
 const userKeyPrefix = "user:id:"
@@ -60,5 +59,3 @@ func (s *UserCacheStore) DeleteByID(ctx context.Context, id int64) error {
 	}
 	return nil
 }
-
-var _ repocache.UserCacheStore = (*UserCacheStore)(nil)

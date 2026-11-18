@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	goredis "github.com/redis/go-redis/v9"
-
-	repocache "github.com/eannchen/go-backend-architecture/internal/repository/cache"
 )
 
 type HealthStore struct {
@@ -24,5 +22,3 @@ func (s *HealthStore) Ping(ctx context.Context) error {
 	}
 	return nil
 }
-
-var _ repocache.CacheHealthStore = (*HealthStore)(nil)

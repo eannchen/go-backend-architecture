@@ -23,11 +23,11 @@ import (
 	recoveryinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/recovery"
 	grpcresponse "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
 	diagnosticsservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics"
+	diagnosticstest "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics/diagnosticstest"
 	grpchealth "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
 
 const (
@@ -39,7 +39,7 @@ const (
 func TestDetailedAndStandardHealthServicesCoexist(t *testing.T) {
 	result := healthyReadyResult()
 	var checkErr error
-	uc := &healthtest.Usecase{
+	uc := &diagnosticstest.HealthChecker{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			return result, checkErr
 		},

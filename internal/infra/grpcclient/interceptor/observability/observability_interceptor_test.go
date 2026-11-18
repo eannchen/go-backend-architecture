@@ -3,7 +3,6 @@ package observability
 import (
 	"context"
 	"errors"
-	"github.com/eannchen/go-backend-architecture/internal/observability/grpcsemconv"
 	"io"
 	"testing"
 	"time"
@@ -16,6 +15,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/observability/grpcsemconv"
 	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
 )
 
@@ -48,8 +48,8 @@ func TestUnaryInjectsTraceAndRecordsOutcome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unary() error = %v", err)
 	}
-	if tracer.StartClientCalls != 1 || tracer.InjectCalls != 1 {
-		t.Fatalf("tracer calls = start:%d inject:%d", tracer.StartClientCalls, tracer.InjectCalls)
+	if len(tracer.StartClientCalls) != 1 || len(tracer.InjectCalls) != 1 {
+		t.Fatalf("tracer calls = start:%d inject:%d", len(tracer.StartClientCalls), len(tracer.InjectCalls))
 	}
 	if len(log.InfoCalls) != 1 || len(log.ErrorNoStackCalls) != 0 {
 		t.Fatalf("log calls = info:%d error:%d", len(log.InfoCalls), len(log.ErrorNoStackCalls))
@@ -94,8 +94,8 @@ func TestUnaryRecordsRemoteFailure(t *testing.T) {
 	if !errors.Is(err, wireErr) {
 		t.Fatalf("Unary() error = %v, want wire error", err)
 	}
-	if tracer.InjectCalls != 0 {
-		t.Fatalf("Inject() calls = %d, want no external trace propagation", tracer.InjectCalls)
+	if len(tracer.InjectCalls) != 0 {
+		t.Fatalf("Inject() calls = %d, want no external trace propagation", len(tracer.InjectCalls))
 	}
 	if len(log.ErrorNoStackCalls) != 1 || !errors.Is(log.ErrorNoStackCalls[0].Err, wireErr) {
 		t.Fatalf("error logs = %#v", log.ErrorNoStackCalls)
@@ -177,8 +177,8 @@ func TestUnaryCapabilitiesCanBeSelectedIndependently(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Unary() error = %v", err)
 		}
-		if tracer.StartClientCalls != 1 || tracer.InjectCalls != 0 || len(span.FinishCalls) != 1 {
-			t.Fatalf("tracing calls = start:%d inject:%d finish:%d", tracer.StartClientCalls, tracer.InjectCalls, len(span.FinishCalls))
+		if len(tracer.StartClientCalls) != 1 || len(tracer.InjectCalls) != 0 || len(span.FinishCalls) != 1 {
+			t.Fatalf("tracing calls = start:%d inject:%d finish:%d", len(tracer.StartClientCalls), len(tracer.InjectCalls), len(span.FinishCalls))
 		}
 	})
 

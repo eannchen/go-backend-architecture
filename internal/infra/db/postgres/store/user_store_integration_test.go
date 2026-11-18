@@ -13,7 +13,7 @@ import (
 
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
+	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
 )
 
 // TestUserStoreIntegration checks user persistence and retrieval against actual SQL and schema constraints.
@@ -54,11 +54,11 @@ func TestUserStoreIntegration(t *testing.T) {
 		t.Fatalf("expected id lookup %+v, got %+v", created, byID)
 	}
 
-	if _, err := store.CreateByEmail(ctx, email); !errors.Is(err, repodb.ErrDuplicateKey) {
+	if _, err := store.CreateByEmail(ctx, email); !errors.Is(err, domainuser.ErrAlreadyExists) {
 		t.Fatalf("expected duplicate key error, got %v", err)
 	}
 
-	oauthUser, err := store.UpsertOAuthUser(ctx, repodb.OAuthUserUpsert{
+	oauthUser, err := store.UpsertOAuthUser(ctx, authoauth.OAuthUserUpsert{
 		Provider:       "google",
 		ProviderUserID: providerUserID,
 		Email:          oauthEmail,
@@ -70,7 +70,7 @@ func TestUserStoreIntegration(t *testing.T) {
 		t.Fatalf("unexpected oauth user: %+v", oauthUser)
 	}
 
-	oauthAgain, err := store.UpsertOAuthUser(ctx, repodb.OAuthUserUpsert{
+	oauthAgain, err := store.UpsertOAuthUser(ctx, authoauth.OAuthUserUpsert{
 		Provider:       "google",
 		ProviderUserID: providerUserID,
 		Email:          "ignored@example.com",
@@ -89,10 +89,10 @@ func TestUserStoreIntegration_MissingUserMapsNotFound(t *testing.T) {
 	ctx := context.Background()
 	missingEmail := "missing-" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com"
 
-	if _, err := store.GetByEmail(ctx, missingEmail); !errors.Is(err, repodb.ErrNotFound) {
+	if _, err := store.GetByEmail(ctx, missingEmail); !errors.Is(err, domainuser.ErrNotFound) {
 		t.Fatalf("GetByEmail error = %v, want ErrNotFound", err)
 	}
-	if _, err := store.GetByID(ctx, -1); !errors.Is(err, repodb.ErrNotFound) {
+	if _, err := store.GetByID(ctx, -1); !errors.Is(err, domainuser.ErrNotFound) {
 		t.Fatalf("GetByID error = %v, want ErrNotFound", err)
 	}
 }

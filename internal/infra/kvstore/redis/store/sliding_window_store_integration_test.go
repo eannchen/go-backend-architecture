@@ -3,28 +3,39 @@
 package store
 
 import (
-	"context"
 	"strconv"
 	"testing"
 	"time"
-
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 )
 
-// TestSlidingWindowStoreTieredIntegration checks tiered sliding-window limits work across real Redis state.
-func TestSlidingWindowStoreTieredIntegration(t *testing.T) {
-	client := redisTestClient
-	key := "integration:" + strconv.FormatInt(time.Now().UnixNano(), 10)
-	redisKey := slidingWindowKeyPrefix + key
-	t.Cleanup(func() { cleanupRedisKeys(t, redisKey) })
-
-	store := NewSlidingWindowStore(client)
-	tiers := []repokvstore.SlidingWindowTier{{Key: key, Limit: 1, Window: time.Minute}}
-	if got, err := store.AllowTiered(context.Background(), tiers); err != nil || !got.Allowed {
-		t.Fatalf("first tiered allow = %+v, %v", got, err)
-	}
-	requirePositiveRedisTTL(t, redisKey, time.Minute)
-	if got, err := store.AllowTiered(context.Background(), tiers); err != nil || got.Allowed || got.RejectedTier != key {
-		t.Fatalf("second tiered allow = %+v, %v", got, err)
+// TestSlidingWindowStoreIntegration checks admissions, remaining quota, retry
+// delays, and expiring Redis state for a single rolling-window limit.
+func TestSlidingWindowStoreIntegration(t *testing.T) {
+	const window = time.Minute
+	store := NewSlidingWindowStore(redisTestClient)
+	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
+	for _, limit := range []int{1, 2} {
+		t.Run(strconv.Itoa(limit), func(t *testing.T) {
+			key := "integration:" + suffix + ":" + strconv.Itoa(limit)
+			redisKey := slidingWindowKeyPrefix + key
+			t.Cleanup(func() { cleanupRedisKeys(t, redisKey) })
+			for call := 0; call < limit; call++ {
+				got, err := store.Allow(t.Context(), key, limit, window)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !got.Allowed || got.Remaining != limit-call-1 || got.RetryAfter != 0 {
+					t.Fatalf("admission %d = %+v, want allowed with %d remaining", call+1, got, limit-call-1)
+				}
+			}
+			got, err := store.Allow(t.Context(), key, limit, window)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Allowed || got.Remaining != 0 || got.RetryAfter <= 0 || got.RetryAfter > window {
+				t.Fatalf("exhausted limit = %+v, want rejection with a retry delay within the window", got)
+			}
+			requirePositiveRedisTTL(t, redisKey, window)
+		})
 	}
 }

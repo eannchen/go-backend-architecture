@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
-
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 // TestRecovery contains handler panics and reports useful coordinates and stack

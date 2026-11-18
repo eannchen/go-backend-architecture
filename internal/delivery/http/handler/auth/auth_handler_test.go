@@ -15,6 +15,7 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/binding"
+	authtest "github.com/eannchen/go-backend-architecture/internal/delivery/http/handler/auth/authtest"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	httpdeliverytest "github.com/eannchen/go-backend-architecture/internal/delivery/http/httptest"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
@@ -24,18 +25,15 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
-	authoauthtest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth/oauthtest"
-	authotptest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp/otptest"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/auth/session/sessiontest"
 )
 
-func newHandlerForTest(otp *authotptest.OTPAuthenticator, session *sessiontest.SessionManager) *Handler {
+func newHandlerForTest(otp *authtest.OTPAuthenticator, session *authtest.SessionManager) *Handler {
 	return NewHandler(
 		logger.NoopLogger{},
 		observability.NoopTracer{},
 		httpresponse.NewResponder(),
 		otp,
-		&authoauthtest.OAuthAuthenticator{},
+		&authtest.OAuthAuthenticator{},
 		session,
 		SessionCookieConfig{
 			Name:   "session_id",
@@ -48,7 +46,7 @@ func newHandlerForTest(otp *authotptest.OTPAuthenticator, session *sessiontest.S
 
 // TestHandlerOAuthFlowBindsCallbackToAuthorizeBrowser checks the OAuth callback is bound to the browser that started authorization.
 func TestHandlerOAuthFlowBindsCallbackToAuthorizeBrowser(t *testing.T) {
-	oauth := &authoauthtest.OAuthAuthenticator{
+	oauth := &authtest.OAuthAuthenticator{
 		AuthorizeFunc: func(context.Context, string) (authoauth.Authorization, error) {
 			return authoauth.Authorization{
 				RedirectURL:    "https://provider.example/authorize",
@@ -62,13 +60,13 @@ func TestHandlerOAuthFlowBindsCallbackToAuthorizeBrowser(t *testing.T) {
 			return auth.Identity{UserID: 7, Email: "user@example.com", Method: auth.MethodOAuth}, nil
 		},
 	}
-	session := &sessiontest.SessionManager{
+	session := &authtest.SessionManager{
 		CreateFunc: func(context.Context, auth.Identity) (auth.Session, error) {
 			return auth.Session{Token: "session-token"}, nil
 		},
 	}
 	h := NewHandler(
-		logger.NoopLogger{}, observability.NoopTracer{}, httpresponse.NewResponder(), &authotptest.OTPAuthenticator{}, oauth, session,
+		logger.NoopLogger{}, observability.NoopTracer{}, httpresponse.NewResponder(), &authtest.OTPAuthenticator{}, oauth, session,
 		SessionCookieConfig{Name: "session_id", TTL: 30 * time.Minute}, nil,
 	)
 	e := newEchoForTest(t)
@@ -109,7 +107,7 @@ func TestHandlerOAuthFlowBindsCallbackToAuthorizeBrowser(t *testing.T) {
 
 // TestHandlerOAuthCallbackRejectsMissingBrowserBinding checks callbacks without browser binding cannot complete authentication.
 func TestHandlerOAuthCallbackRejectsMissingBrowserBinding(t *testing.T) {
-	h := newHandlerForTest(&authotptest.OTPAuthenticator{}, &sessiontest.SessionManager{})
+	h := newHandlerForTest(&authtest.OTPAuthenticator{}, &authtest.SessionManager{})
 	e := newEchoForTest(t)
 	req := httptest.NewRequest(http.MethodGet, "/auth/oauth/google/callback?code=code&state=state", nil)
 	rec := httptest.NewRecorder()
@@ -127,7 +125,7 @@ func TestHandlerOAuthCallbackRejectsMissingBrowserBinding(t *testing.T) {
 
 // TestHandlerOAuthCallbackRejectsMissingContractParameter checks missing callback parameters fail at the HTTP contract boundary.
 func TestHandlerOAuthCallbackRejectsMissingContractParameter(t *testing.T) {
-	h := newHandlerForTest(&authotptest.OTPAuthenticator{}, &sessiontest.SessionManager{})
+	h := newHandlerForTest(&authtest.OTPAuthenticator{}, &authtest.SessionManager{})
 	e := newEchoForTest(t)
 	req := httptest.NewRequest(http.MethodGet, "/auth/oauth/google/callback?code=code", nil)
 	rec := httptest.NewRecorder()
@@ -207,10 +205,10 @@ func TestHandlerSendOTP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			otp := &authotptest.OTPAuthenticator{
+			otp := &authtest.OTPAuthenticator{
 				SendCodeFunc: func(context.Context, string) error { return tt.sendErr },
 			}
-			h := newHandlerForTest(otp, &sessiontest.SessionManager{})
+			h := newHandlerForTest(otp, &authtest.SessionManager{})
 			e := newEchoForTest(t)
 			req := httptest.NewRequest(http.MethodPost, "/auth/otp/send", bytes.NewBufferString(tt.body))
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -222,8 +220,11 @@ func TestHandlerSendOTP(t *testing.T) {
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d", rec.Code, tt.wantStatus)
 			}
-			if otp.SendCodeCalls != tt.wantCalls || otp.SendCodeEmail != tt.wantEmail {
-				t.Fatalf("send call = %d, %q; want %d, %q", otp.SendCodeCalls, otp.SendCodeEmail, tt.wantCalls, tt.wantEmail)
+			if len(otp.SendCodeCalls) != tt.wantCalls {
+				t.Fatalf("send calls = %+v, want %d calls", otp.SendCodeCalls, tt.wantCalls)
+			}
+			if tt.wantCalls == 1 && otp.SendCodeCalls[0].Email != tt.wantEmail {
+				t.Fatalf("sent email = %q, want %q", otp.SendCodeCalls[0].Email, tt.wantEmail)
 			}
 			if tt.wantErrorCode != "" {
 				var body struct {
@@ -242,7 +243,7 @@ func TestHandlerSendOTP(t *testing.T) {
 
 // TestHandlerVerifyOTPSetsCookieAndReturnsAuthResponse checks successful OTP verification sets the session cookie and public auth response.
 func TestHandlerVerifyOTPSetsCookieAndReturnsAuthResponse(t *testing.T) {
-	otp := &authotptest.OTPAuthenticator{
+	otp := &authtest.OTPAuthenticator{
 		VerifyCodeFunc: func(_ context.Context, _, _ string) (auth.Identity, error) {
 			return auth.Identity{
 				UserID: 99,
@@ -251,7 +252,7 @@ func TestHandlerVerifyOTPSetsCookieAndReturnsAuthResponse(t *testing.T) {
 			}, nil
 		},
 	}
-	session := &sessiontest.SessionManager{
+	session := &authtest.SessionManager{
 		CreateFunc: func(context.Context, auth.Identity) (auth.Session, error) {
 			return auth.Session{Token: "session-token"}, nil
 		},
@@ -271,11 +272,14 @@ func TestHandlerVerifyOTPSetsCookieAndReturnsAuthResponse(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
-	if otp.VerifyCodeEmail != "user@example.com" {
-		t.Fatalf("expected normalized email, got %q", otp.VerifyCodeEmail)
+	if len(otp.VerifyCodeCalls) != 1 {
+		t.Fatalf("verify calls = %+v, want one call", otp.VerifyCodeCalls)
 	}
-	if otp.VerifyCodeCode != "AB12" {
-		t.Fatalf("expected normalized code, got %q", otp.VerifyCodeCode)
+	if otp.VerifyCodeCalls[0].Email != "user@example.com" {
+		t.Fatalf("expected normalized email, got %q", otp.VerifyCodeCalls[0].Email)
+	}
+	if otp.VerifyCodeCalls[0].Code != "AB12" {
+		t.Fatalf("expected normalized code, got %q", otp.VerifyCodeCalls[0].Code)
 	}
 
 	cookies := rec.Result().Cookies()
@@ -297,8 +301,8 @@ func TestHandlerVerifyOTPSetsCookieAndReturnsAuthResponse(t *testing.T) {
 
 // TestHandlerLogoutClearsCookieWithoutIncomingSession checks logout clears the cookie even when the request carries no session.
 func TestHandlerLogoutClearsCookieWithoutIncomingSession(t *testing.T) {
-	otp := &authotptest.OTPAuthenticator{}
-	session := &sessiontest.SessionManager{}
+	otp := &authtest.OTPAuthenticator{}
+	session := &authtest.SessionManager{}
 	h := newHandlerForTest(otp, session)
 
 	e := newEchoForTest(t)
@@ -312,8 +316,8 @@ func TestHandlerLogoutClearsCookieWithoutIncomingSession(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
-	if session.RevokeCalls != 0 {
-		t.Fatalf("expected no revoke calls when no cookie present, got %d", session.RevokeCalls)
+	if len(session.RevokeCalls) != 0 {
+		t.Fatalf("expected no revoke calls when no cookie present, got %d", len(session.RevokeCalls))
 	}
 
 	cookies := rec.Result().Cookies()
@@ -331,15 +335,15 @@ func TestHandlerLogoutLogsRevokeFailureAndClearsCookie(t *testing.T) {
 	log := &loggertest.Logger{
 		WarnFunc: func(context.Context, string, ...logger.Fields) {},
 	}
-	session := &sessiontest.SessionManager{
+	session := &authtest.SessionManager{
 		RevokeFunc: func(context.Context, string) error { return wantErr },
 	}
 	h := NewHandler(
 		log,
 		observability.NoopTracer{},
 		httpresponse.NewResponder(),
-		&authotptest.OTPAuthenticator{},
-		&authoauthtest.OAuthAuthenticator{},
+		&authtest.OTPAuthenticator{},
+		&authtest.OAuthAuthenticator{},
 		session,
 		SessionCookieConfig{Name: "session_id", TTL: 30 * time.Minute},
 		nil,
@@ -352,8 +356,8 @@ func TestHandlerLogoutLogsRevokeFailureAndClearsCookie(t *testing.T) {
 	if err := h.Logout(e.NewContext(req, rec)); err != nil {
 		t.Fatalf("Logout() error = %v", err)
 	}
-	if session.RevokeCalls != 1 || session.RevokeToken != "session-token" {
-		t.Fatalf("revoke call = %d, %q; want session-token", session.RevokeCalls, session.RevokeToken)
+	if len(session.RevokeCalls) != 1 || session.RevokeCalls[0].Token != "session-token" {
+		t.Fatalf("revoke calls = %+v, want one call for session-token", session.RevokeCalls)
 	}
 	if len(log.WarnCalls) != 1 || log.WarnCalls[0].Fields[0]["error"] != wantErr {
 		t.Fatalf("warning calls = %+v, want revoke error", log.WarnCalls)
@@ -366,8 +370,8 @@ func TestHandlerLogoutLogsRevokeFailureAndClearsCookie(t *testing.T) {
 
 // TestHandlerMeReturnsSessionFromContext checks the current-user endpoint reads the authenticated session from request context.
 func TestHandlerMeReturnsSessionFromContext(t *testing.T) {
-	otp := &authotptest.OTPAuthenticator{}
-	session := &sessiontest.SessionManager{}
+	otp := &authtest.OTPAuthenticator{}
+	session := &authtest.SessionManager{}
 	h := newHandlerForTest(otp, session)
 
 	e := newEchoForTest(t)
@@ -398,8 +402,8 @@ func TestHandlerMeReturnsSessionFromContext(t *testing.T) {
 
 // TestHandlerOAuthCallbackInvalidQueryReturnsBadRequest checks malformed callback queries receive a bad-request response.
 func TestHandlerOAuthCallbackInvalidQueryReturnsBadRequest(t *testing.T) {
-	otp := &authotptest.OTPAuthenticator{}
-	session := &sessiontest.SessionManager{}
+	otp := &authtest.OTPAuthenticator{}
+	session := &authtest.SessionManager{}
 	h := newHandlerForTest(otp, session)
 
 	e := newEchoForTest(t)

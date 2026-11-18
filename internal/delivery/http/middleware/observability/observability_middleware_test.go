@@ -90,8 +90,8 @@ func TestMiddlewareUsesOneOutcomeForTracingMetricsAndAccessLog(t *testing.T) {
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadRequest)
 	}
-	if tracer.StartServerSpanName != "GET /protected" || tracer.StartServerFields[0][keyHTTPRoute] != "/protected" {
-		t.Fatalf("trace start = (%q, %#v)", tracer.StartServerSpanName, tracer.StartServerFields)
+	if tracer.StartServerCalls[0].SpanName != "GET /protected" || tracer.StartServerCalls[0].Fields[0][keyHTTPRoute] != "/protected" {
+		t.Fatalf("trace start = (%q, %#v)", tracer.StartServerCalls[0].SpanName, tracer.StartServerCalls[0].Fields)
 	}
 	if len(span.FinishCalls) != 1 || !errors.Is(span.FinishCalls[0].Err, cause) {
 		t.Fatalf("span finish calls = %#v, want application cause", span.FinishCalls)

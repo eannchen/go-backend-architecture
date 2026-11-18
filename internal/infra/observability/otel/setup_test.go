@@ -3,11 +3,12 @@ package otel
 import (
 	"context"
 	"errors"
+	"slices"
+	"testing"
+
 	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
-	"slices"
-	"testing"
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 )

@@ -1,22 +1,29 @@
 package sessionmw
 
 import (
+	"context"
+
 	"github.com/labstack/echo/v5"
 
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	authsession "github.com/eannchen/go-backend-architecture/internal/usecase/auth/session"
+	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )
+
+// SessionValidator is the application behavior required by this adapter.
+type SessionValidator interface {
+	Validate(context.Context, string) (auth.Session, error)
+}
 
 // SessionMiddleware validates session cookies and injects session info into the request context.
 type SessionMiddleware struct {
-	session    authsession.SessionManager
+	session    SessionValidator
 	cookieName string
-	responder  httpresponse.Responder
+	responder  *httpresponse.Responder
 }
 
 // New creates a session middleware.
-func New(session authsession.SessionManager, cookieName string, responder httpresponse.Responder) *SessionMiddleware {
+func New(session SessionValidator, cookieName string, responder *httpresponse.Responder) *SessionMiddleware {
 	return &SessionMiddleware{
 		session:    session,
 		cookieName: cookieName,

@@ -6,7 +6,7 @@ import (
 
 	dbsqlc "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/sqlc/gen"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
+	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
 type DBHealthStore struct {
@@ -39,7 +39,7 @@ func (r *DBHealthStore) Ping(ctx context.Context) (err error) {
 	return nil
 }
 
-func (r *DBHealthStore) GetServerStatus(ctx context.Context) (status repodb.DBServerStatus, err error) {
+func (r *DBHealthStore) GetServerStatus(ctx context.Context) (status usecasehealth.DBServerStatus, err error) {
 	ctx, span := r.tracer.Start(ctx, "repository", "db_health_store.get_server_status",
 		observability.FromPairs(
 			"db.system", "postgresql",
@@ -53,15 +53,13 @@ func (r *DBHealthStore) GetServerStatus(ctx context.Context) (status repodb.DBSe
 
 	row, err := r.queries.GetServerStatus(ctx)
 	if err != nil {
-		return repodb.DBServerStatus{}, fmt.Errorf("database server status query failed: %w", err)
+		return usecasehealth.DBServerStatus{}, fmt.Errorf("database server status query failed: %w", err)
 	}
 
-	status = repodb.DBServerStatus{
+	status = usecasehealth.DBServerStatus{
 		DatabaseName:  row.DatabaseName,
 		InRecovery:    row.InRecovery,
 		UptimeSeconds: row.UptimeSeconds,
 	}
 	return status, nil
 }
-
-var _ repodb.DBHealthRepository = (*DBHealthStore)(nil)

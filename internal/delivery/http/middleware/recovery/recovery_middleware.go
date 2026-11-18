@@ -16,10 +16,10 @@ import (
 // Middleware converts panics into safe HTTP failures when a response can still be written.
 type Middleware struct {
 	log       logger.Logger
-	responder httpresponse.Responder
+	responder *httpresponse.Responder
 }
 
-func New(log logger.Logger, responder httpresponse.Responder) *Middleware {
+func New(log logger.Logger, responder *httpresponse.Responder) *Middleware {
 	return &Middleware{log: log, responder: responder}
 }
 

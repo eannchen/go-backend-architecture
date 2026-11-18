@@ -9,9 +9,9 @@ import (
 
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
+	healthtest "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health/healthtest"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
 
 type recordingStandardHealthServer struct {
@@ -50,7 +50,7 @@ func (s *recordingStandardHealthServer) shutdownCount() int {
 // TestReporterRefreshesOverallAndServiceStatus checks usecase results update both overall and per-service gRPC health status.
 func TestReporterRefreshesOverallAndServiceStatus(t *testing.T) {
 	readinessErr := error(nil)
-	uc := &healthtest.Usecase{
+	uc := &healthtest.HealthChecker{
 		CheckFunc: func(_ context.Context, mode usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			if mode != usecasehealth.CheckModeReady {
 				t.Fatalf("mode = %q, want %q", mode, usecasehealth.CheckModeReady)
@@ -81,7 +81,7 @@ func TestReporterRefreshesOverallAndServiceStatus(t *testing.T) {
 // TestReporterStartsImmediatelyAndRefreshesPeriodically checks the reporter publishes an initial state and refreshes it on schedule.
 func TestReporterStartsImmediatelyAndRefreshesPeriodically(t *testing.T) {
 	checkCalls := make(chan struct{}, 2)
-	uc := &healthtest.Usecase{
+	uc := &healthtest.HealthChecker{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			select {
 			case checkCalls <- struct{}{}:
@@ -116,7 +116,7 @@ func TestReporterStartsImmediatelyAndRefreshesPeriodically(t *testing.T) {
 func TestReporterShutdownHonorsContextWhileRefreshIsBlocked(t *testing.T) {
 	checkStarted := make(chan struct{})
 	releaseCheck := make(chan struct{})
-	uc := &healthtest.Usecase{
+	uc := &healthtest.HealthChecker{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			close(checkStarted)
 			<-releaseCheck
@@ -150,7 +150,7 @@ func TestNewReporterRejectsInvalidRefreshInterval(t *testing.T) {
 	_, err := NewReporter(
 		ReporterConfig{},
 		logger.NoopLogger{},
-		&healthtest.Usecase{},
+		&healthtest.HealthChecker{},
 		&recordingStandardHealthServer{},
 		"",
 	)
@@ -162,7 +162,7 @@ func TestNewReporterRejectsInvalidRefreshInterval(t *testing.T) {
 func newTestReporter(
 	t *testing.T,
 	interval time.Duration,
-	uc usecasehealth.Usecase,
+	uc HealthChecker,
 	server StandardHealthServer,
 ) *Reporter {
 	t.Helper()

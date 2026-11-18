@@ -6,7 +6,7 @@ import (
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 	dbsqlc "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/sqlc/gen"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
+	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
 )
 
 // UserStore implements UserRepository using Postgres via sqlc (users table).
@@ -61,7 +61,7 @@ func (s *UserStore) CreateByEmail(ctx context.Context, email string) (user domai
 	return domainuser.User{ID: row.ID, Email: row.Email, Status: domainuser.Status(row.Status)}, nil
 }
 
-func (s *UserStore) UpsertOAuthUser(ctx context.Context, info repodb.OAuthUserUpsert) (user domainuser.User, err error) {
+func (s *UserStore) UpsertOAuthUser(ctx context.Context, info authoauth.OAuthUserUpsert) (user domainuser.User, err error) {
 	ctx, span := s.tracer.Start(ctx, "repository", "user_store.upsert_oauth_user",
 		observability.FromPairs("db.system", "postgresql", "db.operation", "upsert", "db.sql.table", "users", "oauth.provider", info.Provider),
 	)
@@ -77,5 +77,3 @@ func (s *UserStore) UpsertOAuthUser(ctx context.Context, info repodb.OAuthUserUp
 	}
 	return domainuser.User{ID: row.ID, Email: row.Email, Status: domainuser.Status(row.Status)}, nil
 }
-
-var _ repodb.UserRepository = (*UserStore)(nil)

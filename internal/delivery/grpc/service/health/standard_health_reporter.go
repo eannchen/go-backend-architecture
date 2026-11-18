@@ -12,6 +12,11 @@ import (
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
+// HealthChecker is the application behavior required by this adapter.
+type HealthChecker interface {
+	Check(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error)
+}
+
 const overallService = ""
 
 // ReporterConfig controls periodic standard-health updates.
@@ -28,7 +33,7 @@ type StandardHealthServer interface {
 // Reporter translates readiness results into cached standard gRPC health states.
 type Reporter struct {
 	log      logger.Logger
-	health   usecasehealth.Usecase
+	health   HealthChecker
 	server   StandardHealthServer
 	services []string
 	interval time.Duration
@@ -45,7 +50,7 @@ type Reporter struct {
 func NewReporter(
 	cfg ReporterConfig,
 	log logger.Logger,
-	health usecasehealth.Usecase,
+	health HealthChecker,
 	server StandardHealthServer,
 	serviceName string,
 ) (*Reporter, error) {

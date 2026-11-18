@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
+	activitytest "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/activity/activitytest"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/activity"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/activity/activitytest"
-
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 // TestActivityHandler protects workflow invocation and error identity.
@@ -27,7 +27,7 @@ func TestActivityHandler(t *testing.T) {
 		{"invalid", "{}", nil, middleware.ErrInvalidMessage, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			usecase := &activitytest.Usecase{HandleFunc: func(ctx context.Context, request activity.Request) error {
+			usecase := &activitytest.Processor{HandleFunc: func(ctx context.Context, request activity.Request) error {
 				if ctx != t.Context() {
 					t.Fatal("context changed")
 				}

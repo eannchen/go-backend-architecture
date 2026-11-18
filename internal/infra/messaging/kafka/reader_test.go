@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 )
 
 // TestReaderSubscriptionPolicy protects manual commits, rebalance coordination,

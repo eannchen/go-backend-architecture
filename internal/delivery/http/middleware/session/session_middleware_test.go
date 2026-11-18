@@ -12,9 +12,9 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
+	sessiontest "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/session/sessiontest"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/auth/session/sessiontest"
 )
 
 // TestSessionMiddlewareRejectsMissingCredentials checks missing credentials stop protected requests before the handler runs.
@@ -29,7 +29,7 @@ func TestSessionMiddlewareRejectsMissingCredentials(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mw := New(&sessiontest.SessionManager{}, "session_id", httpresponse.NewResponder())
+			mw := New(&sessiontest.SessionValidator{}, "session_id", httpresponse.NewResponder())
 			e := echo.New()
 			req := httptest.NewRequest(http.MethodGet, "/me", nil)
 			if tt.cookie != nil {
@@ -62,7 +62,7 @@ func TestSessionMiddlewareRejectsMissingCredentials(t *testing.T) {
 
 // TestSessionMiddlewareReturnsValidationError checks session validation failures become the expected HTTP error.
 func TestSessionMiddlewareReturnsValidationError(t *testing.T) {
-	session := &sessiontest.SessionManager{
+	session := &sessiontest.SessionValidator{
 		ValidateFunc: func(context.Context, string) (auth.Session, error) {
 			return auth.Session{}, apperr.New(apperr.CodeUnauthorized, "invalid session")
 		},
@@ -85,8 +85,8 @@ func TestSessionMiddlewareReturnsValidationError(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rec.Code)
 	}
-	if session.ValidateCalls != 1 || session.ValidateToken != "bad-token" {
-		t.Fatalf("unexpected validate call state: calls=%d token=%q", session.ValidateCalls, session.ValidateToken)
+	if len(session.ValidateCalls) != 1 || session.ValidateCalls[0].Token != "bad-token" {
+		t.Fatalf("unexpected validate calls: %+v", session.ValidateCalls)
 	}
 }
 
@@ -99,7 +99,7 @@ func TestSessionMiddlewareSetsSessionContext(t *testing.T) {
 		Method:    auth.MethodOTP,
 		ExpiresAt: time.Now().Add(time.Hour),
 	}
-	session := &sessiontest.SessionManager{
+	session := &sessiontest.SessionValidator{
 		ValidateFunc: func(context.Context, string) (auth.Session, error) {
 			return wantSession, nil
 		},
@@ -133,7 +133,7 @@ func TestSessionMiddlewareSetsSessionContext(t *testing.T) {
 	if nextCalls != 1 {
 		t.Fatalf("expected next handler once, got %d", nextCalls)
 	}
-	if session.ValidateCalls != 1 || session.ValidateToken != "token-1" {
-		t.Fatalf("unexpected validate call state: calls=%d token=%q", session.ValidateCalls, session.ValidateToken)
+	if len(session.ValidateCalls) != 1 || session.ValidateCalls[0].Token != "token-1" {
+		t.Fatalf("unexpected validate calls: %+v", session.ValidateCalls)
 	}
 }

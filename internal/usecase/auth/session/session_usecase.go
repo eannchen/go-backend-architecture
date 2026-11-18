@@ -8,27 +8,14 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )
 
-// SessionManager manages session lifecycle after authentication.
-// Implementations decide how tokens are generated and where state is stored.
-//
-// Strategy examples:
-//   - Server-side session: crypto-random token stored in Redis.
-//   - JWT: signed token with claims; Validate decodes without server state.
-//   - Access+refresh: dual tokens with separate lifetimes.
-type SessionManager interface {
-	Create(ctx context.Context, identity auth.Identity) (auth.Session, error)
-	Validate(ctx context.Context, token string) (auth.Session, error)
-	Revoke(ctx context.Context, token string) error
-}
-
-type serverSessionManager struct {
+// Manager implements the session workflow.
+type Manager struct {
 	log         logger.Logger
 	tracer      observability.Tracer
-	sessionRepo repokvstore.SessionRepository
+	sessionRepo SessionRepository
 	ttl         time.Duration
 	createTotal observability.Counter
 }
@@ -38,10 +25,10 @@ func NewServerSessionManager(
 	tracer observability.Tracer,
 	log logger.Logger,
 	meter observability.Meter,
-	sessionRepo repokvstore.SessionRepository,
+	sessionRepo SessionRepository,
 	ttl time.Duration,
-) SessionManager {
-	return &serverSessionManager{
+) *Manager {
+	return &Manager{
 		log:         log,
 		tracer:      tracer,
 		sessionRepo: sessionRepo,
@@ -52,7 +39,7 @@ func NewServerSessionManager(
 	}
 }
 
-func (m *serverSessionManager) Create(ctx context.Context, identity auth.Identity) (sess auth.Session, err error) {
+func (m *Manager) Create(ctx context.Context, identity auth.Identity) (sess auth.Session, err error) {
 	ctx, span := m.tracer.Start(ctx, "usecase", "session_manager.create")
 	defer func() { span.Finish(err) }()
 
@@ -62,7 +49,7 @@ func (m *serverSessionManager) Create(ctx context.Context, identity auth.Identit
 	}
 
 	expiresAt := time.Now().Add(m.ttl)
-	data := repokvstore.SessionData{
+	data := SessionData{
 		Token:     token,
 		UserID:    identity.UserID,
 		Email:     identity.Email,
@@ -84,7 +71,7 @@ func (m *serverSessionManager) Create(ctx context.Context, identity auth.Identit
 	}, nil
 }
 
-func (m *serverSessionManager) Validate(ctx context.Context, token string) (sess auth.Session, err error) {
+func (m *Manager) Validate(ctx context.Context, token string) (sess auth.Session, err error) {
 	ctx, span := m.tracer.Start(ctx, "usecase", "session_manager.validate")
 	defer func() { span.Finish(err) }()
 
@@ -94,7 +81,7 @@ func (m *serverSessionManager) Validate(ctx context.Context, token string) (sess
 
 	data, err := m.sessionRepo.GetByToken(ctx, token)
 	if err != nil {
-		if errors.Is(err, repokvstore.ErrSessionNotFound) {
+		if errors.Is(err, ErrSessionNotFound) {
 			return auth.Session{}, apperr.Wrap(err, apperr.CodeUnauthorized, "invalid or expired session")
 		}
 		return auth.Session{}, apperr.Wrap(err, apperr.CodeUnavailable, "session store unavailable")
@@ -116,7 +103,7 @@ func (m *serverSessionManager) Validate(ctx context.Context, token string) (sess
 	}, nil
 }
 
-func (m *serverSessionManager) Revoke(ctx context.Context, token string) (err error) {
+func (m *Manager) Revoke(ctx context.Context, token string) (err error) {
 	ctx, span := m.tracer.Start(ctx, "usecase", "session_manager.revoke")
 	defer func() { span.Finish(err) }()
 

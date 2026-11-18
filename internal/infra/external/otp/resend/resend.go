@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"html"
 
-	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external/otp"
 	"github.com/resend/resend-go/v3"
 )
 
@@ -36,5 +35,3 @@ func (s *ResendSender) SendOTP(ctx context.Context, email, code string) error {
 	}
 	return nil
 }
-
-var _ repoexternal.EmailSender = (*ResendSender)(nil)

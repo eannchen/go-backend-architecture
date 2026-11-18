@@ -11,18 +11,18 @@ import (
 	"github.com/labstack/echo/v5"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	healthtest "github.com/eannchen/go-backend-architecture/internal/delivery/http/handler/health/healthtest"
 	httpdeliverytest "github.com/eannchen/go-backend-architecture/internal/delivery/http/httptest"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
 
 // TestGetHealthSuccess checks successful health results map to the public HTTP response.
 func TestGetHealthSuccess(t *testing.T) {
-	uc := &healthtest.Usecase{
+	uc := &healthtest.Checker{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			return usecasehealth.Result{
 				Database: usecasehealth.Database{
@@ -50,8 +50,8 @@ func TestGetHealthSuccess(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rec.Code)
 	}
-	if uc.CheckMode != usecasehealth.CheckModeReady {
-		t.Fatalf("expected default ready mode, got %q", uc.CheckMode)
+	if len(uc.CheckCalls) != 1 || uc.CheckCalls[0].Mode != usecasehealth.CheckModeReady {
+		t.Fatalf("health checks = %+v, want one ready check", uc.CheckCalls)
 	}
 
 	var got openapi.HealthResponse
@@ -65,7 +65,7 @@ func TestGetHealthSuccess(t *testing.T) {
 
 // TestGetHealthInvalidQuery checks malformed health queries fail before invoking the usecase.
 func TestGetHealthInvalidQuery(t *testing.T) {
-	uc := &healthtest.Usecase{}
+	uc := &healthtest.Checker{}
 	h := NewHandler(logger.NoopLogger{}, observability.NoopTracer{}, response.NewResponder(), uc, streamConfig())
 
 	e := echo.New()
@@ -80,8 +80,8 @@ func TestGetHealthInvalidQuery(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d", rec.Code)
 	}
-	if uc.CheckCalls != 0 {
-		t.Fatalf("expected usecase not called for invalid query, got %d", uc.CheckCalls)
+	if len(uc.CheckCalls) != 0 {
+		t.Fatalf("expected usecase not called for invalid query, got %d", len(uc.CheckCalls))
 	}
 
 	var got struct {
@@ -97,7 +97,7 @@ func TestGetHealthInvalidQuery(t *testing.T) {
 
 // TestGetHealthUnavailableReturnsPartialResult checks unavailable dependencies still return the partial diagnostic result.
 func TestGetHealthUnavailableReturnsPartialResult(t *testing.T) {
-	uc := &healthtest.Usecase{
+	uc := &healthtest.Checker{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			return usecasehealth.Result{
 				Database: usecasehealth.Database{Status: "down"},
@@ -132,7 +132,7 @@ func TestGetHealthUnavailableReturnsPartialResult(t *testing.T) {
 
 // TestGetHealthUnexpectedErrorReturnsInternalResponse checks unexpected failures receive a safe internal-error response.
 func TestGetHealthUnexpectedErrorReturnsInternalResponse(t *testing.T) {
-	uc := &healthtest.Usecase{
+	uc := &healthtest.Checker{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			return usecasehealth.Result{}, errors.New("unexpected failure")
 		},

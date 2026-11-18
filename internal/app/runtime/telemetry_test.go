@@ -23,7 +23,7 @@ func TestTelemetryShutdownPreservesLoggerFailure(t *testing.T) {
 	if err := telemetry.Shutdown(context.Background()); !errors.Is(err, loggerErr) {
 		t.Fatalf("Shutdown() error = %v, want logger failure", err)
 	}
-	if log.SyncCalls != 1 {
-		t.Fatalf("Sync calls=%d", log.SyncCalls)
+	if len(log.SyncCalls) != 1 {
+		t.Fatalf("Sync calls=%d", len(log.SyncCalls))
 	}
 }

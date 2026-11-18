@@ -1,6 +1,7 @@
 package health
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/labstack/echo/v5"
@@ -13,11 +14,16 @@ import (
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
+// Checker is the application behavior required by this adapter.
+type Checker interface {
+	Check(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error)
+}
+
 func NewHandler(
 	log logger.Logger,
 	tracer observability.Tracer,
-	responder httpresponse.Responder,
-	usecase usecasehealth.Usecase,
+	responder *httpresponse.Responder,
+	usecase Checker,
 	streamConfig StreamConfig,
 ) *Handler {
 	return &Handler{
@@ -32,8 +38,8 @@ func NewHandler(
 type Handler struct {
 	logger    logger.Logger
 	tracer    observability.Tracer
-	responder httpresponse.Responder
-	usecase   usecasehealth.Usecase
+	responder *httpresponse.Responder
+	usecase   Checker
 	stream    StreamConfig
 }
 

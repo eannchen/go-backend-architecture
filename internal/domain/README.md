@@ -5,7 +5,7 @@ This directory contains business concepts and invariants shared across applicati
 ## Responsibilities and boundaries
 
 - Domain packages own entities, value objects, and rules that are independent of transport and storage.
-- Usecases and repository contracts may use domain types; domain packages do not import those outer layers.
+- Shared business repository contracts, their result types, and expected errors live beside the domain concept. Domain packages do not import usecases or infrastructure.
 - Workflow orchestration, I/O, transport validation, and application error mapping remain outside the domain.
 
 ## Extending

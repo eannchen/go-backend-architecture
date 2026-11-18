@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
 	notificationhandler "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/notification"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
-
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 // TestRecoveredPanicDoesNotAdvanceProgress verifies middleware recovery reaches

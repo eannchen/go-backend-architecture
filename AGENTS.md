@@ -12,19 +12,17 @@ The codebase may contain any combination of capabilities. Apply capability-speci
 # Architecture and dependencies
 
 ```text
-delivery -> usecase
-usecase -> repository contracts + domain
-repository contracts -> domain
-infra -> repository contracts + domain
+delivery -> usecase + domain
+usecase -> domain
+infra -> usecase contracts + domain
 delivery/usecase/infra -> shared technical contracts
 app -> all layers (composition only)
 ```
 
-- **domain** owns business entities, value objects, and reusable invariants. It imports neither usecase, repository, infra, nor delivery.
-- **usecase** coordinates business workflows. It may depend on domain types, repository contracts, and shared technical contracts, but never on delivery or infra.
-- **repository** owns outbound capability contracts required by usecases, including persistence, external providers, and replaceable infrastructure-backed operations. Contracts may use domain types but must not expose driver, framework, or vendor types.
-- **shared technical contracts** live in purpose-specific packages such as `internal/logger`, `internal/observability`, and, when required, `internal/security`. They remain outside repository because they provide project-wide facilities rather than capabilities requested by a usecase.
-- **infra** implements repository and shared technical contracts using databases, caches, external services, and third-party libraries. It maps infrastructure-specific types at the boundary.
+- **domain** owns business entities, reusable invariants, and shared business repository contracts. It imports neither usecase, infra, nor delivery.
+- **usecase** coordinates workflows and owns their outbound dependency contracts, result types, and expected errors. It depends on domain and shared technical contracts, never on delivery or infra.
+- **shared technical contracts** live in purpose-specific packages such as `internal/logger`, `internal/observability`, and, when required, `internal/security`.
+- **infra** implements domain, usecase, and technical contracts. It may import their types and errors, but never invoke usecase implementations. Vendor types remain inside adapters unless they are native to the receiving delivery adapter.
 - **delivery** owns inbound adapters for the transports present, including HTTP, gRPC, and Kafka. Adapters validate transport input, invoke usecases, and map outcomes to responses or message decisions. Delivery contains no persistence logic or business policy.
 - **app** is the composition root. Only app chooses concrete implementations and wires dependencies across layers.
 
@@ -32,12 +30,12 @@ Do not bypass a layer to call another layer's implementation.
 
 # Feature placement and naming
 
-Create only the paths a feature requires. Add a domain package for reusable business rules, a repository contract and infra implementation for an outbound capability, and a delivery adapter for incoming requests or messages. Wire each adapter in its matching `internal/app/<executable>/<executable>_*_wiring.go` files.
+Create only the paths a feature requires. Add a domain package for reusable business rules, a consumer-owned contract and infra implementation for an outbound capability, and a delivery adapter for incoming requests or messages. Wire each adapter in its matching `internal/app/<executable>/<executable>_*_wiring.go` files.
 
 ```text
 internal/domain/<concept>/                           # only when shared business meaning exists
 internal/usecase/<feature>/
-internal/repository/<area>/<feature>_repository.go
+internal/usecase/<feature>/<feature>_dependencies.go
 internal/infra/<area>/<backend>/store/<feature>_store.go
 internal/delivery/http/handler/<feature>/             # when HTTP is present
 internal/delivery/grpc/service/<feature>/             # when gRPC is present
@@ -53,12 +51,12 @@ internal/delivery/kafka/handler/<feature>/             # when Kafka is present
 # Construction, contracts, and types
 
 - Use constructor injection. Do not use service locators, mutable global dependencies, or package initialization for runtime wiring.
-- Use the existing contract packages for architectural boundaries. Do not redefine repository, usecase, logger, observability, or security interfaces elsewhere.
-- Use a consumer-owned interface only for a package-specific dependency not represented by an existing architectural contract. Define it beside the code that uses the dependency and include only the methods that code needs.
+- Define interfaces beside their consumers and include only the methods those consumers need. Delivery owns the usecase behavior it consumes; each usecase owns its workflow dependencies. Small consumer interfaces may overlap.
+- Put shared business repositories in the matching domain package, shared workflow contracts in a cohesive usecase package, and shared technical contracts in purpose-specific packages. Technical adapter dependencies stay beside their consumers.
 - Keep interfaces small and behavior-focused. Add methods for usecase needs, not CRUD completeness.
-- Introduce a repository contract when the application needs replaceable behavior or isolation from infrastructure details; do not wrap a third-party package solely because it is external code.
+- Return concrete implementations from constructors by default. Introduce interfaces for actual substitution or dependency isolation; do not wrap every struct or third-party package. Wiring checks interface compatibility; avoid imports used only for implementation assertions.
 - For HTTP, transport DTOs and their `json`, `query`, `form`, normalization, and validation tags remain in delivery. Map them to usecase or domain types before crossing the boundary.
-- Generated OpenAPI or Protobuf types remain in their respective delivery adapters and must not appear in usecase, domain, or repository APIs.
+- Generated OpenAPI or Protobuf types remain in their respective delivery adapters and must not appear in usecase, domain, or dependency APIs.
 - Keep primitive types aligned with schema intent, such as PostgreSQL `BIGINT` to Go `int64`. Map driver-specific types inside infra.
 - Configuration is typed, validated during startup, and injected. Do not read environment variables throughout business or delivery code.
 - Validate external input where it enters the application, then rely on validated values and declared contracts. Repeat validation only at an independently callable entry point or for a documented failure condition.
@@ -91,7 +89,7 @@ internal/delivery/kafka/handler/<feature>/             # when Kafka is present
 - Every list and batch operation must be bounded. Use keyset/cursor pagination for large or frequently changing datasets; justify offset pagination where its cost can grow.
 - Select only data required by the repository result. Do not load complete rows or relations for convenience on hot paths.
 - When several writes must be atomic, expose one repository capability describing the operation. The infra implementation owns the transaction; transaction handles never cross into usecase code.
-- Map vendor errors to repository sentinels with `errors.Join`, allowing usecases to use `errors.Is` without losing the original cause.
+- Map vendor errors to sentinels defined by the contract owner with `errors.Join`, allowing usecases to use `errors.Is` without losing the original cause.
 - Add indexes for actual query access patterns. For material query changes, inspect the query plan rather than assuming an index or rewrite is faster.
 - Caches are optional performance layers. For each cache, define its pattern, such as cache-aside or write-through, its acceptable staleness, and its behavior when reads, writes, or invalidation fail. Choose fallback, retry, bypass, or failure according to the feature's consistency and availability requirements.
 - Prefer clear code over speculative micro-optimization. Benchmark or profile before adding complexity, but preallocate collections when the final size is already known and no extra pass is required.
@@ -100,7 +98,7 @@ internal/delivery/kafka/handler/<feature>/             # when Kafka is present
 
 - Do not discard errors silently. Return them with useful context, convert them to the current layer's error type, or log and continue when the failure is non-fatal. If an error is intentionally ignored, comment why that is safe.
 - Infra returns failures with details about the failed operation and preserves the cause with `%w`. Usecases convert dependency failures to `apperr`; each delivery adapter performs its final error mapping.
-- Define stable sentinel errors in the appropriate repository area. Inspect errors with `errors.Is` or `errors.As`, never string matching.
+- Define stable sentinel errors beside the contract whose outcomes they describe. Inspect errors with `errors.Is` or `errors.As`, never string matching.
 - Prefer `%w` and `errors.Join` for error propagation. Add custom error types, retries, fallbacks, or panic recovery only for behavior required by a caller or an identified failure scenario.
 - Do not panic while handling an HTTP request, gRPC call, broker message, or background job. Reserve panics for unrecoverable programmer errors during startup or invariant violations that cannot be returned.
 - Log an unexpected failure once at the layer that owns the handling decision. Do not log it again in delivery after a responder has handled it.
@@ -115,13 +113,14 @@ internal/delivery/kafka/handler/<feature>/             # when Kafka is present
 # Testing
 
 - Test behavior at the layer that owns it. Keep the subject real and replace only dependencies outside that test's scope.
-- Usecase unit tests replace repositories and assert business rules and error mapping. Delivery unit tests replace usecases and assert adapter-specific input handling, state changes, and outputs.
+- Usecase unit tests replace outbound dependencies and assert business rules and error mapping. Delivery unit tests replace usecases and assert adapter-specific input handling, state changes, and outputs.
 - Add regression coverage in the package where a defect originated: persistence behavior in the adapter test, response behavior in delivery, and business behavior in the usecase or domain test.
 - Keep unit tests beside their source. Name test files by replacing the source file’s `.go` suffix with `_test.go` or `_integration_test.go`. Workflow tests name the feature or workflow; shared setup files name the fixture. Guard integration tests with the `integration` build tag. Move or remove tests with the code they verify.
 - Keep backend integration tests in the infra adapter package and transport workflow integration tests in `internal/delivery/<transport>/integration`. App tests own composition and lifecycle assertions. Reusable backend fixtures belong to the subsystem's test support package.
 - Use table-driven tests when cases share one arrange/act/assert flow. Keep stateful and multi-step workflows explicit.
 - For every new or substantively changed test function, add a short comment stating the behavior it protects and why it matters. Explain non-obvious setup or assertions where needed; do not narrate routine code.
-- Add one canonical configurable double under the contract owner's `xxxtest` package when first needed. Use `<Method>Func` for behavior and `<Method>Calls` for observations; unconfigured calls panic.
+- Reusable doubles live in the contract owner's `<owner>test` package. Match filenames and type names to interfaces. Production code must not import test support.
+- Configurable doubles use `<Method>Func` callbacks and `<Method>Calls` argument histories; count calls with `len`. Unconfigured calls panic. Behavioral fakes may expose purpose-specific observations. Configure callbacks before use and inspect histories after work finishes. Use external test packages when doubles depend on the package under test.
 - Use a real disposable backend for infrastructure integration tests. Prefer Testcontainers when the dependency has a suitable container image. Start one instance of each required backend per package, terminate it explicitly, and clean each test's data. Fail rather than skip when the backend is unavailable.
 - Do not use a fixed sleep to assume concurrent work has finished. Wait for a channel signal, use a controllable clock, or wait for a real state change with a timeout.
 - Do not chase coverage on generated code or trivial pass-throughs.
@@ -150,7 +149,7 @@ For either transport, never edit generated files directly. Review generated diff
 
 # HTTP JSON response semantics
 
-These rules apply only to HTTP response DTOs serialized as JSON, including generated OpenAPI response models. They do not define Protobuf or event-message presence semantics. Internal domain, usecase, and repository types may use idiomatic Go representations until delivery maps them.
+These rules apply only to HTTP response DTOs serialized as JSON, including generated OpenAPI response models. They do not define Protobuf or event-message presence semantics. Internal domain and usecase types may use idiomatic Go representations until delivery maps them.
 
 - Every schema-defined response field is present unless the contract explicitly makes it inapplicable.
 - `null` means the value applies but is unknown or unavailable. It never means "not loaded yet."

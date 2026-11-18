@@ -6,15 +6,14 @@ import (
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
-	repocache "github.com/eannchen/go-backend-architecture/internal/repository/cache"
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
+	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
 )
 
-// CachedUserStore wraps a DB-backed UserRepository with a cache layer (cache-aside pattern).
+// CachedUserStore adds a cache-aside layer to the primary user store.
 // Reads check cache first; writes pass through to DB and invalidate the cache entry.
 type CachedUserStore struct {
-	base   repodb.UserRepository
-	cache  repocache.UserCacheStore
+	base   UserStore
+	cache  UserCache
 	log    logger.Logger
 	tracer observability.Tracer
 }
@@ -22,8 +21,8 @@ type CachedUserStore struct {
 func NewCachedUserStore(
 	log logger.Logger,
 	tracer observability.Tracer,
-	base repodb.UserRepository,
-	cache repocache.UserCacheStore,
+	base UserStore,
+	cache UserCache,
 ) *CachedUserStore {
 	return &CachedUserStore{base: base, cache: cache, log: log, tracer: tracer}
 }
@@ -64,7 +63,7 @@ func (r *CachedUserStore) CreateByEmail(ctx context.Context, email string) (doma
 	return r.base.CreateByEmail(ctx, email)
 }
 
-func (r *CachedUserStore) UpsertOAuthUser(ctx context.Context, info repodb.OAuthUserUpsert) (domainuser.User, error) {
+func (r *CachedUserStore) UpsertOAuthUser(ctx context.Context, info authoauth.OAuthUserUpsert) (domainuser.User, error) {
 	user, err := r.base.UpsertOAuthUser(ctx, info)
 	if err != nil {
 		return domainuser.User{}, err
@@ -74,5 +73,3 @@ func (r *CachedUserStore) UpsertOAuthUser(ctx context.Context, info repodb.OAuth
 	}
 	return user, nil
 }
-
-var _ repodb.UserRepository = (*CachedUserStore)(nil)

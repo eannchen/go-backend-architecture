@@ -6,9 +6,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/worker/workertest"
-
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/worker/workertest"
 )
 
 // TestWorkerProcessingOrder protects manual progress: handle before commit,
@@ -23,7 +23,7 @@ func TestWorkerProcessingOrder(t *testing.T) {
 			reader := &workertest.MessageReader{}
 			reader.FetchRecordFunc = func(context.Context) (*kgo.Record, error) {
 				events = append(events, "fetch")
-				if reader.FetchRecordCalls > 1 {
+				if len(reader.FetchRecordCalls) > 1 {
 					return nil, stopped
 				}
 				if stage == "fetch" {
@@ -81,7 +81,7 @@ func TestWorkerCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	reader := &workertest.MessageReader{FetchRecordFunc: func(ctx context.Context) (*kgo.Record, error) { cancel(); return nil, ctx.Err() }}
 	err := NewWorker(reader, func(context.Context, *kgo.Record) error { t.Fatal("handler invoked"); return nil }).Run(ctx)
-	if err != nil || reader.AllowRebalanceCalls != 0 || len(reader.CommitRecordsCalls) != 0 {
+	if err != nil || len(reader.AllowRebalanceCalls) != 0 || len(reader.CommitRecordsCalls) != 0 {
 		t.Fatalf("shutdown = %v", err)
 	}
 }
@@ -99,7 +99,7 @@ func TestWorkerCancellationDuringProcessing(t *testing.T) {
 	if err := NewWorker(reader, handler).Run(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(reader.CommitRecordsCalls) != 0 || reader.AllowRebalanceCalls != 1 {
+	if len(reader.CommitRecordsCalls) != 0 || len(reader.AllowRebalanceCalls) != 1 {
 		t.Fatal("unfinished work advanced progress or retained ownership")
 	}
 }

@@ -15,10 +15,10 @@ import (
 // Interceptor converts panics into safe gRPC failures.
 type Interceptor struct {
 	log       logger.Logger
-	responder grpcresponse.Responder
+	responder *grpcresponse.Responder
 }
 
-func New(log logger.Logger, responder grpcresponse.Responder) *Interceptor {
+func New(log logger.Logger, responder *grpcresponse.Responder) *Interceptor {
 	return &Interceptor{log: log, responder: responder}
 }
 

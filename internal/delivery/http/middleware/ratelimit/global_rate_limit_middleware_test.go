@@ -10,10 +10,10 @@ import (
 	"github.com/labstack/echo/v5"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	ratelimittest "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/ratelimit/ratelimittest"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit/globalratelimittest"
 )
 
 // TestGlobalRateLimitMiddleware checks rate-limit decisions become the expected HTTP response and downstream calls.
@@ -51,7 +51,7 @@ func TestGlobalRateLimitMiddleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			limiter := &globalratelimittest.Limiter{
+			limiter := &ratelimittest.Limiter{
 				AllowIPFunc: func(context.Context, string) (globalratelimit.Decision, error) {
 					return tt.decision, tt.limiterErr
 				},
@@ -80,8 +80,8 @@ func TestGlobalRateLimitMiddleware(t *testing.T) {
 			if got := rec.Header().Get("Retry-After"); got != tt.wantRetryAfter {
 				t.Fatalf("Retry-After = %q, want %q", got, tt.wantRetryAfter)
 			}
-			if limiter.AllowIPCalls != 1 || limiter.AllowIPIP == "" {
-				t.Fatalf("limiter call = %d, %q; want one non-empty IP", limiter.AllowIPCalls, limiter.AllowIPIP)
+			if len(limiter.AllowIPCalls) != 1 || limiter.AllowIPCalls[0].IP == "" {
+				t.Fatalf("limiter calls = %+v, want one call with a non-empty IP", limiter.AllowIPCalls)
 			}
 			samples := meter.CounterSamples("app.http.rate_limit.decisions")
 			if len(samples) != 1 || samples[0].Fields["outcome"] != tt.wantOutcome {

@@ -1,4 +1,4 @@
-package session
+package session_test
 
 import (
 	"context"
@@ -11,9 +11,9 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
-	"github.com/eannchen/go-backend-architecture/internal/repository/kvstore/kvstoretest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
+	"github.com/eannchen/go-backend-architecture/internal/usecase/auth/session"
+	sessiontest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/session/sessiontest"
 )
 
 // TestServerSessionManagerCreate checks session creation stores the session and maps dependency failures.
@@ -42,13 +42,13 @@ func TestServerSessionManagerCreate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			repo := &kvstoretest.SessionRepository{
-				CreateFunc: func(context.Context, repokvstore.SessionData, time.Duration) error {
+			repo := &sessiontest.SessionRepository{
+				CreateFunc: func(context.Context, session.SessionData, time.Duration) error {
 					return tt.repoErr
 				},
 			}
 			ttl := 20 * time.Minute
-			mgr := NewServerSessionManager(observability.NoopTracer{}, logger.NoopLogger{}, observability.NoopMeter{}, repo, ttl)
+			mgr := session.NewServerSessionManager(observability.NoopTracer{}, logger.NoopLogger{}, observability.NoopMeter{}, repo, ttl)
 			identity := auth.Identity{UserID: 42, Email: "test@example.com", Method: auth.MethodOTP}
 
 			got, err := mgr.Create(context.Background(), identity)
@@ -58,21 +58,22 @@ func TestServerSessionManagerCreate(t *testing.T) {
 			} else if err != nil {
 				t.Fatalf("expected nil error, got %v", err)
 			}
-			if repo.CreateCalls != tt.wantCreateCalls {
-				t.Fatalf("expected create calls %d, got %d", tt.wantCreateCalls, repo.CreateCalls)
+			if len(repo.CreateCalls) != tt.wantCreateCalls {
+				t.Fatalf("expected create calls %d, got %d", tt.wantCreateCalls, len(repo.CreateCalls))
 			}
 			if tt.wantCode == "" {
 				if got.Token == "" {
 					t.Fatal("expected generated token to be non-empty")
 				}
-				if repo.CreateTTL != ttl {
-					t.Fatalf("expected ttl %v, got %v", ttl, repo.CreateTTL)
+				stored := repo.CreateCalls[0]
+				if stored.TTL != ttl {
+					t.Fatalf("expected ttl %v, got %v", ttl, stored.TTL)
 				}
-				if repo.CreateSession.Token != got.Token {
-					t.Fatalf("expected repository token %q to match returned token %q", repo.CreateSession.Token, got.Token)
+				if stored.Session.Token != got.Token {
+					t.Fatalf("expected repository token %q to match returned token %q", stored.Session.Token, got.Token)
 				}
-				if repo.CreateSession.UserID != identity.UserID || repo.CreateSession.Email != identity.Email || repo.CreateSession.Method != string(identity.Method) {
-					t.Fatalf("unexpected session data persisted: %+v", repo.CreateSession)
+				if stored.Session.UserID != identity.UserID || stored.Session.Email != identity.Email || stored.Session.Method != string(identity.Method) {
+					t.Fatalf("unexpected session data persisted: %+v", stored.Session)
 				}
 				if got.UserID != identity.UserID || got.Email != identity.Email || got.Method != identity.Method {
 					t.Fatalf("unexpected returned session: %+v", got)
@@ -86,7 +87,7 @@ func TestServerSessionManagerCreate(t *testing.T) {
 func TestServerSessionManagerValidate(t *testing.T) {
 	t.Parallel()
 
-	validSession := repokvstore.SessionData{
+	validSession := session.SessionData{
 		Token:     "token-1",
 		UserID:    7,
 		Email:     "user@example.com",
@@ -97,7 +98,7 @@ func TestServerSessionManagerValidate(t *testing.T) {
 	tests := []struct {
 		name            string
 		token           string
-		getResult       repokvstore.SessionData
+		getResult       session.SessionData
 		getErr          error
 		wantSession     auth.Session
 		wantCode        apperr.Code
@@ -111,7 +112,7 @@ func TestServerSessionManagerValidate(t *testing.T) {
 		{
 			name:         "missing stored session",
 			token:        "missing-token",
-			getErr:       repokvstore.ErrSessionNotFound,
+			getErr:       session.ErrSessionNotFound,
 			wantCode:     apperr.CodeUnauthorized,
 			wantGetCalls: 1,
 		},
@@ -125,7 +126,7 @@ func TestServerSessionManagerValidate(t *testing.T) {
 		{
 			name:            "deletes expired session",
 			token:           "expired-token",
-			getResult:       repokvstore.SessionData{Token: "expired-token", UserID: 7, Email: "expired@example.com", Method: string(auth.MethodOTP), ExpiresAt: time.Now().Add(-time.Minute)},
+			getResult:       session.SessionData{Token: "expired-token", UserID: 7, Email: "expired@example.com", Method: string(auth.MethodOTP), ExpiresAt: time.Now().Add(-time.Minute)},
 			wantCode:        apperr.CodeUnauthorized,
 			wantGetCalls:    1,
 			wantDeleteCalls: 1,
@@ -143,13 +144,13 @@ func TestServerSessionManagerValidate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			repo := &kvstoretest.SessionRepository{
-				GetByTokenFunc: func(context.Context, string) (repokvstore.SessionData, error) {
+			repo := &sessiontest.SessionRepository{
+				GetByTokenFunc: func(context.Context, string) (session.SessionData, error) {
 					return tt.getResult, tt.getErr
 				},
 				DeleteFunc: func(context.Context, string) error { return nil },
 			}
-			mgr := NewServerSessionManager(observability.NoopTracer{}, logger.NoopLogger{}, observability.NoopMeter{}, repo, 15*time.Minute)
+			mgr := session.NewServerSessionManager(observability.NoopTracer{}, logger.NoopLogger{}, observability.NoopMeter{}, repo, 15*time.Minute)
 
 			got, err := mgr.Validate(context.Background(), tt.token)
 
@@ -161,11 +162,11 @@ func TestServerSessionManagerValidate(t *testing.T) {
 			if got != tt.wantSession {
 				t.Fatalf("expected session %+v, got %+v", tt.wantSession, got)
 			}
-			if repo.GetByTokenCalls != tt.wantGetCalls {
-				t.Fatalf("expected get calls %d, got %d", tt.wantGetCalls, repo.GetByTokenCalls)
+			if len(repo.GetByTokenCalls) != tt.wantGetCalls {
+				t.Fatalf("expected get calls %d, got %d", tt.wantGetCalls, len(repo.GetByTokenCalls))
 			}
-			if repo.DeleteCalls != tt.wantDeleteCalls {
-				t.Fatalf("expected delete calls %d, got %d", tt.wantDeleteCalls, repo.DeleteCalls)
+			if len(repo.DeleteCalls) != tt.wantDeleteCalls {
+				t.Fatalf("expected delete calls %d, got %d", tt.wantDeleteCalls, len(repo.DeleteCalls))
 			}
 		})
 	}
@@ -176,20 +177,20 @@ func TestServerSessionManagerValidate(t *testing.T) {
 func TestServerSessionManagerValidateLogsExpiredSessionCleanupFailure(t *testing.T) {
 	token := "private-session-token"
 	deleteErr := errors.New("redis unavailable")
-	repo := &kvstoretest.SessionRepository{
-		GetByTokenFunc: func(context.Context, string) (repokvstore.SessionData, error) {
-			return repokvstore.SessionData{Token: token, ExpiresAt: time.Now().Add(-time.Minute)}, nil
+	repo := &sessiontest.SessionRepository{
+		GetByTokenFunc: func(context.Context, string) (session.SessionData, error) {
+			return session.SessionData{Token: token, ExpiresAt: time.Now().Add(-time.Minute)}, nil
 		},
 		DeleteFunc: func(context.Context, string) error { return deleteErr },
 	}
 	log := &loggertest.Logger{WarnFunc: func(context.Context, string, ...logger.Fields) {}}
-	mgr := NewServerSessionManager(observability.NoopTracer{}, log, observability.NoopMeter{}, repo, time.Minute)
+	mgr := session.NewServerSessionManager(observability.NoopTracer{}, log, observability.NoopMeter{}, repo, time.Minute)
 
 	_, err := mgr.Validate(context.Background(), token)
 
 	assertAppCode(t, err, apperr.CodeUnauthorized)
-	if repo.DeleteCalls != 1 || repo.DeleteToken != token {
-		t.Fatalf("delete calls = %d, token = %q; want one cleanup attempt", repo.DeleteCalls, repo.DeleteToken)
+	if len(repo.DeleteCalls) != 1 || repo.DeleteCalls[0].Token != token {
+		t.Fatalf("delete calls = %d, token = %q; want one cleanup attempt", len(repo.DeleteCalls), repo.DeleteCalls[0].Token)
 	}
 	if len(log.WarnCalls) != 1 {
 		t.Fatalf("warning calls = %d, want 1", len(log.WarnCalls))
@@ -228,12 +229,12 @@ func TestServerSessionManagerRevoke(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			repo := &kvstoretest.SessionRepository{
+			repo := &sessiontest.SessionRepository{
 				DeleteFunc: func(context.Context, string) error {
 					return tt.repoErr
 				},
 			}
-			mgr := NewServerSessionManager(observability.NoopTracer{}, logger.NoopLogger{}, observability.NoopMeter{}, repo, 15*time.Minute)
+			mgr := session.NewServerSessionManager(observability.NoopTracer{}, logger.NoopLogger{}, observability.NoopMeter{}, repo, 15*time.Minute)
 
 			err := mgr.Revoke(context.Background(), "token-1")
 
@@ -242,11 +243,11 @@ func TestServerSessionManagerRevoke(t *testing.T) {
 			} else if err != nil {
 				t.Fatalf("expected nil error, got %v", err)
 			}
-			if repo.DeleteCalls != 1 {
-				t.Fatalf("expected one delete call, got %d", repo.DeleteCalls)
+			if len(repo.DeleteCalls) != 1 {
+				t.Fatalf("expected one delete call, got %d", len(repo.DeleteCalls))
 			}
-			if repo.DeleteToken != "token-1" {
-				t.Fatalf("expected deleted token %q, got %q", "token-1", repo.DeleteToken)
+			if repo.DeleteCalls[0].Token != "token-1" {
+				t.Fatalf("expected deleted token %q, got %q", "token-1", repo.DeleteCalls[0].Token)
 			}
 		})
 	}

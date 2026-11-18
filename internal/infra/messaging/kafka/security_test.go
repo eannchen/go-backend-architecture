@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/sasl"
+
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/eannchen/go-backend-architecture/internal/infra/security/tlsconfig"
 	"github.com/eannchen/go-backend-architecture/internal/infra/security/tlsconfig/tlsconfigtest"
-
-	"github.com/twmb/franz-go/pkg/kgo"
-	"github.com/twmb/franz-go/pkg/sasl"
 )
 
 // TestClientSecurityOptions protects identical TLS/SASL settings on all three

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -13,10 +14,27 @@ import (
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
-	authotp "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp"
-	authsession "github.com/eannchen/go-backend-architecture/internal/usecase/auth/session"
 )
+
+// OTPAuthenticator supplies the OTP operations exposed by this handler.
+type OTPAuthenticator interface {
+	SendCode(context.Context, string) error
+	VerifyCode(context.Context, string, string) (auth.Identity, error)
+}
+
+// OAuthAuthenticator supplies the OAuth operations exposed by this handler.
+type OAuthAuthenticator interface {
+	Authorize(context.Context, string) (authoauth.Authorization, error)
+	HandleCallback(context.Context, string, string, string, string) (auth.Identity, error)
+}
+
+// SessionManager supplies the session operations exposed by this handler.
+type SessionManager interface {
+	Create(context.Context, auth.Identity) (auth.Session, error)
+	Revoke(context.Context, string) error
+}
 
 const oauthBrowserBindingCookieName = "oauth_browser_binding"
 
@@ -31,10 +49,10 @@ type SessionCookieConfig struct {
 type Handler struct {
 	logger    logger.Logger
 	tracer    observability.Tracer
-	responder httpresponse.Responder
-	otp       authotp.OTPAuthenticator
-	oauth     authoauth.OAuthAuthenticator
-	session   authsession.SessionManager
+	responder *httpresponse.Responder
+	otp       OTPAuthenticator
+	oauth     OAuthAuthenticator
+	session   SessionManager
 	cookie    SessionCookieConfig
 	sessionMW *sessionmw.SessionMiddleware
 }
@@ -42,10 +60,10 @@ type Handler struct {
 func NewHandler(
 	log logger.Logger,
 	tracer observability.Tracer,
-	responder httpresponse.Responder,
-	otp authotp.OTPAuthenticator,
-	oauth authoauth.OAuthAuthenticator,
-	session authsession.SessionManager,
+	responder *httpresponse.Responder,
+	otp OTPAuthenticator,
+	oauth OAuthAuthenticator,
+	session SessionManager,
 	cookie SessionCookieConfig,
 	sessionMW *sessionmw.SessionMiddleware,
 ) *Handler {

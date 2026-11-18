@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/worker/workertest"
-
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 // TestShareWorkerOutcomes protects outcome ownership and acknowledgment flushes
@@ -39,7 +39,7 @@ func TestShareWorkerOutcomes(t *testing.T) {
 			var outcome string
 			reader := &workertest.ShareMessageReader{}
 			reader.FetchRecordsFunc = func(context.Context) ([]*kgo.Record, error) {
-				if reader.FetchRecordsCalls > 1 {
+				if len(reader.FetchRecordsCalls) > 1 {
 					return nil, stopped
 				}
 				return []*kgo.Record{record}, nil
@@ -64,8 +64,8 @@ func TestShareWorkerOutcomes(t *testing.T) {
 			if err := worker.Run(t.Context()); !errors.Is(err, tc.want) || (tc.flush != nil && !errors.Is(err, tc.flush)) {
 				t.Fatalf("error = %v, want %v", err, tc.want)
 			}
-			if outcome != tc.outcome || reader.FlushAcknowledgmentsCalls != 1 {
-				t.Fatalf("outcome = %s, flushes = %d", outcome, reader.FlushAcknowledgmentsCalls)
+			if outcome != tc.outcome || len(reader.FlushAcknowledgmentsCalls) != 1 {
+				t.Fatalf("outcome = %s, flushes = %d", outcome, len(reader.FlushAcknowledgmentsCalls))
 			}
 		})
 	}
@@ -86,7 +86,7 @@ func TestShareWorkerBoundedHandlers(t *testing.T) {
 	stopped := errors.New("end of input")
 	reader := &workertest.ShareMessageReader{}
 	reader.FetchRecordsFunc = func(context.Context) ([]*kgo.Record, error) {
-		if reader.FetchRecordsCalls > 1 {
+		if len(reader.FetchRecordsCalls) > 1 {
 			return nil, stopped
 		}
 		return records, nil
@@ -151,7 +151,9 @@ func TestShareWorkerBoundedHandlers(t *testing.T) {
 		t.Fatal("pool bounds or join violated")
 	}
 	seen := make(map[*kgo.Record]bool)
-	for _, record := range reader.AcceptCalls {
+	for _, call := range reader.AcceptCalls {
+		record := call.Record
+
 		if seen[record] {
 			t.Fatal("record dispatched twice")
 		}
@@ -221,7 +223,7 @@ func TestShareWorkerShutdown(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("Run did not stop")
 	}
-	if len(reader.ReleaseCalls) != 1 || reader.FlushAcknowledgmentsCalls != 0 {
+	if len(reader.ReleaseCalls) != 1 || len(reader.FlushAcknowledgmentsCalls) != 0 {
 		t.Fatal("shutdown outcome incorrect")
 	}
 }

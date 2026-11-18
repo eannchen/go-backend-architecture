@@ -7,9 +7,6 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
-	repocache "github.com/eannchen/go-backend-architecture/internal/repository/cache"
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 )
 
 type Result struct {
@@ -29,27 +26,24 @@ type Dependency struct {
 	Status string
 }
 
-type Usecase interface {
-	Check(ctx context.Context, mode CheckMode) (Result, error)
-}
-
-type impl struct {
+// Usecase implements the health workflow.
+type Usecase struct {
 	tracer       observability.Tracer
 	checkTotal   observability.Counter
 	checkLatency observability.Histogram
-	dbHealth     repodb.DBHealthRepository
-	cacheHealth  repocache.CacheHealthStore
-	kvHealth     repokvstore.KVHealthStore
+	dbHealth     DatabaseHealth
+	cacheHealth  Pinger
+	kvHealth     Pinger
 }
 
 func New(
 	tracer observability.Tracer,
 	meter observability.Meter,
-	dbHealth repodb.DBHealthRepository,
-	cacheHealth repocache.CacheHealthStore,
-	kvHealth repokvstore.KVHealthStore,
-) Usecase {
-	return &impl{
+	dbHealth DatabaseHealth,
+	cacheHealth Pinger,
+	kvHealth Pinger,
+) *Usecase {
+	return &Usecase{
 		tracer: tracer,
 		checkTotal: meter.Counter("app.health.checks",
 			observability.MetricOption{
@@ -69,7 +63,7 @@ func New(
 	}
 }
 
-func (u *impl) Check(ctx context.Context, mode CheckMode) (result Result, err error) {
+func (u *Usecase) Check(ctx context.Context, mode CheckMode) (result Result, err error) {
 	ctx, span := u.tracer.Start(ctx, "usecase", "health_usecase.check")
 	startedAt := time.Now()
 	defer func() {

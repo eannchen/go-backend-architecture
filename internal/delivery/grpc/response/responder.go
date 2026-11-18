@@ -10,29 +10,22 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 )
 
-// Responder maps delivery and application errors to gRPC statuses.
-// Responder maps delivery outcomes to transport responses. Inject a non-nil
-// implementation from app composition; NewResponder provides the standard mapping.
-type Responder interface {
-	Error(cause error, code codes.Code, message string) error
-	AppError(err error) error
-}
-
-type responder struct{}
+// Responder maps application outcomes to GRPC responses.
+type Responder struct{}
 
 // NewResponder creates an injectable gRPC responder.
-func NewResponder() Responder {
-	return &responder{}
+func NewResponder() *Responder {
+	return &Responder{}
 }
 
-func (r *responder) Error(cause error, code codes.Code, message string) error {
+func (r *Responder) Error(cause error, code codes.Code, message string) error {
 	return &responseError{
 		cause:      cause,
 		grpcStatus: status.New(code, message),
 	}
 }
 
-func (r *responder) AppError(err error) error {
+func (r *Responder) AppError(err error) error {
 	if err == nil {
 		return nil
 	}

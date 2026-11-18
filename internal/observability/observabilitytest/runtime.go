@@ -6,48 +6,67 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
-// Runtime is the canonical configurable double for observability.Runtime.
+// Runtime is a configurable double for its parent package's Runtime contract.
 type Runtime struct {
 	LogEmitterFunc  func() observability.LogEmitter
-	LogEmitterCalls int
+	LogEmitterCalls []RuntimeLogEmitterCall
 	TracerFunc      func() observability.Tracer
-	TracerCalls     int
+	TracerCalls     []RuntimeTracerCall
 	MeterFunc       func() observability.Meter
-	MeterCalls      int
-	ShutdownFunc    func(context.Context) error
-	ShutdownCalls   int
+	MeterCalls      []RuntimeMeterCall
+	ShutdownFunc    func(ctx context.Context) error
+	ShutdownCalls   []RuntimeShutdownCall
 }
 
-func (r *Runtime) LogEmitter() observability.LogEmitter {
-	r.LogEmitterCalls++
-	if r.LogEmitterFunc == nil {
+// RuntimeLogEmitterCall records one Runtime.LogEmitter invocation.
+type RuntimeLogEmitterCall struct {
+}
+
+func (d *Runtime) LogEmitter() observability.LogEmitter {
+	d.LogEmitterCalls = append(d.LogEmitterCalls, RuntimeLogEmitterCall{})
+	fn := d.LogEmitterFunc
+	if fn == nil {
 		panic("unexpected Runtime.LogEmitter call")
 	}
-	return r.LogEmitterFunc()
+	return fn()
 }
 
-func (r *Runtime) Tracer() observability.Tracer {
-	r.TracerCalls++
-	if r.TracerFunc == nil {
+// RuntimeTracerCall records one Runtime.Tracer invocation.
+type RuntimeTracerCall struct {
+}
+
+func (d *Runtime) Tracer() observability.Tracer {
+	d.TracerCalls = append(d.TracerCalls, RuntimeTracerCall{})
+	fn := d.TracerFunc
+	if fn == nil {
 		panic("unexpected Runtime.Tracer call")
 	}
-	return r.TracerFunc()
+	return fn()
 }
 
-func (r *Runtime) Meter() observability.Meter {
-	r.MeterCalls++
-	if r.MeterFunc == nil {
+// RuntimeMeterCall records one Runtime.Meter invocation.
+type RuntimeMeterCall struct {
+}
+
+func (d *Runtime) Meter() observability.Meter {
+	d.MeterCalls = append(d.MeterCalls, RuntimeMeterCall{})
+	fn := d.MeterFunc
+	if fn == nil {
 		panic("unexpected Runtime.Meter call")
 	}
-	return r.MeterFunc()
+	return fn()
 }
 
-func (r *Runtime) Shutdown(ctx context.Context) error {
-	r.ShutdownCalls++
-	if r.ShutdownFunc == nil {
+// RuntimeShutdownCall records one Runtime.Shutdown invocation.
+type RuntimeShutdownCall struct {
+	Context context.Context
+}
+
+func (d *Runtime) Shutdown(ctx context.Context) error {
+	d.ShutdownCalls = append(d.ShutdownCalls, RuntimeShutdownCall{Context: ctx})
+	fn := d.ShutdownFunc
+	if fn == nil {
 		panic("unexpected Runtime.Shutdown call")
 	}
-	return r.ShutdownFunc(ctx)
+	return fn(ctx)
 }
-
-var _ observability.Runtime = (*Runtime)(nil)

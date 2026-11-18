@@ -36,13 +36,13 @@ func TestProcessingTracing(t *testing.T) {
 		return failure
 	})
 	err := handler(t.Context(), &kgo.Record{Topic: "activities", Partition: 2, Offset: 7, Key: []byte("private-key"), Value: []byte("private-body")})
-	if !errors.Is(err, failure) || tracer.StartCalls != 1 || len(span.FinishCalls) != 1 || !errors.Is(span.FinishCalls[0].Err, failure) {
+	if !errors.Is(err, failure) || len(tracer.StartCalls) != 1 || len(span.FinishCalls) != 1 || !errors.Is(span.FinishCalls[0].Err, failure) {
 		t.Fatal("span lifecycle lost processing failure")
 	}
 	if len(span.SetAttributesCalls) != 1 || span.SetAttributesCalls[0].Fields[0]["app.kafka.outcome"] != "error" {
 		t.Fatal("span outcome missing")
 	}
-	if strings.Contains(fmt.Sprint(tracer.StartFields), "private-") {
+	if strings.Contains(fmt.Sprint(tracer.StartCalls[0].Fields), "private-") {
 		t.Fatal("private data included in span")
 	}
 }

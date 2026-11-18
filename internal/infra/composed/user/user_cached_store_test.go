@@ -6,12 +6,11 @@ import (
 	"testing"
 
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
+	usertest "github.com/eannchen/go-backend-architecture/internal/infra/composed/user/usertest"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
-	"github.com/eannchen/go-backend-architecture/internal/repository/cache/cachetest"
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
-	"github.com/eannchen/go-backend-architecture/internal/repository/db/dbtest"
+	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
 )
 
 // TestCachedUserStoreGetByID checks cache hits, misses, and failures follow the user lookup policy.
@@ -74,7 +73,7 @@ func TestCachedUserStoreGetByID(t *testing.T) {
 			log := &loggertest.Logger{
 				WarnFunc: func(context.Context, string, ...logger.Fields) {},
 			}
-			cache := &cachetest.UserCacheStore{
+			cache := &usertest.UserCache{
 				GetByIDFunc: func(context.Context, int64) (domainuser.User, bool, error) {
 					return tt.cacheUser, tt.cacheFound, tt.cacheErr
 				},
@@ -82,7 +81,7 @@ func TestCachedUserStoreGetByID(t *testing.T) {
 					return tt.setErr
 				},
 			}
-			base := &dbtest.UserRepository{
+			base := &usertest.UserStore{
 				GetByIDFunc: func(context.Context, int64) (domainuser.User, error) {
 					return tt.baseUser, tt.baseErr
 				},
@@ -101,11 +100,11 @@ func TestCachedUserStoreGetByID(t *testing.T) {
 			if got != tt.wantUser {
 				t.Fatalf("expected user %+v, got %+v", tt.wantUser, got)
 			}
-			if base.GetByIDCalls != tt.wantBaseCalls {
-				t.Fatalf("expected base get calls %d, got %d", tt.wantBaseCalls, base.GetByIDCalls)
+			if len(base.GetByIDCalls) != tt.wantBaseCalls {
+				t.Fatalf("expected base get calls %d, got %d", tt.wantBaseCalls, len(base.GetByIDCalls))
 			}
-			if cache.SetByIDCalls != tt.wantSetCalls {
-				t.Fatalf("expected cache set calls %d, got %d", tt.wantSetCalls, cache.SetByIDCalls)
+			if len(cache.SetByIDCalls) != tt.wantSetCalls {
+				t.Fatalf("expected cache set calls %d, got %d", tt.wantSetCalls, len(cache.SetByIDCalls))
 			}
 			if len(log.WarnCalls) != tt.wantWarnCalls {
 				t.Fatalf("expected warn calls %d, got %d", tt.wantWarnCalls, len(log.WarnCalls))
@@ -116,7 +115,7 @@ func TestCachedUserStoreGetByID(t *testing.T) {
 
 // TestCachedUserStoreDelegatesEmailAndCreate checks uncached email lookup and create operations reach the backing repository.
 func TestCachedUserStoreDelegatesEmailAndCreate(t *testing.T) {
-	base := &dbtest.UserRepository{
+	base := &usertest.UserStore{
 		GetByEmailFunc: func(context.Context, string) (domainuser.User, error) {
 			return domainuser.User{ID: 2, Email: "user@example.com"}, nil
 		},
@@ -124,23 +123,23 @@ func TestCachedUserStoreDelegatesEmailAndCreate(t *testing.T) {
 			return domainuser.User{ID: 3, Email: "new@example.com"}, nil
 		},
 	}
-	cache := &cachetest.UserCacheStore{}
+	cache := &usertest.UserCache{}
 	store := NewCachedUserStore(logger.NoopLogger{}, observability.NoopTracer{}, base, cache)
 
 	gotEmail, err := store.GetByEmail(context.Background(), "user@example.com")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if gotEmail.ID != 2 || base.GetByEmailCalls != 1 || cache.GetByIDCalls != 0 {
-		t.Fatalf("unexpected GetByEmail behavior: user=%+v base=%d cache=%d", gotEmail, base.GetByEmailCalls, cache.GetByIDCalls)
+	if gotEmail.ID != 2 || len(base.GetByEmailCalls) != 1 || len(cache.GetByIDCalls) != 0 {
+		t.Fatalf("unexpected GetByEmail behavior: user=%+v base=%d cache=%d", gotEmail, len(base.GetByEmailCalls), len(cache.GetByIDCalls))
 	}
 
 	gotCreate, err := store.CreateByEmail(context.Background(), "new@example.com")
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if gotCreate.ID != 3 || base.CreateByEmailCalls != 1 || cache.SetByIDCalls != 0 {
-		t.Fatalf("unexpected CreateByEmail behavior: user=%+v base=%d cache=%d", gotCreate, base.CreateByEmailCalls, cache.SetByIDCalls)
+	if gotCreate.ID != 3 || len(base.CreateByEmailCalls) != 1 || len(cache.SetByIDCalls) != 0 {
+		t.Fatalf("unexpected CreateByEmail behavior: user=%+v base=%d cache=%d", gotCreate, len(base.CreateByEmailCalls), len(cache.SetByIDCalls))
 	}
 }
 
@@ -182,19 +181,19 @@ func TestCachedUserStoreUpsertOAuthUser(t *testing.T) {
 			log := &loggertest.Logger{
 				WarnFunc: func(context.Context, string, ...logger.Fields) {},
 			}
-			base := &dbtest.UserRepository{
-				UpsertOAuthUserFunc: func(context.Context, repodb.OAuthUserUpsert) (domainuser.User, error) {
+			base := &usertest.UserStore{
+				UpsertOAuthUserFunc: func(context.Context, authoauth.OAuthUserUpsert) (domainuser.User, error) {
 					return tt.baseUser, tt.baseErr
 				},
 			}
-			cache := &cachetest.UserCacheStore{
+			cache := &usertest.UserCache{
 				DeleteByIDFunc: func(context.Context, int64) error {
 					return tt.deleteErr
 				},
 			}
 			store := NewCachedUserStore(log, observability.NoopTracer{}, base, cache)
 
-			got, err := store.UpsertOAuthUser(context.Background(), repodb.OAuthUserUpsert{
+			got, err := store.UpsertOAuthUser(context.Background(), authoauth.OAuthUserUpsert{
 				Provider: "google", ProviderUserID: "google-1", Email: "oauth@example.com",
 			})
 
@@ -208,8 +207,8 @@ func TestCachedUserStoreUpsertOAuthUser(t *testing.T) {
 			if got != tt.wantUser {
 				t.Fatalf("expected user %+v, got %+v", tt.wantUser, got)
 			}
-			if cache.DeleteByIDCalls != tt.wantDeleteCalls {
-				t.Fatalf("expected delete calls %d, got %d", tt.wantDeleteCalls, cache.DeleteByIDCalls)
+			if len(cache.DeleteByIDCalls) != tt.wantDeleteCalls {
+				t.Fatalf("expected delete calls %d, got %d", tt.wantDeleteCalls, len(cache.DeleteByIDCalls))
 			}
 			if len(log.WarnCalls) != tt.wantWarnCalls {
 				t.Fatalf("expected warn calls %d, got %d", tt.wantWarnCalls, len(log.WarnCalls))

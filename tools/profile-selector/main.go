@@ -133,25 +133,12 @@ func transportSelectionPlan(profile string) (selectionPlan, error) {
 				"internal/infra/db/postgres/sqlc/schema/auth.sql",
 				"internal/infra/db/postgres/sqlc/user.sql",
 				"internal/infra/db/postgres/store/user_store.go",
+				"internal/infra/db/postgres/store/user_store_errors.go",
+				"internal/infra/db/postgres/store/user_store_errors_test.go",
 				"internal/infra/db/postgres/store/user_store_integration_test.go",
 				"internal/infra/db/postgres/migrations/00001_schema.sql",
 				"internal/infra/external/oauth",
 				"internal/infra/external/otp",
-				"internal/repository/cache/cachetest/user_cache_store.go",
-				"internal/repository/cache/user_repository.go",
-				"internal/repository/db/dbtest/user_repository.go",
-				"internal/repository/db/user_repository.go",
-				"internal/repository/external/oauth",
-				"internal/repository/external/otp",
-				"internal/repository/kvstore/kvstoretest/oauth_state_repository.go",
-				"internal/repository/kvstore/kvstoretest/otp_repository.go",
-				"internal/repository/kvstore/kvstoretest/session_repository.go",
-				"internal/repository/kvstore/kvstoretest/token_bucket_repository.go",
-				"internal/repository/kvstore/oauth_state_repository.go",
-				"internal/repository/kvstore/otp_repository.go",
-				"internal/repository/kvstore/session_repository.go",
-				"internal/repository/kvstore/sliding_window_repository.go",
-				"internal/repository/kvstore/token_bucket_repository.go",
 				"internal/infra/kvstore/redis/store/oauth_state_store.go",
 				"internal/infra/kvstore/redis/store/oauth_state_store_integration_test.go",
 				"internal/infra/kvstore/redis/store/otp_store.go",
@@ -219,11 +206,11 @@ func newSelectionPlan(profile string) (selectionPlan, error) {
 	plan := selectionPlan{profile: profile, sqlcSource: "sqlc.kafka.yaml", envFragments: []string{"config/env/common.env.example", "config/env/" + profile + ".env.example"}}
 	if profile == kafkaWorkerProfile {
 		removals = append(removals, shareOnly...)
-		removals = append(removals, "internal/delivery/kafka/worker/share_worker.go", "internal/delivery/kafka/worker/share_worker_test.go", "internal/delivery/kafka/integration/share_worker_integration_test.go", "internal/delivery/kafka/integration/context_middleware_integration_test.go")
+		removals = append(removals, "internal/delivery/kafka/worker/workertest/share_message_reader.go", "internal/delivery/kafka/worker/share_worker.go", "internal/delivery/kafka/worker/share_worker_test.go", "internal/delivery/kafka/integration/share_worker_integration_test.go", "internal/delivery/kafka/integration/context_middleware_integration_test.go")
 		plan.airSource = ".air.kafkaworker.toml"
 	} else {
 		removals = append(removals, groupOnly...)
-		removals = append(removals, "internal/delivery/kafka/worker/worker.go", "internal/delivery/kafka/worker/worker_test.go", "internal/delivery/kafka/integration/worker_integration_test.go")
+		removals = append(removals, "internal/delivery/kafka/worker/workertest/message_reader.go", "internal/delivery/kafka/worker/workertest/message_reader_test.go", "internal/delivery/kafka/worker/worker.go", "internal/delivery/kafka/worker/worker_test.go", "internal/delivery/kafka/integration/worker_integration_test.go")
 		plan.airSource = ".air.kafkashareworker.toml"
 	}
 	slices.Sort(removals)

@@ -10,9 +10,6 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
-	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external/oauth"
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 )
 
@@ -21,17 +18,6 @@ import (
 // browser proof.
 const BrowserBindingTTL = 10 * time.Minute
 
-// OAuthAuthenticator handles OAuth2 authorization-code flows.
-// Implementations manage provider selection, state tokens, and code exchange.
-//
-// Strategy examples:
-//   - Multi-provider: registry of OAuthProvider implementations keyed by name.
-//   - Single-provider: hardcoded to one provider.
-type OAuthAuthenticator interface {
-	Authorize(ctx context.Context, provider string) (Authorization, error)
-	HandleCallback(ctx context.Context, provider, code, state, browserBinding string) (auth.Identity, error)
-}
-
 // Authorization contains the provider redirect and the browser-only secret that
 // must return in the callback cookie. BrowserBinding is also the PKCE verifier.
 type Authorization struct {
@@ -39,11 +25,12 @@ type Authorization struct {
 	BrowserBinding string
 }
 
-type oauthAuthenticator struct {
+// Authenticator implements the OAuth login workflow.
+type Authenticator struct {
 	tracer     observability.Tracer
-	providers  map[string]repoexternal.OAuthProvider
-	stateRepo  repokvstore.OAuthStateRepository
-	userRepo   repodb.UserRepository
+	providers  map[string]OAuthProvider
+	stateRepo  OAuthStateRepository
+	userRepo   UserRepository
 	oauthTotal observability.Counter
 }
 
@@ -51,17 +38,17 @@ type oauthAuthenticator struct {
 func NewOAuthAuthenticator(
 	tracer observability.Tracer,
 	meter observability.Meter,
-	stateRepo repokvstore.OAuthStateRepository,
-	userRepo repodb.UserRepository,
-	providers ...repoexternal.OAuthProvider,
-) OAuthAuthenticator {
+	stateRepo OAuthStateRepository,
+	userRepo UserRepository,
+	providers ...OAuthProvider,
+) *Authenticator {
 
-	pm := make(map[string]repoexternal.OAuthProvider, len(providers))
+	pm := make(map[string]OAuthProvider, len(providers))
 	for _, p := range providers {
 		pm[p.Name()] = p
 	}
 
-	return &oauthAuthenticator{
+	return &Authenticator{
 		tracer:    tracer,
 		providers: pm,
 		stateRepo: stateRepo,
@@ -72,7 +59,7 @@ func NewOAuthAuthenticator(
 	}
 }
 
-func (a *oauthAuthenticator) Authorize(ctx context.Context, provider string) (authorization Authorization, err error) {
+func (a *Authenticator) Authorize(ctx context.Context, provider string) (authorization Authorization, err error) {
 	ctx, span := a.tracer.Start(ctx, "usecase", "oauth_authenticator.authorize_url",
 		observability.FromPairs("oauth.provider", provider),
 	)
@@ -92,7 +79,7 @@ func (a *oauthAuthenticator) Authorize(ctx context.Context, provider string) (au
 		return Authorization{}, apperr.Wrap(err, apperr.CodeInternal, "generate oauth browser binding")
 	}
 
-	if err := a.stateRepo.Store(ctx, state, repokvstore.OAuthStateData{
+	if err := a.stateRepo.Store(ctx, state, OAuthStateData{
 		BrowserBindingHash: hashBrowserBinding(browserBinding),
 	}, BrowserBindingTTL); err != nil {
 		return Authorization{}, apperr.Wrap(err, apperr.CodeInternal, "store oauth state")
@@ -104,7 +91,7 @@ func (a *oauthAuthenticator) Authorize(ctx context.Context, provider string) (au
 	}, nil
 }
 
-func (a *oauthAuthenticator) HandleCallback(ctx context.Context, provider, code, state, browserBinding string) (identity auth.Identity, err error) {
+func (a *Authenticator) HandleCallback(ctx context.Context, provider, code, state, browserBinding string) (identity auth.Identity, err error) {
 	ctx, span := a.tracer.Start(ctx, "usecase", "oauth_authenticator.handle_callback",
 		observability.FromPairs("oauth.provider", provider),
 	)
@@ -147,7 +134,7 @@ func (a *oauthAuthenticator) HandleCallback(ctx context.Context, provider, code,
 		return auth.Identity{}, apperr.Wrap(err, apperr.CodeUnauthorized, "oauth code exchange failed")
 	}
 
-	user, err := a.userRepo.UpsertOAuthUser(ctx, repodb.OAuthUserUpsert{
+	user, err := a.userRepo.UpsertOAuthUser(ctx, OAuthUserUpsert{
 		Provider:       provider,
 		ProviderUserID: userInfo.ProviderUserID,
 		Email:          userInfo.Email,

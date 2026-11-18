@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
+	notificationtest "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/notification/notificationtest"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/notification/notificationtest"
-
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 // TestNotificationHandler protects workflow invocation and error identity.
@@ -26,7 +26,7 @@ func TestNotificationHandler(t *testing.T) {
 		{"invalid", "{}", nil, middleware.ErrInvalidMessage, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			usecase := &notificationtest.Usecase{HandleFunc: func(ctx context.Context, request notification.Request) error {
+			usecase := &notificationtest.Processor{HandleFunc: func(ctx context.Context, request notification.Request) error {
 				if ctx != t.Context() {
 					t.Fatal("context changed")
 				}

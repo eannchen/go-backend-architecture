@@ -5,14 +5,13 @@ import (
 
 	rediscachestore "github.com/eannchen/go-backend-architecture/internal/infra/cache/redis/store"
 	rediskvstore "github.com/eannchen/go-backend-architecture/internal/infra/kvstore/redis/store"
-	repocache "github.com/eannchen/go-backend-architecture/internal/repository/cache"
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
+	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
 type redisStores struct {
-	cacheHealth repocache.CacheHealthStore
+	cacheHealth usecasehealth.Pinger
 	userCache   *rediscachestore.UserCacheStore
-	kvHealth    repokvstore.KVHealthStore
+	kvHealth    usecasehealth.Pinger
 	session     *rediskvstore.SessionStore
 	otp         *rediskvstore.OTPStore
 	oauthState  *rediskvstore.OAuthStateStore

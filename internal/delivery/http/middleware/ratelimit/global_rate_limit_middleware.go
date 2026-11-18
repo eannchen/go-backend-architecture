@@ -1,6 +1,7 @@
 package ratelimitmw
 
 import (
+	"context"
 	"math"
 	"strconv"
 	"time"
@@ -13,13 +14,18 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
 )
 
+// Limiter is the application behavior required by this adapter.
+type Limiter interface {
+	AllowIP(context.Context, string) (globalratelimit.Decision, error)
+}
+
 type GlobalRateLimitMiddleware struct {
-	limiter   globalratelimit.Limiter
-	responder httpresponse.Responder
+	limiter   Limiter
+	responder *httpresponse.Responder
 	decisions observability.Counter
 }
 
-func NewGlobalRateLimit(limiter globalratelimit.Limiter, responder httpresponse.Responder, meter observability.Meter) *GlobalRateLimitMiddleware {
+func NewGlobalRateLimit(limiter Limiter, responder *httpresponse.Responder, meter observability.Meter) *GlobalRateLimitMiddleware {
 	return &GlobalRateLimitMiddleware{
 		limiter:   limiter,
 		responder: responder,

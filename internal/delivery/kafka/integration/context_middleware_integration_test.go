@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	contextmw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/context"
-
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	contextmw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/context"
 )
 
 // TestShareAcquisitionDeadlineUsesBrokerMetadata verifies the deadline against

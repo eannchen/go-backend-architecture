@@ -120,7 +120,7 @@ func TestRecordTraceContext(t *testing.T) {
 			if !errors.Is(ctx.Err(), context.Canceled) {
 				t.Fatal("worker cancellation lost")
 			}
-			if tracer.ExtractCalls != 1 {
+			if len(tracer.ExtractCalls) != 1 {
 				t.Fatal("trace not extracted")
 			}
 		})

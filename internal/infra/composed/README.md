@@ -11,5 +11,5 @@ This directory combines multiple adapters behind one repository contract.
 ## Extending
 
 - Add one feature package when a repository operation requires multiple adapters.
-- Inject the primary and supporting adapters through the constructor.
+- Define the primary and supporting operations this adapter needs beside it, then inject concrete adapters in app composition.
 - Document and test the selected cache or coordination pattern, acceptable staleness, and failure behavior.

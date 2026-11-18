@@ -7,14 +7,12 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 )
 
-// LogCall records one non-error logging invocation.
 type LogCall struct {
 	Context context.Context
 	Message string
 	Fields  []logger.Fields
 }
 
-// ErrorCall records one error logging invocation.
 type ErrorCall struct {
 	Context context.Context
 	Message string
@@ -22,121 +20,126 @@ type ErrorCall struct {
 	Fields  []logger.Fields
 }
 
-// Logger is the canonical configurable double for logger.Logger.
+// Logger is a configurable double for its parent package's Logger contract.
+// Configure callbacks before use and inspect calls after concurrent work finishes.
 type Logger struct {
-	mu sync.Mutex
-
-	DebugFunc  func(context.Context, string, ...logger.Fields)
-	DebugCalls []LogCall
-	InfoFunc   func(context.Context, string, ...logger.Fields)
-	InfoCalls  []LogCall
-	WarnFunc   func(context.Context, string, ...logger.Fields)
-	WarnCalls  []LogCall
-
-	ErrorFunc         func(context.Context, string, error, ...logger.Fields)
-	ErrorCalls        []ErrorCall
-	ErrorNoStackFunc  func(context.Context, string, error, ...logger.Fields)
-	ErrorNoStackCalls []ErrorCall
-
-	SetLogSinkFunc  func(logger.LogSinkFunc)
-	SetLogSinkCalls int
-	SetLogSinkSink  logger.LogSinkFunc
-
-	SetContextFieldsProviderFunc     func(logger.ContextFieldsProviderFunc)
-	SetContextFieldsProviderCalls    int
-	SetContextFieldsProviderProvider logger.ContextFieldsProviderFunc
-
-	SyncFunc  func() error
-	SyncCalls int
+	mu                            sync.Mutex
+	DebugFunc                     func(ctx context.Context, message string, fields ...logger.Fields)
+	DebugCalls                    []LogCall
+	InfoFunc                      func(ctx context.Context, message string, fields ...logger.Fields)
+	InfoCalls                     []LogCall
+	WarnFunc                      func(ctx context.Context, message string, fields ...logger.Fields)
+	WarnCalls                     []LogCall
+	ErrorFunc                     func(ctx context.Context, message string, err error, fields ...logger.Fields)
+	ErrorCalls                    []ErrorCall
+	ErrorNoStackFunc              func(ctx context.Context, message string, err error, fields ...logger.Fields)
+	ErrorNoStackCalls             []ErrorCall
+	SetLogSinkFunc                func(sink logger.LogSinkFunc)
+	SetLogSinkCalls               []LoggerSetLogSinkCall
+	SetContextFieldsProviderFunc  func(provider logger.ContextFieldsProviderFunc)
+	SetContextFieldsProviderCalls []LoggerSetContextFieldsProviderCall
+	SyncFunc                      func() error
+	SyncCalls                     []LoggerSyncCall
 }
 
-func (l *Logger) Debug(ctx context.Context, message string, fields ...logger.Fields) {
-	fn := l.recordLogCall(&l.DebugCalls, l.DebugFunc, ctx, message, fields)
+func (d *Logger) Debug(ctx context.Context, message string, fields ...logger.Fields) {
+	d.mu.Lock()
+	d.DebugCalls = append(d.DebugCalls, LogCall{Context: ctx, Message: message, Fields: append([]logger.Fields(nil), fields...)})
+	fn := d.DebugFunc
+	d.mu.Unlock()
 	if fn == nil {
 		panic("unexpected Logger.Debug call")
 	}
 	fn(ctx, message, fields...)
 }
 
-func (l *Logger) Info(ctx context.Context, message string, fields ...logger.Fields) {
-	fn := l.recordLogCall(&l.InfoCalls, l.InfoFunc, ctx, message, fields)
+func (d *Logger) Info(ctx context.Context, message string, fields ...logger.Fields) {
+	d.mu.Lock()
+	d.InfoCalls = append(d.InfoCalls, LogCall{Context: ctx, Message: message, Fields: append([]logger.Fields(nil), fields...)})
+	fn := d.InfoFunc
+	d.mu.Unlock()
 	if fn == nil {
 		panic("unexpected Logger.Info call")
 	}
 	fn(ctx, message, fields...)
 }
 
-func (l *Logger) Warn(ctx context.Context, message string, fields ...logger.Fields) {
-	fn := l.recordLogCall(&l.WarnCalls, l.WarnFunc, ctx, message, fields)
+func (d *Logger) Warn(ctx context.Context, message string, fields ...logger.Fields) {
+	d.mu.Lock()
+	d.WarnCalls = append(d.WarnCalls, LogCall{Context: ctx, Message: message, Fields: append([]logger.Fields(nil), fields...)})
+	fn := d.WarnFunc
+	d.mu.Unlock()
 	if fn == nil {
 		panic("unexpected Logger.Warn call")
 	}
 	fn(ctx, message, fields...)
 }
 
-func (l *Logger) Error(ctx context.Context, message string, err error, fields ...logger.Fields) {
-	fn := l.recordErrorCall(&l.ErrorCalls, l.ErrorFunc, ctx, message, err, fields)
+func (d *Logger) Error(ctx context.Context, message string, err error, fields ...logger.Fields) {
+	d.mu.Lock()
+	d.ErrorCalls = append(d.ErrorCalls, ErrorCall{Context: ctx, Message: message, Err: err, Fields: append([]logger.Fields(nil), fields...)})
+	fn := d.ErrorFunc
+	d.mu.Unlock()
 	if fn == nil {
 		panic("unexpected Logger.Error call")
 	}
 	fn(ctx, message, err, fields...)
 }
 
-func (l *Logger) ErrorNoStack(ctx context.Context, message string, err error, fields ...logger.Fields) {
-	fn := l.recordErrorCall(&l.ErrorNoStackCalls, l.ErrorNoStackFunc, ctx, message, err, fields)
+func (d *Logger) ErrorNoStack(ctx context.Context, message string, err error, fields ...logger.Fields) {
+	d.mu.Lock()
+	d.ErrorNoStackCalls = append(d.ErrorNoStackCalls, ErrorCall{Context: ctx, Message: message, Err: err, Fields: append([]logger.Fields(nil), fields...)})
+	fn := d.ErrorNoStackFunc
+	d.mu.Unlock()
 	if fn == nil {
 		panic("unexpected Logger.ErrorNoStack call")
 	}
 	fn(ctx, message, err, fields...)
 }
 
-func (l *Logger) SetLogSink(sink logger.LogSinkFunc) {
-	l.mu.Lock()
-	l.SetLogSinkCalls++
-	l.SetLogSinkSink = sink
-	fn := l.SetLogSinkFunc
-	l.mu.Unlock()
+// LoggerSetLogSinkCall records one Logger.SetLogSink invocation.
+type LoggerSetLogSinkCall struct {
+	Sink logger.LogSinkFunc
+}
+
+func (d *Logger) SetLogSink(sink logger.LogSinkFunc) {
+	d.mu.Lock()
+	d.SetLogSinkCalls = append(d.SetLogSinkCalls, LoggerSetLogSinkCall{Sink: sink})
+	fn := d.SetLogSinkFunc
+	d.mu.Unlock()
 	if fn == nil {
 		panic("unexpected Logger.SetLogSink call")
 	}
 	fn(sink)
 }
 
-func (l *Logger) SetContextFieldsProvider(provider logger.ContextFieldsProviderFunc) {
-	l.mu.Lock()
-	l.SetContextFieldsProviderCalls++
-	l.SetContextFieldsProviderProvider = provider
-	fn := l.SetContextFieldsProviderFunc
-	l.mu.Unlock()
+// LoggerSetContextFieldsProviderCall records one Logger.SetContextFieldsProvider invocation.
+type LoggerSetContextFieldsProviderCall struct {
+	Provider logger.ContextFieldsProviderFunc
+}
+
+func (d *Logger) SetContextFieldsProvider(provider logger.ContextFieldsProviderFunc) {
+	d.mu.Lock()
+	d.SetContextFieldsProviderCalls = append(d.SetContextFieldsProviderCalls, LoggerSetContextFieldsProviderCall{Provider: provider})
+	fn := d.SetContextFieldsProviderFunc
+	d.mu.Unlock()
 	if fn == nil {
 		panic("unexpected Logger.SetContextFieldsProvider call")
 	}
 	fn(provider)
 }
 
-func (l *Logger) Sync() error {
-	l.mu.Lock()
-	l.SyncCalls++
-	fn := l.SyncFunc
-	l.mu.Unlock()
+// LoggerSyncCall records one Logger.Sync invocation.
+type LoggerSyncCall struct {
+}
+
+func (d *Logger) Sync() error {
+	d.mu.Lock()
+	d.SyncCalls = append(d.SyncCalls, LoggerSyncCall{})
+	fn := d.SyncFunc
+	d.mu.Unlock()
 	if fn == nil {
 		panic("unexpected Logger.Sync call")
 	}
 	return fn()
 }
-
-func (l *Logger) recordLogCall(calls *[]LogCall, fn func(context.Context, string, ...logger.Fields), ctx context.Context, message string, fields []logger.Fields) func(context.Context, string, ...logger.Fields) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	*calls = append(*calls, LogCall{Context: ctx, Message: message, Fields: append([]logger.Fields(nil), fields...)})
-	return fn
-}
-
-func (l *Logger) recordErrorCall(calls *[]ErrorCall, fn func(context.Context, string, error, ...logger.Fields), ctx context.Context, message string, err error, fields []logger.Fields) func(context.Context, string, error, ...logger.Fields) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	*calls = append(*calls, ErrorCall{Context: ctx, Message: message, Err: err, Fields: append([]logger.Fields(nil), fields...)})
-	return fn
-}
-
-var _ logger.Logger = (*Logger)(nil)

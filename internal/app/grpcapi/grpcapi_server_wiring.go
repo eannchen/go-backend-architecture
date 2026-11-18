@@ -17,7 +17,6 @@ import (
 	diagnosticsservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics"
 	healthservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health"
 	infracalleridentity "github.com/eannchen/go-backend-architecture/internal/infra/security/calleridentity"
-	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
 type serverComponents struct {
@@ -25,7 +24,7 @@ type serverComponents struct {
 	reporter *healthservice.Reporter
 }
 
-func (d wiring) buildServer(healthUsecase usecasehealth.Usecase) (serverComponents, error) {
+func (d wiring) buildServer(healthUsecase diagnosticsservice.HealthChecker) (serverComponents, error) {
 	transportCredentials, err := d.buildTransportCredentials()
 	if err != nil {
 		return serverComponents{}, err

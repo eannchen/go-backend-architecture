@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
+	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
 )
 
 // TestOAuthStateStoreIntegration checks OAuth state storage and consumption against real Redis expiration and key behavior.
@@ -20,7 +20,7 @@ func TestOAuthStateStoreIntegration(t *testing.T) {
 	state := "state-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	key := oauthStateKeyPrefix + state
 	t.Cleanup(func() { cleanupRedisKeys(t, key) })
-	want := repokvstore.OAuthStateData{BrowserBindingHash: "browser-binding-hash"}
+	want := authoauth.OAuthStateData{BrowserBindingHash: "browser-binding-hash"}
 
 	if err := store.Store(ctx, state, want, time.Minute); err != nil {
 		t.Fatalf("store state: %v", err)

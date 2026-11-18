@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 )
 
 // TestShareReaderPolicy protects bounded acquisition and share-specific settings

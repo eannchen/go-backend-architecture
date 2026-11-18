@@ -15,13 +15,13 @@ import (
 	"google.golang.org/grpc/status"
 
 	diagnosticsv1 "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/gen/diagnostics/v1"
+	diagnosticstest "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics/diagnosticstest"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/eannchen/go-backend-architecture/internal/infra/security/tlsconfig/tlsconfigtest"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
 
 // TestBuildServerWiresServicesRequestContextAndRecovery checks the assembled
@@ -31,7 +31,7 @@ func TestBuildServerWiresServicesRequestContextAndRecovery(t *testing.T) {
 
 	requestContexts := make(chan context.Context, 2)
 	panicOnCheck := false
-	healthUsecase := &healthtest.Usecase{
+	healthUsecase := &diagnosticstest.HealthChecker{
 		CheckFunc: func(ctx context.Context, _ usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			requestContexts <- ctx
 			if panicOnCheck {
@@ -137,7 +137,7 @@ func TestBuildServerPublishesVerifiedMTLSCallerIdentity(t *testing.T) {
 		found    bool
 	}
 	clientIdentity := make(chan identityResult, 1)
-	healthUsecase := &healthtest.Usecase{
+	healthUsecase := &diagnosticstest.HealthChecker{
 		CheckFunc: func(ctx context.Context, _ usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			identity, ok := calleridentity.FromContext(ctx)
 			clientIdentity <- identityResult{identity: identity, found: ok}

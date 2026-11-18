@@ -7,7 +7,6 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 )
 
-// LogEmitCall records one LogEmitter.Emit invocation.
 type LogEmitCall struct {
 	Context  context.Context
 	Severity observability.Severity
@@ -15,28 +14,21 @@ type LogEmitCall struct {
 	Fields   []observability.Fields
 }
 
-// LogEmitter is the canonical configurable double for observability.LogEmitter.
+// LogEmitter is a configurable double for its parent package's LogEmitter contract.
+// Configure callbacks before use and inspect calls after concurrent work finishes.
 type LogEmitter struct {
-	mu sync.Mutex
-
-	EmitFunc  func(context.Context, observability.Severity, string, ...observability.Fields)
+	mu        sync.Mutex
+	EmitFunc  func(ctx context.Context, severity observability.Severity, message string, fields ...observability.Fields)
 	EmitCalls []LogEmitCall
 }
 
-func (e *LogEmitter) Emit(ctx context.Context, severity observability.Severity, message string, fields ...observability.Fields) {
-	e.mu.Lock()
-	e.EmitCalls = append(e.EmitCalls, LogEmitCall{
-		Context:  ctx,
-		Severity: severity,
-		Message:  message,
-		Fields:   append([]observability.Fields(nil), fields...),
-	})
-	fn := e.EmitFunc
-	e.mu.Unlock()
+func (d *LogEmitter) Emit(ctx context.Context, severity observability.Severity, message string, fields ...observability.Fields) {
+	d.mu.Lock()
+	d.EmitCalls = append(d.EmitCalls, LogEmitCall{Context: ctx, Severity: severity, Message: message, Fields: append([]observability.Fields(nil), fields...)})
+	fn := d.EmitFunc
+	d.mu.Unlock()
 	if fn == nil {
 		panic("unexpected LogEmitter.Emit call")
 	}
 	fn(ctx, severity, message, fields...)
 }
-
-var _ observability.LogEmitter = (*LogEmitter)(nil)

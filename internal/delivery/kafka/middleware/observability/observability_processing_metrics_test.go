@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
-
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
 )
 
 // TestProcessingMetricsAttributes protects bounded metric dimensions and seconds

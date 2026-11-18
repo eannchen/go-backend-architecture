@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
 	notificationhandler "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/notification"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
@@ -16,8 +18,6 @@ import (
 	otelinfra "github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
-
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 func init() { workflowFactories[false] = newTraditionalWorkflow }

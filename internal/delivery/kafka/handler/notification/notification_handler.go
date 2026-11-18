@@ -4,14 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
-	"github.com/twmb/franz-go/pkg/kgo"
 )
+
+// Processor is the application behavior required by this adapter.
+type Processor interface {
+	Handle(context.Context, notification.Request) error
+}
 
 // NewNotificationHandler maps the Kafka payload to the transport-free usecase.
 // Topic routing selects this handler; workers own the commit/acknowledgment policy.
-func NewNotificationHandler(usecase notification.Usecase) middleware.Handler {
+func NewNotificationHandler(usecase Processor) middleware.Handler {
 	return func(ctx context.Context, record *kgo.Record) error {
 		request, err := decodeNotification(record.Value)
 		if err != nil {

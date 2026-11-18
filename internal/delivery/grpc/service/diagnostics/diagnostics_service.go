@@ -13,14 +13,19 @@ import (
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
+// HealthChecker is the application behavior required by this adapter.
+type HealthChecker interface {
+	Check(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error)
+}
+
 // Service maps the detailed diagnostics transport to the health usecase.
 type Service struct {
 	diagnosticsv1.UnimplementedDiagnosticsServiceServer
-	health    usecasehealth.Usecase
-	responder grpcresponse.Responder
+	health    HealthChecker
+	responder *grpcresponse.Responder
 }
 
-func NewService(health usecasehealth.Usecase, responder grpcresponse.Responder) *Service {
+func NewService(health HealthChecker, responder *grpcresponse.Responder) *Service {
 	return &Service{health: health, responder: responder}
 }
 
