@@ -3,30 +3,24 @@ package calleridentity
 import (
 	"context"
 	"crypto/x509"
-	"fmt"
 
 	googlegrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 
+	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/grpccontext"
 	grpcresponse "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
-	securityidentity "github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 )
 
 // Interceptor publishes verified mTLS caller identities to downstream contexts.
 type Interceptor struct {
-	extractor securityidentity.CertificateExtractor
 	responder *grpcresponse.Responder
 }
 
-// New creates caller-identity interceptors with an injected certificate policy.
-func New(extractor securityidentity.CertificateExtractor, responder *grpcresponse.Responder) (*Interceptor, error) {
-	if extractor == nil {
-		return nil, fmt.Errorf("certificate identity extractor is required")
-	}
-
-	return &Interceptor{extractor: extractor, responder: responder}, nil
+// New creates caller-identity interceptors using the URI SAN identity policy.
+func New(responder *grpcresponse.Responder) *Interceptor {
+	return &Interceptor{responder: responder}
 }
 
 // Unary enriches unary RPC contexts when the TLS handshake verified a client certificate.
@@ -66,11 +60,11 @@ func (i *Interceptor) enrich(ctx context.Context) (context.Context, error) {
 	if certificate == nil {
 		return ctx, nil
 	}
-	identity, err := i.extractor.Extract(certificate)
+	identity, err := extractCallerIdentity(certificate)
 	if err != nil {
 		return ctx, i.responder.Error(err, codes.Unauthenticated, "client certificate has no usable identity")
 	}
-	return securityidentity.WithIdentity(ctx, identity), nil
+	return grpccontext.WithCallerIdentity(ctx, identity), nil
 }
 
 func verifiedClientCertificate(ctx context.Context) *x509.Certificate {

@@ -1,4 +1,4 @@
-package calleridentity
+package grpccontext
 
 // AuthenticationType names the mechanism that verified the caller.
 type AuthenticationType string
@@ -8,8 +8,8 @@ const (
 	AuthenticationTypeMTLS AuthenticationType = "mtls"
 )
 
-// Identity describes an authenticated machine caller independently of its transport.
-type Identity struct {
+// CallerIdentity describes an authenticated machine caller attached to a gRPC call.
+type CallerIdentity struct {
 	// Subject is the canonical, stable name derived from verified credentials.
 	Subject string
 	// AuthenticationType records how the subject was verified, not what it may do.

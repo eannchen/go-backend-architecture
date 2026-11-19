@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
+	"net/url"
 	"testing"
 
 	googlegrpc "google.golang.org/grpc"
@@ -13,22 +13,22 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
+	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/grpccontext"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
-	securityidentity "github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 )
 
 // TestUnaryPublishesVerifiedURIIdentity checks a verified certificate URI becomes caller identity for unary handlers.
 func TestUnaryPublishesVerifiedURIIdentity(t *testing.T) {
-	certificate := &x509.Certificate{}
+	certificate := validClientCertificate(t)
 	ctx := verifiedTLSContext(certificate)
-	interceptor := newTestInterceptor(t, successfulExtractor)
+	interceptor := New(response.NewResponder())
 
 	_, err := interceptor.Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(ctx context.Context, _ any) (any, error) {
-		identity, ok := securityidentity.FromContext(ctx)
+		identity, ok := grpccontext.CallerIdentityFromContext(ctx)
 		if !ok {
 			t.Fatal("handler context has no caller identity")
 		}
-		if identity.Subject != "spiffe://example.internal/service/catalog" || identity.AuthenticationType != securityidentity.AuthenticationTypeMTLS {
+		if identity.Subject != "spiffe://example.internal/service/catalog" || identity.AuthenticationType != grpccontext.AuthenticationTypeMTLS {
 			t.Fatalf("caller identity = %+v", identity)
 		}
 		return nil, nil
@@ -40,14 +40,14 @@ func TestUnaryPublishesVerifiedURIIdentity(t *testing.T) {
 
 // TestUnaryDoesNotTrustPresentedUnverifiedCertificate checks a presented certificate without verification cannot establish caller identity.
 func TestUnaryDoesNotTrustPresentedUnverifiedCertificate(t *testing.T) {
-	certificate := &x509.Certificate{}
+	certificate := validClientCertificate(t)
 	ctx := peer.NewContext(context.Background(), &peer.Peer{AuthInfo: credentials.TLSInfo{
 		State: tlsConnectionStateWithPeerCertificate(certificate),
 	}})
-	interceptor := newTestInterceptor(t, successfulExtractor)
+	interceptor := New(response.NewResponder())
 
 	_, err := interceptor.Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(ctx context.Context, _ any) (any, error) {
-		if identity, ok := securityidentity.FromContext(ctx); ok {
+		if identity, ok := grpccontext.CallerIdentityFromContext(ctx); ok {
 			t.Fatalf("unverified certificate established identity %+v", identity)
 		}
 		return nil, nil
@@ -57,34 +57,47 @@ func TestUnaryDoesNotTrustPresentedUnverifiedCertificate(t *testing.T) {
 	}
 }
 
-// TestUnaryRejectsCertificateIdentityExtractionFailure checks identity extraction failure rejects the call before a handler can trust it.
-func TestUnaryRejectsCertificateIdentityExtractionFailure(t *testing.T) {
-	ctx := verifiedTLSContext(&x509.Certificate{})
-	interceptor := newTestInterceptor(t, func(*x509.Certificate) (securityidentity.Identity, error) {
-		return securityidentity.Identity{}, errors.New("ambiguous certificate identity")
-	})
-	handlerCalled := false
+// TestUnaryRejectsInvalidCertificateIdentity checks invalid URI identities reject
+// calls before the application handler can trust an authenticated caller.
+func TestUnaryRejectsInvalidCertificateIdentity(t *testing.T) {
+	tests := []struct {
+		name        string
+		certificate *x509.Certificate
+	}{
+		{name: "missing URI", certificate: &x509.Certificate{}},
+		{name: "ambiguous URI", certificate: &x509.Certificate{URIs: []*url.URL{
+			mustParseURL(t, "spiffe://example.internal/service/a"),
+			mustParseURL(t, "spiffe://example.internal/service/b"),
+		}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := verifiedTLSContext(tt.certificate)
+			interceptor := New(response.NewResponder())
+			handlerCalled := false
+			_, err := interceptor.Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(context.Context, any) (any, error) {
+				handlerCalled = true
+				return nil, nil
+			})
+			if got := status.Code(err); got != codes.Unauthenticated {
+				t.Fatalf("status = %s, want Unauthenticated", got)
+			}
+			if handlerCalled {
+				t.Fatal("handler ran without a usable caller identity")
+			}
+		})
+	}
 
-	_, err := interceptor.Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{}, func(context.Context, any) (any, error) {
-		handlerCalled = true
-		return nil, nil
-	})
-	if got := status.Code(err); got != codes.Unauthenticated {
-		t.Fatalf("status = %s, want Unauthenticated", got)
-	}
-	if handlerCalled {
-		t.Fatal("handler ran without a usable caller identity")
-	}
 }
 
 // TestStreamPublishesVerifiedURIIdentity checks stream handlers receive the same verified identity as unary handlers.
 func TestStreamPublishesVerifiedURIIdentity(t *testing.T) {
-	ctx := verifiedTLSContext(&x509.Certificate{})
+	ctx := verifiedTLSContext(validClientCertificate(t))
 	stream := testServerStream{ctx: ctx}
-	interceptor := newTestInterceptor(t, successfulExtractor)
+	interceptor := New(response.NewResponder())
 
 	err := interceptor.Stream()(nil, stream, &googlegrpc.StreamServerInfo{}, func(_ any, stream googlegrpc.ServerStream) error {
-		identity, ok := securityidentity.FromContext(stream.Context())
+		identity, ok := grpccontext.CallerIdentityFromContext(stream.Context())
 		if !ok || identity.Subject != "spiffe://example.internal/service/catalog" {
 			t.Fatalf("caller identity = (%+v, %t)", identity, ok)
 		}
@@ -95,36 +108,27 @@ func TestStreamPublishesVerifiedURIIdentity(t *testing.T) {
 	}
 }
 
-// TestNewRejectsMissingCertificateExtractor checks the interceptor cannot start without its certificate identity extractor.
-func TestNewRejectsMissingCertificateExtractor(t *testing.T) {
-	if _, err := New(nil, response.NewResponder()); err == nil {
-		t.Fatal("New() error = nil, want missing extractor error")
+// TestStreamRejectsInvalidCertificateIdentity checks stream handlers cannot run
+// when a verified certificate has no usable caller identity.
+func TestStreamRejectsInvalidCertificateIdentity(t *testing.T) {
+	stream := testServerStream{ctx: verifiedTLSContext(&x509.Certificate{})}
+	interceptor := New(response.NewResponder())
+	handlerCalled := false
+	err := interceptor.Stream()(nil, stream, &googlegrpc.StreamServerInfo{}, func(any, googlegrpc.ServerStream) error {
+		handlerCalled = true
+		return nil
+	})
+	if got := status.Code(err); got != codes.Unauthenticated {
+		t.Fatalf("status = %s, want Unauthenticated", got)
+	}
+	if handlerCalled {
+		t.Fatal("stream handler ran without a usable caller identity")
 	}
 }
 
-func newTestInterceptor(
-	t *testing.T,
-	extract func(*x509.Certificate) (securityidentity.Identity, error),
-) *Interceptor {
+func validClientCertificate(t *testing.T) *x509.Certificate {
 	t.Helper()
-	interceptor, err := New(certificateExtractorFunc(extract), response.NewResponder())
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	return interceptor
-}
-
-type certificateExtractorFunc func(*x509.Certificate) (securityidentity.Identity, error)
-
-func (f certificateExtractorFunc) Extract(certificate *x509.Certificate) (securityidentity.Identity, error) {
-	return f(certificate)
-}
-
-func successfulExtractor(*x509.Certificate) (securityidentity.Identity, error) {
-	return securityidentity.Identity{
-		Subject:            "spiffe://example.internal/service/catalog",
-		AuthenticationType: securityidentity.AuthenticationTypeMTLS,
-	}, nil
+	return &x509.Certificate{URIs: []*url.URL{mustParseURL(t, "spiffe://example.internal/service/catalog")}}
 }
 
 func verifiedTLSContext(certificate *x509.Certificate) context.Context {

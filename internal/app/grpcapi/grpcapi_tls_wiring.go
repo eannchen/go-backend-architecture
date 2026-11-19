@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/grpc/credentials"
 
-	"github.com/eannchen/go-backend-architecture/internal/infra/security/tlsconfig"
+	"github.com/eannchen/go-backend-architecture/pkg/tlsconfig"
 )
 
 func (d wiring) buildTransportCredentials() (credentials.TransportCredentials, error) {

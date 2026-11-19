@@ -101,9 +101,8 @@ func transportSelectionPlan(profile string) (selectionPlan, error) {
 				"internal/infra/config/grpcapi_config.go",
 				"internal/infra/config/grpcapi_config_test.go",
 				"internal/infra/grpcclient",
-				"internal/infra/security",
+				"pkg/tlsconfig",
 				"internal/observability/grpcsemconv",
-				"internal/security",
 				"internal/util/grpcmetadata",
 				"make/service-grpc.mk",
 				"sqlc.service-grpc.yaml",
@@ -200,8 +199,7 @@ func newSelectionPlan(profile string) (selectionPlan, error) {
 		return selectionPlan{}, err
 	}
 	removals := append(http.remove, grpc.remove...)
-	removals = slices.DeleteFunc(removals, func(path string) bool { return path == "internal/infra/security" })
-	removals = append(removals, "internal/infra/security/calleridentity")
+	removals = slices.DeleteFunc(removals, func(path string) bool { return path == "pkg/tlsconfig" })
 	removals = append(removals, ".air.httpapi.toml", ".air.grpcapi.toml", "sqlc.public-http.yaml", "sqlc.service-grpc.yaml")
 	plan := selectionPlan{profile: profile, sqlcSource: "sqlc.kafka.yaml", envFragments: []string{"config/env/common.env.example", "config/env/" + profile + ".env.example"}}
 	if profile == kafkaWorkerProfile {

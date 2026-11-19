@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eannchen/go-backend-architecture/internal/infra/security/tlsconfig/tlsconfigtest"
+	"github.com/eannchen/go-backend-architecture/pkg/tlsconfig/tlsconfigtest"
 )
 
 // TestLoadServerConfiguresTLSAndRequiredClientCertificates checks server TLS can require trusted client certificates.

@@ -21,9 +21,10 @@ app -> all layers (composition only)
 
 - **domain** owns business entities, reusable invariants, and shared business repository contracts. It imports neither usecase, infra, nor delivery.
 - **usecase** coordinates workflows and owns their outbound dependency contracts, result types, and expected errors. It depends on domain and shared technical contracts, never on delivery or infra.
-- **shared technical contracts** live in purpose-specific packages such as `internal/logger`, `internal/observability`, and, when required, `internal/security`.
+- **shared technical contracts** live in purpose-specific packages such as `internal/logger` and `internal/observability`.
 - **infra** implements domain, usecase, and technical contracts. It may import their types and errors, but never invoke usecase implementations. Vendor types remain inside adapters unless they are native to the receiving delivery adapter.
 - **delivery** owns inbound adapters for the transports present, including HTTP, gRPC, and Kafka. Adapters validate transport input, invoke usecases, and map outcomes to responses or message decisions. Delivery contains no persistence logic or business policy.
+- **pkg** contains intentionally reusable technical libraries. Libraries own typed configuration and import no project `internal` packages; app loads environment settings and owns integration.
 - **app** is the composition root. Only app chooses concrete implementations and wires dependencies across layers.
 
 Do not bypass a layer to call another layer's implementation.

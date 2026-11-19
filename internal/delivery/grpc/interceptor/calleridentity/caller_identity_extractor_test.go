@@ -5,19 +5,20 @@ import (
 	"net/url"
 	"testing"
 
-	securityidentity "github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/grpccontext"
 )
 
-// TestURICertificateExtractorExtract requires exactly one URI identity; the interceptor verifies the certificate before calling this extractor.
-func TestURICertificateExtractorExtract(t *testing.T) {
+// TestExtractCallerIdentity requires exactly one URI identity; the interceptor verifies the certificate before calling this extractor.
+func TestExtractCallerIdentity(t *testing.T) {
 	tests := []struct {
 		name        string
 		certificate *x509.Certificate
 		wantSubject string
 		wantErr     bool
 	}{
-		{name: "missing certificate", wantErr: true},
 		{name: "missing URI SAN", certificate: &x509.Certificate{}, wantErr: true},
+		{name: "nil URI SAN", certificate: &x509.Certificate{URIs: []*url.URL{nil}}, wantErr: true},
+		{name: "empty URI SAN", certificate: &x509.Certificate{URIs: []*url.URL{{}}}, wantErr: true},
 		{
 			name: "ambiguous URI SANs",
 			certificate: &x509.Certificate{URIs: []*url.URL{
@@ -35,14 +36,14 @@ func TestURICertificateExtractorExtract(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			identity, err := (URICertificateExtractor{}).Extract(tt.certificate)
+			identity, err := extractCallerIdentity(tt.certificate)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Extract() error = %v, want error %t", err, tt.wantErr)
 			}
 			if tt.wantErr {
 				return
 			}
-			if identity.Subject != tt.wantSubject || identity.AuthenticationType != securityidentity.AuthenticationTypeMTLS {
+			if identity.Subject != tt.wantSubject || identity.AuthenticationType != grpccontext.AuthenticationTypeMTLS {
 				t.Fatalf("Extract() = %+v", identity)
 			}
 		})

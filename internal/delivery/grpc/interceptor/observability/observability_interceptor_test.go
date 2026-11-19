@@ -11,13 +11,13 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/grpccontext"
 	grpcresponse "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
 	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/observability/grpcsemconv"
 	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
-	"github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 )
 
 // TestUnaryRecordsTraceLogAndMetrics checks a unary call produces correlated tracing, logging, and bounded metrics.
@@ -58,9 +58,9 @@ func TestUnaryAddsCallerIdentityToTraceAndLogButNotMetrics(t *testing.T) {
 	tracer := &recordingTracer{span: &recordingSpan{}}
 	meter := newRecordingMeter()
 	log := &loggertest.Logger{InfoFunc: func(context.Context, string, ...logger.Fields) {}}
-	ctx := calleridentity.WithIdentity(context.Background(), calleridentity.Identity{
+	ctx := grpccontext.WithCallerIdentity(context.Background(), grpccontext.CallerIdentity{
 		Subject:            "spiffe://example.internal/service/catalog",
-		AuthenticationType: calleridentity.AuthenticationTypeMTLS,
+		AuthenticationType: grpccontext.AuthenticationTypeMTLS,
 	})
 
 	_, err := New(tracer, log, meter).Unary()(ctx, nil, &googlegrpc.UnaryServerInfo{FullMethod: "/test.Service/Call"}, func(context.Context, any) (any, error) {

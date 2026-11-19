@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/infra/security/tlsconfig"
+	"github.com/eannchen/go-backend-architecture/pkg/tlsconfig"
 )
 
 // Reuse the protocol-neutral TLS loader for trust roots and client certificates.

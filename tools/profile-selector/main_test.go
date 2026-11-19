@@ -28,6 +28,22 @@ func TestNewSelectionPlanOwnsOneTransport(t *testing.T) {
 	}
 }
 
+// TestSelectionPlanOwnsTLSLibrary keeps TLS loading with gRPC and Kafka profiles
+// and removes it from the HTTP profile, which has no TLS-loader consumer.
+func TestSelectionPlanOwnsTLSLibrary(t *testing.T) {
+	for _, profile := range []string{publicHTTPProfile, serviceGRPCProfile, kafkaWorkerProfile, kafkaShareWorkerProfile} {
+		t.Run(profile, func(t *testing.T) {
+			plan, err := newSelectionPlan(profile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if removed := contains(plan.remove, "pkg/tlsconfig"); removed != (profile == publicHTTPProfile) {
+				t.Fatalf("TLS library removal for %s = %v", profile, removed)
+			}
+		})
+	}
+}
+
 // TestCombineFilesPreservesFragmentOrder checks generated contract fragments retain their intended order.
 func TestCombineFilesPreservesFragmentOrder(t *testing.T) {
 	root := t.TempDir()

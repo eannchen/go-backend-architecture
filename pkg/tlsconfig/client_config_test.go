@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eannchen/go-backend-architecture/internal/infra/security/tlsconfig/tlsconfigtest"
+	"github.com/eannchen/go-backend-architecture/pkg/tlsconfig/tlsconfigtest"
 )
 
 // TestLoadClientLoadsTrustAndIdentity checks client trust roots and identity certificates load into TLS settings.

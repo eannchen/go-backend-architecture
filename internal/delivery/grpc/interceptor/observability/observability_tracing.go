@@ -6,8 +6,8 @@ import (
 	googlegrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/grpccontext"
 	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
-	"github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 )
 
 // Tracing owns distributed-context extraction and server-span lifecycle.
@@ -28,7 +28,7 @@ func (t *Tracing) Start(ctx context.Context, rpc rpcInfo) (context.Context, appo
 		ctx = t.tracer.Extract(ctx, metadataCarrier{MD: md})
 	}
 	fields := rpc.spanStartFields()
-	if identity, ok := calleridentity.FromContext(ctx); ok {
+	if identity, ok := grpccontext.CallerIdentityFromContext(ctx); ok {
 		// Caller identity is useful on individual spans but intentionally excluded
 		// from aggregate metrics, where arbitrary subjects increase cardinality.
 		fields[keyApplicationCallerID] = identity.Subject

@@ -16,7 +16,6 @@ import (
 	grpcresponse "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
 	diagnosticsservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics"
 	healthservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health"
-	infracalleridentity "github.com/eannchen/go-backend-architecture/internal/infra/security/calleridentity"
 )
 
 type serverComponents struct {
@@ -60,10 +59,7 @@ func (d wiring) buildServer(healthUsecase diagnosticsservice.HealthChecker) (ser
 	unaryInterceptors := []googlegrpc.UnaryServerInterceptor{requestContext.Unary()}
 	streamInterceptors := []googlegrpc.StreamServerInterceptor{requestContext.Stream()}
 	if d.cfg.GRPC.TLS.Enabled && d.cfg.GRPC.TLS.ClientCAFile != "" {
-		callerIdentity, err := calleridentityinterceptor.New(infracalleridentity.URICertificateExtractor{}, responder)
-		if err != nil {
-			return serverComponents{}, fmt.Errorf("create gRPC caller-identity interceptor: %w", err)
-		}
+		callerIdentity := calleridentityinterceptor.New(responder)
 		unaryInterceptors = append(unaryInterceptors, callerIdentity.Unary())
 		streamInterceptors = append(streamInterceptors, callerIdentity.Stream())
 	}
