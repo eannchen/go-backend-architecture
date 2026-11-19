@@ -10,7 +10,7 @@ import (
 	"github.com/labstack/echo/v5"
 
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/binding"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 const defaultMaxHeaderBytes = 16 << 10 // 16 KiB

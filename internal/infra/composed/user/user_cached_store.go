@@ -4,9 +4,9 @@ import (
 	"context"
 
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // CachedUserStore adds a cache-aside layer to the primary user store.

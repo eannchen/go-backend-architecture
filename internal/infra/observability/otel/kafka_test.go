@@ -21,8 +21,8 @@ import (
 	contextmw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/context"
 	observabilitymw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/observability"
 	recoverymw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/recovery"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // TestKafkaHooksTraceAndMetrics verifies the configured hooks use runtime

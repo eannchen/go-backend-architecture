@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // TestLoggerWarn_RecordsConfiguredCall checks the test logger records warning messages, errors, and fields for assertions.

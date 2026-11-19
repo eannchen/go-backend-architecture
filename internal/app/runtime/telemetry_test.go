@@ -7,7 +7,7 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
 )
 
 // TestTelemetryShutdownPreservesLoggerFailure verifies resource cleanup retains

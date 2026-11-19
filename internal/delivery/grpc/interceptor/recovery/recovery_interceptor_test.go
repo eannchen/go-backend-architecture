@@ -12,8 +12,8 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
 )
 
 // TestUnaryRecoversPanic checks unary panics become controlled server failures instead of escaping the request.

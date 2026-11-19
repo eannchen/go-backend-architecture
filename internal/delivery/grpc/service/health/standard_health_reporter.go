@@ -8,8 +8,8 @@ import (
 
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // HealthChecker is the application behavior required by this adapter.

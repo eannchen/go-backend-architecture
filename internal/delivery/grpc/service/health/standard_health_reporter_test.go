@@ -10,8 +10,8 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	healthtest "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health/healthtest"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 type recordingStandardHealthServer struct {

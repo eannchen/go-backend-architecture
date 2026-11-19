@@ -10,8 +10,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 type sinkCall struct {
@@ -24,10 +23,10 @@ type sinkCall struct {
 func TestNew_RejectsInvalidLevels(t *testing.T) {
 	tests := []struct {
 		name string
-		cfg  config.LogConfig
+		cfg  Config
 	}{
-		{name: "primary level", cfg: config.LogConfig{Level: "invalid", OTELevel: "info"}},
-		{name: "sink level", cfg: config.LogConfig{Level: "info", OTELevel: "invalid"}},
+		{name: "primary level", cfg: Config{Level: "invalid", SinkLevel: "info"}},
+		{name: "sink level", cfg: Config{Level: "info", SinkLevel: "invalid"}},
 	}
 
 	for _, tt := range tests {
@@ -94,7 +93,7 @@ func TestLoggerError_SendsErrorAndApplicationCaller(t *testing.T) {
 	}
 }
 
-func newObservedLogger(sinkLevel zapcore.Level) (*impl, *observer.ObservedLogs) {
+func newObservedLogger(sinkLevel zapcore.Level) (*Logger, *observer.ObservedLogs) {
 	core, observed := observer.New(zapcore.DebugLevel)
 	return newLogger(uzap.New(core), sinkLevel), observed
 }

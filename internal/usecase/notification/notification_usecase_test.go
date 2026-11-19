@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
 )
 
 // TestHandleLogsOnlyCorrelation verifies the simulation is observable without

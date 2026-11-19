@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/grpccontext"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // AccessLog writes one structured completion log per RPC.

@@ -11,8 +11,8 @@ import (
 
 	notificationhandler "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/notification"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // TestRecoveredPanicDoesNotAdvanceProgress verifies middleware recovery reaches

@@ -12,9 +12,9 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // Authenticator implements email OTP authentication.

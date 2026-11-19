@@ -18,9 +18,9 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/grpccontext"
 	diagnosticstest "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics/diagnosticstest"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 	"github.com/eannchen/go-backend-architecture/pkg/tlsconfig/tlsconfigtest"
 )
 

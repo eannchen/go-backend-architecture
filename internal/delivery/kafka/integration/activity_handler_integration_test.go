@@ -14,10 +14,10 @@ import (
 	notificationhandler "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/notification"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/router"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/activity"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
 )
 
 const activityJSON = `{"event_id":"evt-1","action":"report.downloaded","occurred_at":"2026-11-12T09:00:00Z"}`

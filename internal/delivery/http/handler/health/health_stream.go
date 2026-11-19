@@ -8,8 +8,8 @@ import (
 
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // StreamPath is the bounded Server-Sent Events health demonstration route.

@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	grpcresponse "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // Interceptor converts panics into safe gRPC failures.

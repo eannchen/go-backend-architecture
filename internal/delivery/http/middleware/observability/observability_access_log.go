@@ -3,7 +3,7 @@ package observabilitymw
 import (
 	"context"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // AccessLog writes one structured completion log per HTTP request.

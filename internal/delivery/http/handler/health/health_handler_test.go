@@ -15,9 +15,9 @@ import (
 	httpdeliverytest "github.com/eannchen/go-backend-architecture/internal/delivery/http/httptest"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // TestGetHealthSuccess checks successful health results map to the public HTTP response.

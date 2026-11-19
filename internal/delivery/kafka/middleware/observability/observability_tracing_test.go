@@ -9,9 +9,9 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	contracts "github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // TestProcessingTracing protects the processing span context and failure

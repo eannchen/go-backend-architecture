@@ -12,11 +12,11 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
 	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/observability/grpcsemconv"
 	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
 )
 
 // TestUnaryInjectsTraceAndRecordsOutcome checks unary calls propagate trace context and record their outcome.

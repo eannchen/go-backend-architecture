@@ -9,7 +9,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // Middleware logs handler panics and converts them into safe processing failures.

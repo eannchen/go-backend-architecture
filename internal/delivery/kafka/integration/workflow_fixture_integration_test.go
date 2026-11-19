@@ -20,8 +20,8 @@ import (
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
 	"github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka/kafkatest"
 	otelinfra "github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
 )
 
 var backend *kafkatest.Broker

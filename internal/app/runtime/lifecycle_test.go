@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
 )
 
 // TestRunLifecycle checks startup and shutdown order and failure handling for owned runtime resources.

@@ -10,8 +10,8 @@ import (
 
 	googlegrpc "google.golang.org/grpc"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // Config identifies the dependency and logical endpoint represented by this connection.

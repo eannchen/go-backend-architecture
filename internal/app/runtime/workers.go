@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // Worker owns one processing loop and its reader. Shutdown is called once,

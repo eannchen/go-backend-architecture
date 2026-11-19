@@ -13,10 +13,10 @@ import (
 
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	globalratelimit "github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
 	globalratelimittest "github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit/globalratelimittest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // TestBuildServerAppliesEnvironmentHTTPProtection checks environment settings enable the expected HTTP protections on the assembled server.

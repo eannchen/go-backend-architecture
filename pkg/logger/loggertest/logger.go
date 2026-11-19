@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 type LogCall struct {

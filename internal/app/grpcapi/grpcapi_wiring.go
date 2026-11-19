@@ -2,8 +2,8 @@ package grpcapi
 
 import (
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 type wiring struct {

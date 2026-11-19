@@ -3,7 +3,7 @@ package stub
 import (
 	"context"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // StubSender logs OTP codes instead of sending real emails.

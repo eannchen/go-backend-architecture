@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // Lifecycle requires startup, shutdown, and logging dependencies from app composition.

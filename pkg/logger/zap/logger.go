@@ -8,23 +8,36 @@ import (
 	uzap "go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
-type impl struct {
+// Config controls local output and the optional secondary sink.
+type Config struct {
+	// Level is the minimum level written by Zap. An empty value means info.
+	Level string
+	// SinkLevel is the minimum level forwarded to SetLogSink's callback.
+	// An empty value means info, independently of Level.
+	SinkLevel string
+	// Development enables Zap's development formatting and diagnostics.
+	Development bool
+}
+
+// Logger implements structured logging using Zap. Configure optional callbacks
+// before logging starts; app composition owns sink integration and shutdown.
+type Logger struct {
 	base                  *uzap.Logger
 	sinkLevel             zapcore.Level
 	emitSink              logger.LogSinkFunc
 	contextFieldsProvider logger.ContextFieldsProviderFunc
 }
 
-func New(cfg config.LogConfig) (logger.Logger, error) {
+// New builds a logger from explicit configuration.
+func New(cfg Config) (*Logger, error) {
 	level, err := zapcore.ParseLevel(cfg.Level)
 	if err != nil {
 		return nil, err
 	}
-	sinkLevel, err := zapcore.ParseLevel(cfg.OTELevel)
+	sinkLevel, err := zapcore.ParseLevel(cfg.SinkLevel)
 	if err != nil {
 		return nil, err
 	}
@@ -42,8 +55,8 @@ func New(cfg config.LogConfig) (logger.Logger, error) {
 	return newLogger(base, sinkLevel), nil
 }
 
-func newLogger(base *uzap.Logger, sinkLevel zapcore.Level) *impl {
-	return &impl{
+func newLogger(base *uzap.Logger, sinkLevel zapcore.Level) *Logger {
+	return &Logger{
 		base:                  base.WithOptions(uzap.AddCaller(), uzap.AddCallerSkip(1)),
 		sinkLevel:             sinkLevel,
 		emitSink:              func(context.Context, logger.Severity, string, ...logger.Fields) {},
@@ -51,36 +64,36 @@ func newLogger(base *uzap.Logger, sinkLevel zapcore.Level) *impl {
 	}
 }
 
-func (l *impl) Debug(ctx context.Context, message string, optionalFields ...logger.Fields) {
+func (l *Logger) Debug(ctx context.Context, message string, optionalFields ...logger.Fields) {
 	fields := logger.OptionalFields(optionalFields...)
 	contextFields := l.contextFieldsProvider(ctx)
 	l.base.With(buildZapFields(contextFields)...).Debug(message, buildZapFields(fields)...)
 	l.emitSinkLog(ctx, zapcore.DebugLevel, logger.SeverityDebug, message, fields, contextFields, 3)
 }
 
-func (l *impl) Info(ctx context.Context, message string, optionalFields ...logger.Fields) {
+func (l *Logger) Info(ctx context.Context, message string, optionalFields ...logger.Fields) {
 	fields := logger.OptionalFields(optionalFields...)
 	contextFields := l.contextFieldsProvider(ctx)
 	l.base.With(buildZapFields(contextFields)...).Info(message, buildZapFields(fields)...)
 	l.emitSinkLog(ctx, zapcore.InfoLevel, logger.SeverityInfo, message, fields, contextFields, 3)
 }
 
-func (l *impl) Warn(ctx context.Context, message string, optionalFields ...logger.Fields) {
+func (l *Logger) Warn(ctx context.Context, message string, optionalFields ...logger.Fields) {
 	fields := logger.OptionalFields(optionalFields...)
 	contextFields := l.contextFieldsProvider(ctx)
 	l.base.With(buildZapFields(contextFields)...).Warn(message, buildZapFields(fields)...)
 	l.emitSinkLog(ctx, zapcore.WarnLevel, logger.SeverityWarn, message, fields, contextFields, 3)
 }
 
-func (l *impl) Error(ctx context.Context, message string, err error, optionalFields ...logger.Fields) {
+func (l *Logger) Error(ctx context.Context, message string, err error, optionalFields ...logger.Fields) {
 	l.logError(ctx, message, err, true, optionalFields...)
 }
 
-func (l *impl) ErrorNoStack(ctx context.Context, message string, err error, optionalFields ...logger.Fields) {
+func (l *Logger) ErrorNoStack(ctx context.Context, message string, err error, optionalFields ...logger.Fields) {
 	l.logError(ctx, message, err, false, optionalFields...)
 }
 
-func (l *impl) logError(ctx context.Context, message string, err error, stacktrace bool, optionalFields ...logger.Fields) {
+func (l *Logger) logError(ctx context.Context, message string, err error, stacktrace bool, optionalFields ...logger.Fields) {
 	fields := logger.CloneFields(logger.OptionalFields(optionalFields...))
 	if fields == nil {
 		fields = logger.Fields{}
@@ -98,7 +111,7 @@ func (l *impl) logError(ctx context.Context, message string, err error, stacktra
 	l.emitSinkLog(ctx, zapcore.ErrorLevel, logger.SeverityError, message, fields, contextFields, 4)
 }
 
-func (l *impl) SetLogSink(sink logger.LogSinkFunc) {
+func (l *Logger) SetLogSink(sink logger.LogSinkFunc) {
 	if sink == nil {
 		l.emitSink = func(context.Context, logger.Severity, string, ...logger.Fields) {}
 		return
@@ -106,7 +119,7 @@ func (l *impl) SetLogSink(sink logger.LogSinkFunc) {
 	l.emitSink = sink
 }
 
-func (l *impl) SetContextFieldsProvider(provider logger.ContextFieldsProviderFunc) {
+func (l *Logger) SetContextFieldsProvider(provider logger.ContextFieldsProviderFunc) {
 	if provider == nil {
 		l.contextFieldsProvider = func(context.Context) logger.Fields { return nil }
 		return
@@ -114,11 +127,11 @@ func (l *impl) SetContextFieldsProvider(provider logger.ContextFieldsProviderFun
 	l.contextFieldsProvider = provider
 }
 
-func (l *impl) Sync() error {
+func (l *Logger) Sync() error {
 	return l.base.Sync()
 }
 
-func (l *impl) emitSinkLog(ctx context.Context, level zapcore.Level, severity logger.Severity, message string, fields, contextFields logger.Fields, callerSkip int) {
+func (l *Logger) emitSinkLog(ctx context.Context, level zapcore.Level, severity logger.Severity, message string, fields, contextFields logger.Fields, callerSkip int) {
 	if level < l.sinkLevel {
 		return
 	}

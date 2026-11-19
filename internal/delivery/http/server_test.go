@@ -10,7 +10,7 @@ import (
 	"github.com/labstack/echo/v5"
 
 	httpdeliverytest "github.com/eannchen/go-backend-architecture/internal/delivery/http/httptest"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 func newRouteRegistrar() *httpdeliverytest.RouteRegistrar {

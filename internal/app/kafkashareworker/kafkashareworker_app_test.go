@@ -10,7 +10,7 @@ import (
 
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // TestAppBuildsEveryReaderAndStops verifies the real composition path creates

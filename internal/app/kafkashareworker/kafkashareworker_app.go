@@ -10,7 +10,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
 	otelinfra "github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 type App struct {

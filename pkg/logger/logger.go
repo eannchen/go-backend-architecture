@@ -9,7 +9,7 @@ type LogSinkFunc func(ctx context.Context, severity Severity, message string, fi
 // ContextFieldsProviderFunc extracts context-bound fields (e.g. request/trace IDs) for every log and sink export.
 type ContextFieldsProviderFunc func(ctx context.Context) Fields
 
-// Logger defines the project logging contract. Inject a non-nil implementation;
+// Logger defines the structured logging contract. Inject a non-nil implementation;
 // use NoopLogger when logging is disabled.
 // Context carries request and trace identifiers into each log entry.
 type Logger interface {
@@ -19,9 +19,11 @@ type Logger interface {
 	Error(ctx context.Context, message string, err error, fields ...Fields)
 	// ErrorNoStack logs at error level without stack trace for expected failures.
 	ErrorNoStack(ctx context.Context, message string, err error, fields ...Fields)
-	// SetLogSink sets a secondary log sink. Must be called during startup before concurrent logging begins.
+	// SetLogSink sets an optional secondary sink; nil disables it.
+	// Call during startup before concurrent logging begins.
 	SetLogSink(sink LogSinkFunc)
-	// SetContextFieldsProvider sets the provider for context-bound fields. Must be called during startup before concurrent logging begins.
+	// SetContextFieldsProvider adds fields from each call context; nil disables it.
+	// Call during startup before concurrent logging begins.
 	SetContextFieldsProvider(provider ContextFieldsProviderFunc)
 	Sync() error
 }

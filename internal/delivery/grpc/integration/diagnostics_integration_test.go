@@ -25,9 +25,9 @@ import (
 	diagnosticsservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics"
 	diagnosticstest "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics/diagnosticstest"
 	grpchealth "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/observability"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 const (

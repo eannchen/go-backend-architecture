@@ -3,7 +3,7 @@ package observability
 import (
 	"context"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // AccessLog writes one completion log for each record processing attempt.

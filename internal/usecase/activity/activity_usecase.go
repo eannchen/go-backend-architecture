@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // Request represents an activity independently of its incoming transport.

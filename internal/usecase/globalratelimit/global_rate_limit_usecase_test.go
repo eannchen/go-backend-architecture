@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
 	globalratelimittest "github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit/globalratelimittest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // TestAllowIP checks IP rate-limit decisions and dependency failures map to usecase outcomes.

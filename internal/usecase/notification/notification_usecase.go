@@ -3,7 +3,7 @@ package notification
 import (
 	"context"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // Request is application input. JSON fields and Kafka message metadata belong

@@ -5,10 +5,10 @@ import (
 	"errors"
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	zaplogger "github.com/eannchen/go-backend-architecture/internal/infra/logger/zap"
 	"github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	zaplogger "github.com/eannchen/go-backend-architecture/pkg/logger/zap"
 )
 
 // Telemetry owns the process logger and observability providers without data services.
@@ -23,7 +23,11 @@ func NewTelemetry(ctx context.Context, cfg config.RuntimeConfig) (*Telemetry, er
 	if err != nil {
 		return nil, err
 	}
-	log, err := zaplogger.New(cfg.Log)
+	log, err := zaplogger.New(zaplogger.Config{
+		Level:       cfg.Log.Level,
+		SinkLevel:   cfg.Log.OTELevel,
+		Development: cfg.Log.Development,
+	})
 	if err != nil {
 		cleanupErr := CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, obs.Shutdown)
 		return nil, errors.Join(err, errutil.Step("shutdown observability after logger init failure", cleanupErr))

@@ -13,7 +13,7 @@ import (
 
 	httpdelivery "github.com/eannchen/go-backend-architecture/internal/delivery/http"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/binding"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // serverFixture keeps transport construction identical across feature tests.
