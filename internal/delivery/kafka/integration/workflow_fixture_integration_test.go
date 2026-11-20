@@ -19,9 +19,9 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
 	"github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka/kafkatest"
-	otelinfra "github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
 	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/pkg/observability/otel"
 )
 
 var backend *kafkatest.Broker
@@ -32,9 +32,9 @@ func TestMain(m *testing.M) {
 	os.Exit(kafkatest.RunSuite(m, func(b *kafkatest.Broker) { backend = b }))
 }
 
-func newTelemetry(t *testing.T) *otelinfra.Runtime {
+func newTelemetry(t *testing.T) *otel.Runtime {
 	t.Helper()
-	runtime, err := otelinfra.Setup(t.Context(), config.OTelConfig{TraceSamplingRatio: 1}, "kafka-delivery-test", "test")
+	runtime, err := otel.Setup(t.Context(), otel.Config{TraceSamplingRatio: 1}, "kafka-delivery-test", "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func newTelemetry(t *testing.T) *otelinfra.Runtime {
 	return runtime
 }
 
-func processingHandler(runtime *otelinfra.Runtime, log logger.Logger, operation string, handler middleware.Handler) middleware.Handler {
+func processingHandler(runtime *otel.Runtime, log logger.Logger, operation string, handler middleware.Handler) middleware.Handler {
 	return middleware.Chain(handler,
 		contextmw.New(runtime.Tracer(), contextmw.Config{HandlingTimeout: time.Minute, AcknowledgmentMargin: time.Second}).Handler(),
 		observabilitymw.New(runtime.Tracer(), log, runtime.Meter()).Handler(operation),
@@ -102,7 +102,7 @@ type workflow struct {
 
 // newWorkflow builds real clients and workers. Group preparation is owned by
 // the test, allowing the same group to be reopened to inspect saved progress.
-func newWorkflow(t *testing.T, runtime *otelinfra.Runtime, shared bool, topic, group string, handler middleware.Handler) *workflow {
+func newWorkflow(t *testing.T, runtime *otel.Runtime, shared bool, topic, group string, handler middleware.Handler) *workflow {
 	t.Helper()
 	factory := workflowFactories[shared]
 	if factory == nil {
@@ -111,7 +111,7 @@ func newWorkflow(t *testing.T, runtime *otelinfra.Runtime, shared bool, topic, g
 	return factory(t, runtime, topic, group, handler)
 }
 
-type workflowFactory func(*testing.T, *otelinfra.Runtime, string, string, middleware.Handler) *workflow
+type workflowFactory func(*testing.T, *otel.Runtime, string, string, middleware.Handler) *workflow
 
 // Each worker-specific test file registers its factory. Profile selection removes
 // that file with its production worker, so shared scenarios test installed styles.
@@ -126,14 +126,14 @@ func prepareGroup(t *testing.T, shared bool, group string) {
 	}
 }
 
-func newPublisher(t *testing.T, runtime *otelinfra.Runtime, topic string) *kafkaclient.Writer {
+func newPublisher(t *testing.T, runtime *otel.Runtime, topic string) *kafkaclient.Writer {
 	t.Helper()
 	writer, err := kafkaclient.NewWriter(config.KafkaPublisherConfig{
 		Brokers: backend.Brokers, Topic: topic, PartitionStrategy: config.PartitionRoundRobin, RequiredAcks: config.KafkaAcksAll,
 		RequestTimeout: 5 * time.Second, ProduceTimeout: 5 * time.Second, DeliveryTimeout: 10 * time.Second,
 		MaxBufferedRecords: 25, BatchBytes: 65536, BatchTimeout: time.Millisecond, MaxAttempts: 3,
 		WriteBackoffMin: 10 * time.Millisecond, WriteBackoffMax: 100 * time.Millisecond, Compression: config.CompressionNone,
-	}, nil, otelinfra.KafkaHooks(runtime.TracerProvider(), runtime.MeterProvider(), "")...)
+	}, nil, otel.KafkaHooks(runtime.TracerProvider(), runtime.MeterProvider(), "")...)
 	if err != nil {
 		t.Fatal(err)
 	}

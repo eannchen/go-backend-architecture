@@ -5,9 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
 	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/pkg/observability/otel"
 )
 
 // TestTelemetryShutdownPreservesLoggerFailure verifies resource cleanup retains
@@ -15,7 +14,7 @@ import (
 func TestTelemetryShutdownPreservesLoggerFailure(t *testing.T) {
 	loggerErr := errors.New("logger sync failed")
 	log := &loggertest.Logger{SyncFunc: func() error { return loggerErr }}
-	obs, err := otel.Setup(t.Context(), config.OTelConfig{}, "test", "test")
+	obs, err := otel.Setup(t.Context(), otel.Config{}, "test", "test")
 	if err != nil {
 		t.Fatal(err)
 	}

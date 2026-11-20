@@ -20,13 +20,13 @@ import (
 	composeduser "github.com/eannchen/go-backend-architecture/internal/infra/composed/user"
 	postgresstore "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/store"
 	rediskvstore "github.com/eannchen/go-backend-architecture/internal/infra/kvstore/redis/store"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
 	authotp "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp"
 	otptest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp/otptest"
 	authsession "github.com/eannchen/go-backend-architecture/internal/usecase/auth/session"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 const (

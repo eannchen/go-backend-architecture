@@ -2,10 +2,11 @@ package otel
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
+	"time"
 
-	apiotel "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
@@ -13,8 +14,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	apitrace "go.opentelemetry.io/otel/trace"
 
-	"github.com/eannchen/go-backend-architecture/internal/apperr"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // TestSpanFinish_SetsStatusAndRecordsErrors checks span completion records status and errors for diagnostics.
@@ -28,13 +28,13 @@ func TestSpanFinish_SetsStatusAndRecordsErrors(t *testing.T) {
 		{name: "success", wantStatus: codes.Ok},
 		{
 			name:       "client error remains successful for service health",
-			err:        fmt.Errorf("handle request: %w", apperr.New(apperr.CodeInvalidArgument, "invalid input")),
+			err:        fmt.Errorf("handle request: %w", clientTestError{}),
 			wantStatus: codes.Ok,
 			wantEvent:  true,
 		},
 		{
 			name:       "server error",
-			err:        apperr.New(apperr.CodeInternal, "database unavailable"),
+			err:        errors.New("database unavailable"),
 			wantStatus: codes.Error,
 			wantEvent:  true,
 		},
@@ -42,8 +42,8 @@ func TestSpanFinish_SetsStatusAndRecordsErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recorder := installSpanRecorder(t)
-			_, span := NewTracer("test").Start(context.Background(), "test", tt.name)
+			provider, recorder := newSpanRecorder(t)
+			_, span := NewTracer(provider, "test").Start(context.Background(), "test", tt.name)
 
 			span.Finish(tt.err)
 
@@ -63,8 +63,8 @@ func TestSpanFinish_SetsStatusAndRecordsErrors(t *testing.T) {
 
 // TestTracerStartRecordsInternalKind checks ordinary spans use internal span kind.
 func TestTracerStartRecordsInternalKind(t *testing.T) {
-	recorder := installSpanRecorder(t)
-	_, span := NewTracer("accounts-api").Start(context.Background(), "usecase", "account.get")
+	provider, recorder := newSpanRecorder(t)
+	_, span := NewTracer(provider, "accounts-api").Start(context.Background(), "usecase", "account.get")
 	span.Finish(nil)
 
 	ended := recorder.Ended()
@@ -75,8 +75,8 @@ func TestTracerStartRecordsInternalKind(t *testing.T) {
 
 // TestTracerStartServer_RecordsKindAttributesAndExposesContext checks server spans carry attributes and expose the started context.
 func TestTracerStartServer_RecordsKindAttributesAndExposesContext(t *testing.T) {
-	recorder := installSpanRecorder(t)
-	tracer := NewTracer("accounts-api")
+	provider, recorder := newSpanRecorder(t)
+	tracer := NewTracer(provider, "accounts-api")
 	ctx, span := tracer.StartServer(
 		context.Background(),
 		"http",
@@ -107,8 +107,8 @@ func TestTracerStartServer_RecordsKindAttributesAndExposesContext(t *testing.T) 
 
 // TestTracerStartClientRecordsClientKind checks outbound calls create client-kind spans.
 func TestTracerStartClientRecordsClientKind(t *testing.T) {
-	recorder := installSpanRecorder(t)
-	_, span := NewTracer("accounts-api").StartClient(context.Background(), "grpc-client", "/test.Service/Check")
+	provider, recorder := newSpanRecorder(t)
+	_, span := NewTracer(provider, "accounts-api").StartClient(context.Background(), "grpc-client", "/test.Service/Check")
 	span.Finish(nil)
 
 	ended := recorder.Ended()
@@ -119,11 +119,12 @@ func TestTracerStartClientRecordsClientKind(t *testing.T) {
 
 // TestTracerExtractContinuesRemoteTrace checks extraction continues a remote parent trace.
 func TestTracerExtractContinuesRemoteTrace(t *testing.T) {
+	provider, _ := newSpanRecorder(t)
 	carrier := propagation.MapCarrier{
 		"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
 	}
 
-	ctx := NewTracer("accounts-api").Extract(context.Background(), carrier)
+	ctx := NewTracer(provider, "accounts-api").Extract(context.Background(), carrier)
 	spanContext := apitrace.SpanContextFromContext(ctx)
 
 	if !spanContext.IsValid() || !spanContext.IsRemote() {
@@ -136,13 +137,13 @@ func TestTracerExtractContinuesRemoteTrace(t *testing.T) {
 
 // TestTracerExtractsRemoteParentFromTextCarrier checks a text carrier can supply the remote trace parent.
 func TestTracerExtractsRemoteParentFromTextCarrier(t *testing.T) {
-	recorder := installSpanRecorder(t)
+	provider, recorder := newSpanRecorder(t)
 	carrier := propagation.MapCarrier{
 		"traceparent": "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
 	}
 
-	ctx := NewTracer("test").Extract(context.Background(), carrier)
-	_, span := NewTracer("test").StartServer(ctx, "grpc", "/test.Service/Check")
+	ctx := NewTracer(provider, "test").Extract(context.Background(), carrier)
+	_, span := NewTracer(provider, "test").StartServer(ctx, "grpc", "/test.Service/Check")
 	span.Finish(nil)
 
 	ended := recorder.Ended()
@@ -156,11 +157,11 @@ func TestTracerExtractsRemoteParentFromTextCarrier(t *testing.T) {
 
 // TestTracerInjectsCurrentSpanIntoTextCarrier checks injection writes the current span context to a text carrier.
 func TestTracerInjectsCurrentSpanIntoTextCarrier(t *testing.T) {
-	recorder := installSpanRecorder(t)
-	ctx, span := NewTracer("test").StartClient(context.Background(), "grpc-client", "/test.Service/Check")
+	provider, recorder := newSpanRecorder(t)
+	ctx, span := NewTracer(provider, "test").StartClient(context.Background(), "grpc-client", "/test.Service/Check")
 	carrier := propagation.MapCarrier{}
 
-	NewTracer("test").Inject(ctx, carrier)
+	NewTracer(provider, "test").Inject(ctx, carrier)
 	span.Finish(nil)
 
 	if carrier.Get("traceparent") == "" {
@@ -171,19 +172,20 @@ func TestTracerInjectsCurrentSpanIntoTextCarrier(t *testing.T) {
 	}
 }
 
-func installSpanRecorder(t *testing.T) *tracetest.SpanRecorder {
+func newSpanRecorder(t *testing.T) (*sdktrace.TracerProvider, *tracetest.SpanRecorder) {
 	t.Helper()
 
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	previous := apiotel.GetTracerProvider()
-	apiotel.SetTracerProvider(provider)
 	t.Cleanup(func() {
-		apiotel.SetTracerProvider(previous)
-		_ = provider.Shutdown(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := provider.Shutdown(ctx); err != nil {
+			t.Error(err)
+		}
 	})
 
-	return recorder
+	return provider, recorder
 }
 
 func hasExceptionEvent(span sdktrace.ReadOnlySpan) bool {
@@ -203,3 +205,10 @@ func traceAttribute(span sdktrace.ReadOnlySpan, key string) attribute.Value {
 	}
 	return attribute.Value{}
 }
+
+// clientTestError models the optional error classification recognized by Finish
+// without coupling the library tests to an application's error package.
+type clientTestError struct{}
+
+func (clientTestError) Error() string       { return "invalid input" }
+func (clientTestError) IsClientError() bool { return true }

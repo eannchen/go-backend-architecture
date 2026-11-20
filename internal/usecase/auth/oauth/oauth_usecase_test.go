@@ -11,10 +11,10 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
 	oauthtest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth/oauthtest"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // TestOAuthAuthenticatorAuthorize checks authorization creates the state and redirect needed for a safe OAuth flow.

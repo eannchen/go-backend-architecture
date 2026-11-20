@@ -10,7 +10,7 @@ import (
 	"github.com/labstack/echo/v5"
 
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // TestRequestContextMiddlewareTimeoutSkipper checks selected routes can bypass request timeout policy.

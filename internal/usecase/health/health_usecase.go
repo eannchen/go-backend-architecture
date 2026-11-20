@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 type Result struct {

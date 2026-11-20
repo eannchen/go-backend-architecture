@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // TestDBHealthStore_Ping checks database readiness uses a real PostgreSQL connection.

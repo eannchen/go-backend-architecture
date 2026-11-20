@@ -8,8 +8,8 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability"
-	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability/observabilitytest"
 )
 
 // TestContextDeadline protects caller cancellation, the earlier parent deadline,

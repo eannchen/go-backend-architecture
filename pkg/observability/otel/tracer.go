@@ -5,16 +5,16 @@ import (
 	"errors"
 	"fmt"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 type tracer struct {
+	provider    trace.TracerProvider
 	serviceName string
 }
 
@@ -22,8 +22,10 @@ type clientErrorReporter interface {
 	IsClientError() bool
 }
 
-func NewTracer(serviceName string) observability.Tracer {
-	return &tracer{serviceName: serviceName}
+// NewTracer uses the supplied provider for every span, independently of OTel's
+// global provider. The caller owns provider configuration and shutdown.
+func NewTracer(provider trace.TracerProvider, serviceName string) observability.Tracer {
+	return &tracer{provider: provider, serviceName: serviceName}
 }
 
 func (t *tracer) Start(ctx context.Context, scope, spanName string, optionalFields ...observability.Fields) (context.Context, observability.Span) {
@@ -51,7 +53,7 @@ func (t *tracer) startWithKind(ctx context.Context, scope, spanName string, kind
 	// upstream span ID as its parent. Otherwise, OTel starts a new root trace.
 	// The returned context stores the active span in OTel's structured form; it
 	// does not yet contain literal traceparent or tracestate transport fields.
-	ctx, s := otel.Tracer(t.tracerName(scope)).Start(ctx, spanName, opts...)
+	ctx, s := t.provider.Tracer(t.tracerName(scope)).Start(ctx, spanName, opts...)
 	return ctx, &span{span: s}
 }
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
+	"github.com/eannchen/go-backend-architecture/pkg/observability/observabilitytest"
 )
 
 // TestProcessingMetricsAttributes protects bounded metric dimensions and seconds

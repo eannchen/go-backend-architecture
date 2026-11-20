@@ -7,10 +7,10 @@ import (
 
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 	usertest "github.com/eannchen/go-backend-architecture/internal/infra/composed/user/usertest"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
 	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // TestCachedUserStoreGetByID checks cache hits, misses, and failures follow the user lookup policy.

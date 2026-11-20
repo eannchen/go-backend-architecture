@@ -12,10 +12,10 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
-	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
 	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability/observabilitytest"
 )
 
 // TestAccessLogAcceptsNilLogger checks access logging can be disabled without breaking requests.

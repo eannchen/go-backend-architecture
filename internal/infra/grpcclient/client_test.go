@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 	"github.com/eannchen/go-backend-architecture/pkg/tlsconfig"
 	"github.com/eannchen/go-backend-architecture/pkg/tlsconfig/tlsconfigtest"
 )

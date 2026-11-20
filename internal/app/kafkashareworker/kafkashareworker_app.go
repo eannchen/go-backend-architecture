@@ -9,8 +9,8 @@ import (
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
-	otelinfra "github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/observability/otel"
 )
 
 type App struct {
@@ -45,7 +45,7 @@ func New(ctx context.Context) (_ *App, err error) {
 			return nil, err
 		}
 		reader, err := kafkaclient.NewShareReader(readerConfig.Kafka, tlsConfig,
-			otelinfra.KafkaHooks(telemetry.Observability.TracerProvider(), telemetry.Observability.MeterProvider(), readerConfig.Kafka.GroupID)...)
+			otel.KafkaHooks(telemetry.Observability.TracerProvider(), telemetry.Observability.MeterProvider(), readerConfig.Kafka.GroupID)...)
 		if err != nil {
 			return nil, err
 		}

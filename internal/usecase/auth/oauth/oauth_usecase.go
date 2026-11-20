@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // BrowserBindingTTL bounds the one-time browser cookie, OAuth state, and PKCE

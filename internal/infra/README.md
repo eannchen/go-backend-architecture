@@ -4,7 +4,7 @@ This directory contains concrete implementations of domain, usecase, and shared 
 
 ## Responsibilities and boundaries
 
-- Database, cache, key-value, messaging, provider and observability SDK details remain inside infrastructure packages.
+- Database, cache, key-value, messaging, and provider SDK details remain inside infrastructure packages.
 - Adapters map vendor types and errors to types owned by the consuming domain or usecase package. Importing those contracts does not permit calling workflow implementations.
 - Constructors expose dependencies explicitly; app composition chooses and owns concrete instances.
 

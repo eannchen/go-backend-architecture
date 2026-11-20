@@ -3,7 +3,7 @@ package observability
 import (
 	"context"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 type ProcessingMetrics struct {

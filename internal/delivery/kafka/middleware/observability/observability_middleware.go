@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 

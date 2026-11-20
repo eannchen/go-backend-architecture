@@ -7,7 +7,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/grpccontext"
-	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
+	appobservability "github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // Tracing owns distributed-context extraction and server-span lifecycle.

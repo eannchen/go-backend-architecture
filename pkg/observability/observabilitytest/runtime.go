@@ -3,7 +3,7 @@ package observabilitytest
 import (
 	"context"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // Runtime is a configurable double for its parent package's Runtime contract.

@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/grpc/metadata"
 
-	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
+	appobservability "github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // Tracing owns local client span lifecycle and optional outbound trace propagation.

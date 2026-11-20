@@ -5,10 +5,10 @@ import (
 	"errors"
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
 	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
 	zaplogger "github.com/eannchen/go-backend-architecture/pkg/logger/zap"
+	"github.com/eannchen/go-backend-architecture/pkg/observability/otel"
 )
 
 // Telemetry owns the process logger and observability providers without data services.
@@ -19,7 +19,14 @@ type Telemetry struct {
 
 // NewTelemetry creates process telemetry with the configured service identity.
 func NewTelemetry(ctx context.Context, cfg config.RuntimeConfig) (*Telemetry, error) {
-	obs, err := otel.Setup(ctx, cfg.OTel, cfg.ServiceName, cfg.AppEnv)
+	obs, err := otel.Setup(ctx, otel.Config{
+		ExportEnabled:      cfg.OTel.ExportEnabled,
+		TracesEndpoint:     cfg.OTel.TracesEndpoint,
+		LogsEndpoint:       cfg.OTel.LogsEndpoint,
+		MetricsEndpoint:    cfg.OTel.MetricsEndpoint,
+		Insecure:           cfg.OTel.Insecure,
+		TraceSamplingRatio: cfg.OTel.TraceSamplingRatio,
+	}, cfg.ServiceName, cfg.AppEnv)
 	if err != nil {
 		return nil, err
 	}

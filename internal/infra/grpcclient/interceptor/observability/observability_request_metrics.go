@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 
-	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
+	appobservability "github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // RequestMetrics records bounded client RPC outcome and stream-lifecycle metrics.

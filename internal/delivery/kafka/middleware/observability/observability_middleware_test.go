@@ -11,9 +11,9 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/recovery"
-	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
 	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
+	appobservability "github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // TestProcessingLogs protects completion severity, trace-context propagation, and

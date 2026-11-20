@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // Tracing owns distributed-context extraction and server-span lifecycle.

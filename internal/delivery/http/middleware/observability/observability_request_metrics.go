@@ -3,7 +3,7 @@ package observabilitymw
 import (
 	"context"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // RequestMetrics records bounded-cardinality HTTP server metrics.

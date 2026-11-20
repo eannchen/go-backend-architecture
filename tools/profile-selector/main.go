@@ -102,7 +102,7 @@ func transportSelectionPlan(profile string) (selectionPlan, error) {
 				"internal/infra/config/grpcapi_config_test.go",
 				"internal/infra/grpcclient",
 				"pkg/tlsconfig",
-				"internal/observability/grpcsemconv",
+				"pkg/observability/grpcsemconv",
 				"internal/util/grpcmetadata",
 				"make/service-grpc.mk",
 				"sqlc.service-grpc.yaml",
@@ -169,7 +169,7 @@ func newSelectionPlan(profile string) (selectionPlan, error) {
 	kafkaCommon := []string{
 		"docker-compose.kafka.yml", "tools/kafka", "make/kafka.mk",
 		"internal/app/runtime/workers.go", "internal/app/runtime/workers_test.go",
-		"internal/infra/observability/otel/kafka.go", "internal/infra/observability/otel/kafka_test.go",
+		"pkg/observability/otel/kafka.go", "pkg/observability/otel/kafka_test.go",
 		"internal/delivery/kafka", "internal/infra/messaging/kafka",
 		"internal/usecase/notification", "internal/usecase/activity",
 		"internal/infra/config/kafka_config.go", "internal/infra/config/kafka_config_test.go",

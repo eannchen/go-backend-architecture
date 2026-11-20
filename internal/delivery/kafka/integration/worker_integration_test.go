@@ -15,17 +15,17 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/worker"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
-	otelinfra "github.com/eannchen/go-backend-architecture/internal/infra/observability/otel"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/observability/otel"
 )
 
 func init() { workflowFactories[false] = newTraditionalWorkflow }
 
-func newTraditionalWorkflow(t *testing.T, runtime *otelinfra.Runtime, topic, group string, handler middleware.Handler) *workflow {
+func newTraditionalWorkflow(t *testing.T, runtime *otel.Runtime, topic, group string, handler middleware.Handler) *workflow {
 	t.Helper()
 	checkpoints := make(chan struct{}, 16)
-	hooks := otelinfra.KafkaHooks(runtime.TracerProvider(), runtime.MeterProvider(), group)
+	hooks := otel.KafkaHooks(runtime.TracerProvider(), runtime.MeterProvider(), group)
 
 	reader, err := kafkaclient.NewReader(config.KafkaConsumerConfig{
 		Brokers: backend.Brokers, Topics: []string{topic}, GroupID: group, InitialOffset: config.KafkaInitialEarliest,

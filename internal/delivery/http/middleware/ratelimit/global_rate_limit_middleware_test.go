@@ -12,8 +12,8 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	ratelimittest "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/ratelimit/ratelimittest"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
+	"github.com/eannchen/go-backend-architecture/pkg/observability/observabilitytest"
 )
 
 // TestGlobalRateLimitMiddleware checks rate-limit decisions become the expected HTTP response and downstream calls.

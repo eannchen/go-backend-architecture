@@ -10,8 +10,8 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // Limiter is the application behavior required by this adapter.

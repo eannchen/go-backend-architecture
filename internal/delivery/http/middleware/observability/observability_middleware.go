@@ -5,8 +5,8 @@ import (
 
 	"github.com/labstack/echo/v5"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // Middleware coordinates tracing, metrics, and access logging around each request.

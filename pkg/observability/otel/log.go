@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 
 	otellog "go.opentelemetry.io/otel/log"
 )

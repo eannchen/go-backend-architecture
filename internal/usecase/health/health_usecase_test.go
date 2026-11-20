@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/health"
 	healthtest "github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // TestCheckReadySuccess checks readiness combines successful dependency checks into a healthy result.

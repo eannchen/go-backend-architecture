@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // TestUserStoreIntegration checks user persistence and retrieval against actual SQL and schema constraints.

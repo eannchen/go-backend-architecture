@@ -3,25 +3,38 @@ package otel
 import (
 	"context"
 	"errors"
+	"fmt"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
-	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
+
+// Config controls OTLP-over-HTTP export and trace sampling. Applications supply
+// complete endpoint URLs; environment loading belongs to the application.
+type Config struct {
+	// ExportEnabled enables collector traffic. When false, trace IDs and
+	// propagation remain active, but no signals are sent to a collector.
+	ExportEnabled   bool
+	TracesEndpoint  string
+	LogsEndpoint    string
+	MetricsEndpoint string
+	// Insecure permits export without TLS, typically for a local collector.
+	Insecure bool
+	// TraceSamplingRatio is the fraction of new root traces to record, from
+	// 0 to 1. Child spans follow their parent's sampling decision.
+	TraceSamplingRatio float64
+}
 
 // The runtime owns provider shutdown as well as instrumentation. OTel's API
 // interfaces expose instrumentation only, so require Shutdown here too.
@@ -70,13 +83,18 @@ func (r *Runtime) Meter() observability.Meter {
 
 func (r *Runtime) Shutdown(ctx context.Context) error {
 	return errors.Join(
-		errutil.Step("shutdown meter provider", r.meterProvider.Shutdown(ctx)),
-		errutil.Step("shutdown logger provider", r.loggerProvider.Shutdown(ctx)),
-		errutil.Step("shutdown tracer provider", r.traceProvider.Shutdown(ctx)),
+		shutdownError("shutdown meter provider", r.meterProvider.Shutdown(ctx)),
+		shutdownError("shutdown logger provider", r.loggerProvider.Shutdown(ctx)),
+		shutdownError("shutdown tracer provider", r.traceProvider.Shutdown(ctx)),
 	)
 }
 
-func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv string) (*Runtime, error) {
+// Setup creates providers without changing OTel's global configuration. The
+// caller owns Runtime.Shutdown and must stop instrumented clients first.
+func Setup(ctx context.Context, cfg Config, serviceName, appEnv string) (*Runtime, error) {
+	if !(cfg.TraceSamplingRatio >= 0 && cfg.TraceSamplingRatio <= 1) {
+		return nil, fmt.Errorf("trace sampling ratio must be between 0 and 1")
+	}
 	res, err := resource.New(
 		ctx,
 		resource.WithAttributes(
@@ -140,7 +158,7 @@ func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv strin
 	if err != nil {
 		return nil, errors.Join(
 			err,
-			errutil.Step("shutdown tracer provider after log exporter init failure", tracerProvider.Shutdown(ctx)),
+			shutdownError("shutdown tracer provider after log exporter init failure", tracerProvider.Shutdown(ctx)),
 		)
 	}
 	loggerProvider := sdklog.NewLoggerProvider(
@@ -152,8 +170,8 @@ func Setup(ctx context.Context, cfg config.OTelConfig, serviceName, appEnv strin
 	if err != nil {
 		return nil, errors.Join(
 			err,
-			errutil.Step("shutdown logger provider after metric exporter init failure", loggerProvider.Shutdown(ctx)),
-			errutil.Step("shutdown tracer provider after metric exporter init failure", tracerProvider.Shutdown(ctx)),
+			shutdownError("shutdown logger provider after metric exporter init failure", loggerProvider.Shutdown(ctx)),
+			shutdownError("shutdown tracer provider after metric exporter init failure", tracerProvider.Shutdown(ctx)),
 		)
 	}
 	meterProvider := sdkmetric.NewMeterProvider(
@@ -170,24 +188,21 @@ func newRuntime(
 	meterProvider meterProvider,
 	serviceName string,
 ) *Runtime {
-	otel.SetTracerProvider(tracerProvider)
-	otel.SetMeterProvider(meterProvider)
-	// Propagator is the "format adapter" used to read/write trace context in
-	// carriers like HTTP headers. This enables cross-service trace continuation.
-	// - TraceContext: handles W3C trace headers (traceparent/tracestate).
-	// - Baggage: handles W3C baggage key-values.
-	// We set this globally so middleware/outbound clients use a consistent format.
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
-	))
-
 	return &Runtime{
 		traceProvider:  tracerProvider,
 		loggerProvider: loggerProvider,
 		meterProvider:  meterProvider,
 		logEmitter:     NewOtelLogEmitter(loggerProvider, serviceName),
-		tracer:         NewTracer(serviceName),
+		tracer:         NewTracer(tracerProvider, serviceName),
 		meter:          NewMeter(meterProvider, serviceName),
 	}
+}
+
+// shutdownError preserves provider failures without turning successful cleanup
+// into an error when independent shutdown results are joined.
+func shutdownError(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", operation, err)
 }

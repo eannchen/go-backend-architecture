@@ -11,7 +11,7 @@ import (
 	"golang.org/x/net/http/httpguts"
 
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // Config controls server deadlines and request-ID interoperability policy.

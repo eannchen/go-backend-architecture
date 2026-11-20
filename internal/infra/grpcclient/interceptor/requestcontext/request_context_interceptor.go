@@ -8,8 +8,8 @@ import (
 	googlegrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/util/grpcmetadata"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // Config controls default deadlines and optional request-ID propagation.

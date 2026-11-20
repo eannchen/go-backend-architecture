@@ -6,8 +6,8 @@ import (
 
 	googlegrpc "google.golang.org/grpc"
 
-	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	appobservability "github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // Interceptor coordinates tracing, metrics, and access logging around each RPC.

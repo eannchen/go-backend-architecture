@@ -5,8 +5,8 @@ import (
 
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 	dbsqlc "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/sqlc/gen"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // UserStore implements UserRepository using Postgres via sqlc (users table).

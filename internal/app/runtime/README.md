@@ -4,7 +4,7 @@ This package owns resources and lifecycle behavior that are shared by the execut
 
 ## Responsibilities and boundaries
 
-- `Telemetry` owns the logger and observability providers.
+- `Telemetry` maps runtime settings to public logger and observability configuration, attaches logging callbacks, and owns shutdown.
 - `Runtime` adds shared configuration, PostgreSQL, and Redis to `Telemetry`. Processes that do not need data services can use `Telemetry` directly.
 - `RunLifecycle` coordinates blocking startup with root-context cancellation and bounded shutdown; each `cmd` package converts OS signals into that root context.
 

@@ -7,7 +7,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // Config bounds one processing attempt. App configuration validates a positive

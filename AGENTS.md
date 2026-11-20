@@ -21,7 +21,7 @@ app -> all layers (composition only)
 
 - **domain** owns business entities, reusable invariants, and shared business repository contracts. It imports neither usecase, infra, nor delivery.
 - **usecase** coordinates workflows and owns their outbound dependency contracts, result types, and expected errors. It depends on domain and shared technical contracts, never on delivery or infra.
-- **shared technical contracts** live in purpose-specific packages such as `pkg/logger` and `internal/observability`.
+- **shared technical contracts** live in purpose-specific packages such as `pkg/logger` and `pkg/observability`.
 - **infra** implements domain, usecase, and technical contracts. It may import their types and errors, but never invoke usecase implementations. Vendor types remain inside adapters unless they are native to the receiving delivery adapter.
 - **delivery** owns inbound adapters for the transports present, including HTTP, gRPC, and Kafka. Adapters validate transport input, invoke usecases, and map outcomes to responses or message decisions. Delivery contains no persistence logic or business policy.
 - **pkg** contains intentionally reusable technical libraries. Libraries own typed configuration and import no project `internal` packages; app loads environment settings and owns integration.
@@ -107,7 +107,7 @@ internal/delivery/kafka/handler/<feature>/             # when Kafka is present
 - Never log credentials, session tokens, OTPs, authorization metadata, cookies, private keys, or unredacted sensitive payloads.
 - Authentication establishes caller identity at the delivery boundary; usecases enforce business authorization. Missing or ambiguous identity must fail closed where identity is required.
 - Add structured log fields with `logger.Fields` instead of embedding values in message strings.
-- Only production code under `internal/infra/observability` may import OpenTelemetry; other production packages use `internal/observability`. Tests may use the SDK to verify telemetry.
+- Only production code under `pkg/observability/otel` may import OpenTelemetry; other production packages use `pkg/observability`. Tests may use the SDK to verify telemetry.
 - Metric attributes must be bounded. Put concrete paths, raw errors, IDs, and detailed diagnostics in traces or logs rather than metric dimensions.
 - Add spans around meaningful I/O or expensive work, not every small function. Preserve trace context across supported internal calls and messages.
 
