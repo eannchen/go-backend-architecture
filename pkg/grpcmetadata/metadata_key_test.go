@@ -10,6 +10,7 @@ func TestNormalizeKeyNormalizesValidKeys(t *testing.T) {
 		want string
 	}{
 		{name: "disabled", key: "", want: ""},
+		{name: "whitespace only", key: " \t ", want: ""},
 		{name: "trimmed lowercase", key: "  X-Request-ID  ", want: "x-request-id"},
 		{name: "supported separators", key: "request_id.v2", want: "request_id.v2"},
 	}

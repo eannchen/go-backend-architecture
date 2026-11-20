@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -20,4 +21,13 @@ func CleanupAfterInitFailure(ctx context.Context, timeout time.Duration, shutdow
 		result = errors.Join(result, shutdown(cleanupCtx))
 	}
 	return result
+}
+
+// WrapCleanupError adds operation context to a cleanup failure and preserves its
+// cause. Successful cleanup stays nil so independent results can be joined.
+func WrapCleanupError(operation string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", operation, err)
 }

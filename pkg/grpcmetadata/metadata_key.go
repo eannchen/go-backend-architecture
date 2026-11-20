@@ -5,7 +5,10 @@ import (
 	"strings"
 )
 
-// NormalizeKey returns a lowercase gRPC metadata key or an error when its syntax is unsafe.
+// NormalizeKey trims whitespace, lowercases an application-defined gRPC metadata
+// key, and validates its characters. Empty input returns ("", nil), allowing
+// optional metadata fields to remain disabled. The grpc- prefix is reserved and
+// cannot be used for application-defined keys.
 func NormalizeKey(key string) (string, error) {
 	key = strings.ToLower(strings.TrimSpace(key))
 	if key == "" {

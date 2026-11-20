@@ -8,7 +8,6 @@ import (
 	httpDelivery "github.com/eannchen/go-backend-architecture/internal/delivery/http"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
 )
 
 type App struct {
@@ -38,7 +37,7 @@ func New(ctx context.Context) (*App, error) {
 		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, runtime.Shutdown)
 		return nil, errors.Join(
 			err,
-			errutil.Step("shutdown runtime after server init failure", cleanupErr),
+			appruntime.WrapCleanupError("shutdown runtime after server init failure", cleanupErr),
 		)
 	}
 

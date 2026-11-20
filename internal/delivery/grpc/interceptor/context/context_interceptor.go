@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	grpcresponse "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
-	"github.com/eannchen/go-backend-architecture/internal/util/grpcmetadata"
+	"github.com/eannchen/go-backend-architecture/pkg/grpcmetadata"
 	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 

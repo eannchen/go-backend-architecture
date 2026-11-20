@@ -10,7 +10,6 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/eannchen/go-backend-architecture/internal/infra/db/postgres"
 	"github.com/eannchen/go-backend-architecture/internal/infra/redisconn"
-	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
 )
 
 type Runtime struct {
@@ -28,7 +27,7 @@ func New(ctx context.Context, cfg config.RuntimeConfig) (*Runtime, error) {
 	pool, err := postgres.NewPool(ctx, cfg.DB, telemetry.Logger)
 	if err != nil {
 		cleanupErr := CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, telemetry.Shutdown)
-		return nil, errors.Join(err, errutil.Step("shutdown telemetry after db init failure", cleanupErr))
+		return nil, errors.Join(err, WrapCleanupError("shutdown telemetry after db init failure", cleanupErr))
 	}
 	redisClient := redisconn.NewClient(cfg.Redis)
 	return &Runtime{
@@ -42,5 +41,5 @@ func New(ctx context.Context, cfg config.RuntimeConfig) (*Runtime, error) {
 func (r *Runtime) Shutdown(ctx context.Context) error {
 	redisErr := r.RedisClient.Close()
 	postgres.ClosePool(ctx, r.DBPool, r.Logger)
-	return errors.Join(errutil.Step("close Redis client", redisErr), r.Telemetry.Shutdown(ctx))
+	return errors.Join(WrapCleanupError("close Redis client", redisErr), r.Telemetry.Shutdown(ctx))
 }

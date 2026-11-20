@@ -103,7 +103,7 @@ func transportSelectionPlan(profile string) (selectionPlan, error) {
 				"internal/infra/grpcclient",
 				"pkg/tlsconfig",
 				"pkg/observability/grpcsemconv",
-				"internal/util/grpcmetadata",
+				"pkg/grpcmetadata",
 				"make/service-grpc.mk",
 				"sqlc.service-grpc.yaml",
 			),

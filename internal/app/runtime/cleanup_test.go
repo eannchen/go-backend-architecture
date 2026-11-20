@@ -101,3 +101,32 @@ func TestCleanupAfterInitFailureMultipleResources(t *testing.T) {
 		t.Fatalf("cleanup errors = %v", err)
 	}
 }
+
+// TestWrapCleanupError protects operation context and cause matching without
+// manufacturing errors for successful cleanup.
+func TestWrapCleanupError(t *testing.T) {
+	failure := errors.New("close failed")
+	for _, tt := range []struct {
+		name string
+		err  error
+	}{
+		{name: "success"},
+		{name: "failure", err: failure},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := WrapCleanupError("shutdown cache", tt.err)
+			if tt.err == nil {
+				if err != nil {
+					t.Fatalf("successful cleanup returned %v", err)
+				}
+				return
+			}
+			if !errors.Is(err, failure) {
+				t.Fatalf("cleanup error = %v, want original failure", err)
+			}
+			if got := err.Error(); got != "shutdown cache: close failed" {
+				t.Fatalf("cleanup error = %q, want operation and cause", got)
+			}
+		})
+	}
+}

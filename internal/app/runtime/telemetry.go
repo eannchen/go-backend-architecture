@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
 	zaplogger "github.com/eannchen/go-backend-architecture/pkg/logger/zap"
 	"github.com/eannchen/go-backend-architecture/pkg/observability/otel"
@@ -37,7 +36,7 @@ func NewTelemetry(ctx context.Context, cfg config.RuntimeConfig) (*Telemetry, er
 	})
 	if err != nil {
 		cleanupErr := CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, obs.Shutdown)
-		return nil, errors.Join(err, errutil.Step("shutdown observability after logger init failure", cleanupErr))
+		return nil, errors.Join(err, WrapCleanupError("shutdown observability after logger init failure", cleanupErr))
 	}
 	log.SetLogSink(logEmitterToLogSink(obs.LogEmitter()))
 	log.SetContextFieldsProvider(contextFieldsProvider(obs.Tracer()))
@@ -47,7 +46,7 @@ func NewTelemetry(ctx context.Context, cfg config.RuntimeConfig) (*Telemetry, er
 // Shutdown flushes exported telemetry before syncing the local logger.
 func (t *Telemetry) Shutdown(ctx context.Context) error {
 	return errors.Join(
-		errutil.Step("shutdown observability", t.Observability.Shutdown(ctx)),
-		errutil.Step("sync logger", t.Logger.Sync()),
+		WrapCleanupError("shutdown observability", t.Observability.Shutdown(ctx)),
+		WrapCleanupError("sync logger", t.Logger.Sync()),
 	)
 }

@@ -8,7 +8,7 @@ import (
 	googlegrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/eannchen/go-backend-architecture/internal/util/grpcmetadata"
+	"github.com/eannchen/go-backend-architecture/pkg/grpcmetadata"
 	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 

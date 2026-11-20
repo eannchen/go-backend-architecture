@@ -8,7 +8,6 @@ import (
 	grpcdelivery "github.com/eannchen/go-backend-architecture/internal/delivery/grpc"
 	healthservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
 )
 
 type App struct {
@@ -40,7 +39,7 @@ func New(ctx context.Context) (*App, error) {
 		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, runtime.Shutdown)
 		return nil, errors.Join(
 			err,
-			errutil.Step("shutdown runtime after gRPC server init failure", cleanupErr),
+			appruntime.WrapCleanupError("shutdown runtime after gRPC server init failure", cleanupErr),
 		)
 	}
 
