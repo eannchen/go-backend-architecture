@@ -14,8 +14,10 @@ import (
 
 type Runtime struct {
 	*Telemetry
-	Config      config.RuntimeConfig
-	DBPool      *pgxpool.Pool
+	Config config.RuntimeConfig
+	DBPool *pgxpool.Pool
+	// RedisClient is shared by cache and KV stores in the template. Runtime
+	// owns the client; stores borrow it and must not close it.
 	RedisClient *goredis.Client
 }
 

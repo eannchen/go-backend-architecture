@@ -33,7 +33,7 @@ func New(ctx context.Context) (*App, error) {
 		runtime.Observability.Tracer(),
 		runtime.Observability.Meter(),
 	)
-	healthUsecase := wiring.buildHealthUsecase(runtime.DBPool, runtime.RedisClient)
+	healthUsecase := wiring.buildHealthUsecase(runtime.DBPool, runtime.RedisClient, runtime.RedisClient)
 	components, err := wiring.buildServer(healthUsecase)
 	if err != nil {
 		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, runtime.Shutdown)

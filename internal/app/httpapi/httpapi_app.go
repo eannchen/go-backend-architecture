@@ -26,7 +26,7 @@ func New(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 	wiring := newWiring(cfg, runtime.Logger, runtime.Observability.Tracer(), runtime.Observability.Meter())
-	redisStores := wiring.buildRedisStores(runtime.RedisClient)
+	redisStores := wiring.buildRedisStores(runtime.RedisClient, runtime.RedisClient)
 
 	repositories := wiring.buildRepositories(runtime.DBPool, redisStores)
 	usecases := wiring.buildUsecases(repositories)

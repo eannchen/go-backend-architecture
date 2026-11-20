@@ -18,14 +18,14 @@ type redisStores struct {
 	tokenBucket *rediskvstore.TokenBucketStore
 }
 
-func (d wiring) buildRedisStores(client *goredis.Client) redisStores {
+func (d wiring) buildRedisStores(cacheClient, kvClient *goredis.Client) redisStores {
 	return redisStores{
-		cacheHealth: rediscachestore.NewHealthStore(client),
-		userCache:   rediscachestore.NewUserCacheStore(client, d.cfg.Redis.CacheTTL),
-		kvHealth:    rediskvstore.NewHealthStore(client),
-		session:     rediskvstore.NewSessionStore(client),
-		otp:         rediskvstore.NewOTPStore(client),
-		oauthState:  rediskvstore.NewOAuthStateStore(client),
-		tokenBucket: rediskvstore.NewTokenBucketStore(client),
+		cacheHealth: rediscachestore.NewHealthStore(cacheClient),
+		userCache:   rediscachestore.NewUserCacheStore(cacheClient, d.cfg.Redis.CacheTTL),
+		kvHealth:    rediskvstore.NewHealthStore(kvClient),
+		session:     rediskvstore.NewSessionStore(kvClient),
+		otp:         rediskvstore.NewOTPStore(kvClient),
+		oauthState:  rediskvstore.NewOAuthStateStore(kvClient),
+		tokenBucket: rediskvstore.NewTokenBucketStore(kvClient),
 	}
 }
