@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	contextmw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/context"
 	recoverymw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/recovery"
@@ -25,36 +26,53 @@ import (
 	"github.com/eannchen/go-backend-architecture/pkg/observability/otel"
 )
 
-// TestProcessingTracing protects the processing span context and failure
-// completion, while excluding message keys and payloads from span attributes.
+// TestProcessingTracing protects context, privacy, and the decision that every
+// unsuccessful message attempt fails its processing span, including invalid input.
 func TestProcessingTracing(t *testing.T) {
-	type key struct{}
-	span := &observabilitytest.Span{
-		SetAttributesFunc: func(...contracts.Fields) {},
-		FinishFunc:        func(error, ...string) {},
-	}
-	tracer := &observabilitytest.Tracer{StartFunc: func(ctx context.Context, scope, name string, _ ...contracts.Fields) (context.Context, contracts.Span) {
-		if scope != "delivery.kafka" || name != "activity.consume" {
-			t.Error("wrong span identity")
-		}
-		return context.WithValue(ctx, key{}, "processing"), span
-	}}
-	failure := errors.New("workflow failed")
-	handler := New(tracer, logger.NoopLogger{}, contracts.NoopMeter{}).Handler("activity.consume")(func(ctx context.Context, _ *kgo.Record) error {
-		if ctx.Value(key{}) != "processing" {
-			t.Error("span context not passed to handler")
-		}
-		return failure
-	})
-	err := handler(t.Context(), &kgo.Record{Topic: "activities", Partition: 2, Offset: 7, Key: []byte("private-key"), Value: []byte("private-body")})
-	if !errors.Is(err, failure) || len(tracer.StartCalls) != 1 || len(span.FinishCalls) != 1 || !errors.Is(span.FinishCalls[0].Err, failure) {
-		t.Fatal("span lifecycle lost processing failure")
-	}
-	if len(span.SetAttributesCalls) != 1 || span.SetAttributesCalls[0].Fields[0]["app.kafka.outcome"] != "error" {
-		t.Fatal("span outcome missing")
-	}
-	if strings.Contains(fmt.Sprint(tracer.StartCalls[0].Fields), "private-") {
-		t.Fatal("private data included in span")
+	for _, tt := range []struct {
+		name    string
+		err     error
+		outcome string
+	}{
+		{name: "success", outcome: "success"},
+		{name: "invalid message", err: middleware.ErrInvalidMessage, outcome: "invalid"},
+		{name: "application rejection", err: apperr.New(apperr.CodeInvalidArgument, "invalid activity"), outcome: "error"},
+		{name: "timeout", err: context.DeadlineExceeded, outcome: "timeout"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			type key struct{}
+			span := &observabilitytest.Span{
+				SetAttributesFunc: func(...contracts.Fields) {},
+				FinishFunc:        func(contracts.SpanOutcome) {},
+			}
+			tracer := &observabilitytest.Tracer{StartFunc: func(ctx context.Context, scope, name string, _ ...contracts.Fields) (context.Context, contracts.Span) {
+				if scope != "delivery.kafka" || name != "activity.consume" {
+					t.Error("wrong span identity")
+				}
+				return context.WithValue(ctx, key{}, "processing"), span
+			}}
+			failure := tt.err
+			handler := New(tracer, logger.NoopLogger{}, contracts.NoopMeter{}).Handler("activity.consume")(func(ctx context.Context, _ *kgo.Record) error {
+				if ctx.Value(key{}) != "processing" {
+					t.Error("span context not passed to handler")
+				}
+				return failure
+			})
+			err := handler(t.Context(), &kgo.Record{Topic: "activities", Partition: 2, Offset: 7, Key: []byte("private-key"), Value: []byte("private-body")})
+			if !errors.Is(err, failure) || len(tracer.StartCalls) != 1 || len(span.FinishCalls) != 1 {
+				t.Fatal("span lifecycle lost the processing outcome")
+			}
+			finished := span.FinishCalls[0].Outcome
+			if !errors.Is(finished.Err, failure) || finished.Failed != (failure != nil) {
+				t.Fatalf("span outcome = %+v, want error %v and failed %v", finished, failure, failure != nil)
+			}
+			if len(span.SetAttributesCalls) != 1 || span.SetAttributesCalls[0].Fields[0]["app.kafka.outcome"] != tt.outcome {
+				t.Fatal("span outcome missing")
+			}
+			if strings.Contains(fmt.Sprint(tracer.StartCalls[0].Fields), "private-") {
+				t.Fatal("private data included in span")
+			}
+		})
 	}
 }
 

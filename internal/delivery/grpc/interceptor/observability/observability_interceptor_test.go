@@ -36,8 +36,8 @@ func TestUnaryRecordsTraceLogAndMetrics(t *testing.T) {
 	if !tracer.extractCalled || tracer.startName != "diagnostics.v1.DiagnosticsService/GetHealth" {
 		t.Fatalf("tracer state = %#v", tracer)
 	}
-	if tracer.span.finishErr != nil {
-		t.Fatalf("span finish error = %v, want nil", tracer.span.finishErr)
+	if tracer.span.finishOutcome.Err != nil {
+		t.Fatalf("span finish error = %v, want nil", tracer.span.finishOutcome.Err)
 	}
 	if len(log.InfoCalls) != 1 || len(log.ErrorNoStackCalls) != 0 {
 		t.Fatalf("info logs = %d, error logs = %d", len(log.InfoCalls), len(log.ErrorNoStackCalls))
@@ -147,8 +147,8 @@ func TestUnaryRecordsApplicationErrorDetailsWithoutAddingThemToMetrics(t *testin
 	if gotErr != wireErr {
 		t.Fatalf("returned error = %v, want original wire error", gotErr)
 	}
-	if tracer.span.finishErr != wireErr {
-		t.Fatalf("span finish error = %v, want wire error", tracer.span.finishErr)
+	if tracer.span.finishOutcome.Err != wireErr {
+		t.Fatalf("span finish error = %v, want wire error", tracer.span.finishOutcome.Err)
 	}
 	if got := tracer.span.attributes[keyApplicationErrorCauseChain]; got != appErr.Error()+"; "+cause.Error() {
 		t.Fatalf("span error chain = %v", got)
@@ -236,14 +236,14 @@ func (*recordingTracer) TraceContext(context.Context) (appobservability.TraceCon
 }
 
 type recordingSpan struct {
-	attributes appobservability.Fields
-	finishErr  error
+	attributes    appobservability.Fields
+	finishOutcome appobservability.SpanOutcome
 }
 
 func (s *recordingSpan) SetAttributes(fields ...appobservability.Fields) {
 	s.attributes = appobservability.MergeFields(s.attributes, appobservability.OptionalFields(fields...))
 }
-func (s *recordingSpan) Finish(err error, _ ...string) { s.finishErr = err }
+func (s *recordingSpan) Finish(outcome appobservability.SpanOutcome) { s.finishOutcome = outcome }
 
 type metricSample struct {
 	value  int64

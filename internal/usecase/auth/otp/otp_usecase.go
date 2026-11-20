@@ -78,7 +78,7 @@ func (a *Authenticator) SendCode(ctx context.Context, email string) (err error) 
 			outcome = "error"
 		}
 		a.sendTotal.Add(ctx, 1, observability.FromPairs("outcome", outcome))
-		span.Finish(err)
+		span.Finish(observability.SpanOutcome{Err: err, Failed: err != nil})
 	}()
 
 	if email == "" {
@@ -113,7 +113,7 @@ func (a *Authenticator) VerifyCode(ctx context.Context, email, code string) (ide
 			outcome = "error"
 		}
 		a.verifyTotal.Add(ctx, 1, observability.FromPairs("outcome", outcome))
-		span.Finish(err)
+		span.Finish(observability.SpanOutcome{Err: err, Failed: err != nil})
 	}()
 
 	if email == "" || code == "" {

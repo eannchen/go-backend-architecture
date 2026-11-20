@@ -77,7 +77,7 @@ func (u *Usecase) Check(ctx context.Context, mode CheckMode) (result Result, err
 		)
 		u.checkTotal.Add(ctx, 1, fields)
 		u.checkLatency.Record(ctx, time.Since(startedAt).Seconds(), fields)
-		span.Finish(err)
+		span.Finish(observability.SpanOutcome{Err: err, Failed: err != nil})
 	}()
 
 	if mode == "" {

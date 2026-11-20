@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 	apiotel "go.opentelemetry.io/otel"
 	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/metric"
@@ -57,9 +58,9 @@ func TestRuntimeTracersKeepOwnProviders(t *testing.T) {
 	apiotel.SetTracerProvider(providerB)
 
 	_, spanA := runtimeA.Tracer().Start(t.Context(), "test", "operation-a")
-	spanA.Finish(nil)
+	spanA.Finish(observability.SpanOutcome{})
 	_, spanB := runtimeB.Tracer().Start(t.Context(), "test", "operation-b")
-	spanB.Finish(nil)
+	spanB.Finish(observability.SpanOutcome{})
 
 	spansA, spansB := recorderA.Ended(), recorderB.Ended()
 	if len(spansA) != 1 || spansA[0].Name() != "operation-a" {
@@ -102,7 +103,7 @@ func TestSetup_ExportDisabledKeepsTraceContextActive(t *testing.T) {
 
 	ctx, span := runtime.Tracer().Start(context.Background(), "test", "operation")
 	traceContext, ok := runtime.Tracer().TraceContext(ctx)
-	span.Finish(nil)
+	span.Finish(observability.SpanOutcome{})
 	if !ok || traceContext.TraceID == "" || traceContext.SpanID == "" {
 		t.Fatalf("trace context = %+v, %v; want valid IDs", traceContext, ok)
 	}

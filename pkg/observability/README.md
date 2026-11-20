@@ -7,7 +7,8 @@ This library defines vendor-neutral tracing, metrics, log-emission, and propagat
 - Delivery and infrastructure instrumentation depend on these contracts instead of importing OpenTelemetry.
 - Carrier interfaces support server extraction and client injection without exposing transport types.
 - Request IDs use explicit context helpers; trace identity remains in the native active span context.
-- Shared error formatting keeps tracing and logging outcomes consistent.
+- Callers supply `SpanOutcome` when finishing spans. The library records errors and the supplied failure decision without classifying application errors.
+- Shared error formatting keeps diagnostic text consistent across tracing and logging.
 - Inject non-nil contracts. Use `NoopTracer`, `NoopMeter`, or `NoopRuntime` when a capability is disabled.
 
 ## Extending

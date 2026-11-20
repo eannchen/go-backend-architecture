@@ -61,7 +61,7 @@ func TestUnaryInjectsTraceAndRecordsOutcome(t *testing.T) {
 	if requests[0].Fields[keyServerAddress] != "diagnostics" || requests[0].Fields[keyServerPort] != 9090 {
 		t.Fatalf("request metric destination = %#v", requests[0].Fields)
 	}
-	if len(span.FinishCalls) != 1 || span.FinishCalls[0].Err != nil {
+	if len(span.FinishCalls) != 1 || span.FinishCalls[0].Outcome.Err != nil {
 		t.Fatalf("span finish calls = %#v", span.FinishCalls)
 	}
 }
@@ -139,7 +139,7 @@ func TestStreamFinishesOnEOF(t *testing.T) {
 	if len(active) != 2 || active[0].Value != 1 || active[1].Value != -1 {
 		t.Fatalf("active stream metrics = %#v", active)
 	}
-	if len(span.FinishCalls) != 1 || span.FinishCalls[0].Err != nil {
+	if len(span.FinishCalls) != 1 || span.FinishCalls[0].Outcome.Err != nil {
 		t.Fatalf("span finish calls = %#v", span.FinishCalls)
 	}
 }
@@ -232,7 +232,7 @@ func successfulInvoker(context.Context, string, any, any, *googlegrpc.ClientConn
 func newTestSpan() *observabilitytest.Span {
 	return &observabilitytest.Span{
 		SetAttributesFunc: func(...appobservability.Fields) {},
-		FinishFunc:        func(error, ...string) {},
+		FinishFunc:        func(appobservability.SpanOutcome) {},
 	}
 }
 

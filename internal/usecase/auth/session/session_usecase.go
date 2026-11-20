@@ -41,7 +41,7 @@ func NewServerSessionManager(
 
 func (m *Manager) Create(ctx context.Context, identity auth.Identity) (sess auth.Session, err error) {
 	ctx, span := m.tracer.Start(ctx, "usecase", "session_manager.create")
-	defer func() { span.Finish(err) }()
+	defer func() { span.Finish(observability.SpanOutcome{Err: err, Failed: err != nil}) }()
 
 	token, err := auth.GenerateToken(32)
 	if err != nil {
@@ -73,7 +73,7 @@ func (m *Manager) Create(ctx context.Context, identity auth.Identity) (sess auth
 
 func (m *Manager) Validate(ctx context.Context, token string) (sess auth.Session, err error) {
 	ctx, span := m.tracer.Start(ctx, "usecase", "session_manager.validate")
-	defer func() { span.Finish(err) }()
+	defer func() { span.Finish(observability.SpanOutcome{Err: err, Failed: err != nil}) }()
 
 	if token == "" {
 		return auth.Session{}, apperr.New(apperr.CodeUnauthorized, "missing session token")
@@ -105,7 +105,7 @@ func (m *Manager) Validate(ctx context.Context, token string) (sess auth.Session
 
 func (m *Manager) Revoke(ctx context.Context, token string) (err error) {
 	ctx, span := m.tracer.Start(ctx, "usecase", "session_manager.revoke")
-	defer func() { span.Finish(err) }()
+	defer func() { span.Finish(observability.SpanOutcome{Err: err, Failed: err != nil}) }()
 
 	if err := m.sessionRepo.Delete(ctx, token); err != nil {
 		return apperr.Wrap(err, apperr.CodeInternal, "revoke session")

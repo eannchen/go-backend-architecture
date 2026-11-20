@@ -29,7 +29,7 @@ func (r *DBHealthStore) Ping(ctx context.Context) (err error) {
 		),
 	)
 	defer func() {
-		span.Finish(err)
+		span.Finish(observability.SpanOutcome{Err: err, Failed: err != nil})
 	}()
 
 	_, err = r.queries.Ping(ctx)
@@ -48,7 +48,7 @@ func (r *DBHealthStore) GetServerStatus(ctx context.Context) (status usecaseheal
 		),
 	)
 	defer func() {
-		span.Finish(err)
+		span.Finish(observability.SpanOutcome{Err: err, Failed: err != nil})
 	}()
 
 	row, err := r.queries.GetServerStatus(ctx)

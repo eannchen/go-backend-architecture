@@ -17,42 +17,56 @@ import (
 	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
-// TestSpanFinish_SetsStatusAndRecordsErrors checks span completion records status and errors for diagnostics.
-func TestSpanFinish_SetsStatusAndRecordsErrors(t *testing.T) {
+// TestSpanFinishUsesCallerOutcome checks status and diagnostic errors are
+// independent, including errors whose own classification must not override the caller.
+func TestSpanFinishUsesCallerOutcome(t *testing.T) {
+	failure := errors.New("operation failed")
+	clientErr := fmt.Errorf("handle input: %w", clientTestError{})
 	tests := []struct {
-		name       string
-		err        error
-		wantStatus codes.Code
-		wantEvent  bool
+		name            string
+		outcome         observability.SpanOutcome
+		wantStatus      codes.Code
+		wantDescription string
+		wantEvent       bool
 	}{
 		{name: "success", wantStatus: codes.Ok},
 		{
-			name:       "client error remains successful for service health",
-			err:        fmt.Errorf("handle request: %w", clientTestError{}),
-			wantStatus: codes.Ok,
-			wantEvent:  true,
+			name:       "recorded error without failed operation",
+			outcome:    observability.SpanOutcome{Err: failure},
+			wantStatus: codes.Ok, wantEvent: true,
 		},
 		{
-			name:       "server error",
-			err:        errors.New("database unavailable"),
+			name:       "application classification cannot override failed operation",
+			outcome:    observability.SpanOutcome{Err: clientErr, Failed: true},
+			wantStatus: codes.Error, wantDescription: clientErr.Error(), wantEvent: true,
+		},
+		{
+			name:       "failure description overrides error message",
+			outcome:    observability.SpanOutcome{Err: failure, Failed: true, Description: "dependency unavailable"},
+			wantStatus: codes.Error, wantDescription: "dependency unavailable", wantEvent: true,
+		},
+		{
+			name:       "failed response without Go error",
+			outcome:    observability.SpanOutcome{Failed: true, Description: "503 Service Unavailable"},
+			wantStatus: codes.Error, wantDescription: "503 Service Unavailable",
+		},
+		{
+			name:       "failed operation without diagnostics",
+			outcome:    observability.SpanOutcome{Failed: true},
 			wantStatus: codes.Error,
-			wantEvent:  true,
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			provider, recorder := newSpanRecorder(t)
-			_, span := NewTracer(provider, "test").Start(context.Background(), "test", tt.name)
-
-			span.Finish(tt.err)
-
+			_, span := NewTracer(provider, "test").Start(t.Context(), "test", tt.name)
+			span.Finish(tt.outcome)
 			ended := recorder.Ended()
 			if len(ended) != 1 {
 				t.Fatalf("ended spans = %d, want 1", len(ended))
 			}
-			if got := ended[0].Status().Code; got != tt.wantStatus {
-				t.Fatalf("span status = %s, want %s", got, tt.wantStatus)
+			if got := ended[0].Status(); got.Code != tt.wantStatus || got.Description != tt.wantDescription {
+				t.Fatalf("span status = %+v, want %s with description %q", got, tt.wantStatus, tt.wantDescription)
 			}
 			if got := hasExceptionEvent(ended[0]); got != tt.wantEvent {
 				t.Fatalf("exception event = %v, want %v", got, tt.wantEvent)
@@ -65,7 +79,7 @@ func TestSpanFinish_SetsStatusAndRecordsErrors(t *testing.T) {
 func TestTracerStartRecordsInternalKind(t *testing.T) {
 	provider, recorder := newSpanRecorder(t)
 	_, span := NewTracer(provider, "accounts-api").Start(context.Background(), "usecase", "account.get")
-	span.Finish(nil)
+	span.Finish(observability.SpanOutcome{})
 
 	ended := recorder.Ended()
 	if len(ended) != 1 || ended[0].SpanKind() != apitrace.SpanKindInternal {
@@ -88,7 +102,7 @@ func TestTracerStartServer_RecordsKindAttributesAndExposesContext(t *testing.T) 
 	if !ok || traceContext.TraceID == "" || traceContext.SpanID == "" {
 		t.Fatalf("trace context = %+v, %v; want valid IDs", traceContext, ok)
 	}
-	span.Finish(nil)
+	span.Finish(observability.SpanOutcome{})
 
 	ended := recorder.Ended()
 	if len(ended) != 1 {
@@ -109,7 +123,7 @@ func TestTracerStartServer_RecordsKindAttributesAndExposesContext(t *testing.T) 
 func TestTracerStartClientRecordsClientKind(t *testing.T) {
 	provider, recorder := newSpanRecorder(t)
 	_, span := NewTracer(provider, "accounts-api").StartClient(context.Background(), "grpc-client", "/test.Service/Check")
-	span.Finish(nil)
+	span.Finish(observability.SpanOutcome{})
 
 	ended := recorder.Ended()
 	if len(ended) != 1 || ended[0].SpanKind() != apitrace.SpanKindClient {
@@ -144,7 +158,7 @@ func TestTracerExtractsRemoteParentFromTextCarrier(t *testing.T) {
 
 	ctx := NewTracer(provider, "test").Extract(context.Background(), carrier)
 	_, span := NewTracer(provider, "test").StartServer(ctx, "grpc", "/test.Service/Check")
-	span.Finish(nil)
+	span.Finish(observability.SpanOutcome{})
 
 	ended := recorder.Ended()
 	if len(ended) != 1 {
@@ -162,7 +176,7 @@ func TestTracerInjectsCurrentSpanIntoTextCarrier(t *testing.T) {
 	carrier := propagation.MapCarrier{}
 
 	NewTracer(provider, "test").Inject(ctx, carrier)
-	span.Finish(nil)
+	span.Finish(observability.SpanOutcome{})
 
 	if carrier.Get("traceparent") == "" {
 		t.Fatalf("carrier = %#v, want traceparent", carrier)
@@ -206,8 +220,8 @@ func traceAttribute(span sdktrace.ReadOnlySpan, key string) attribute.Value {
 	return attribute.Value{}
 }
 
-// clientTestError models the optional error classification recognized by Finish
-// without coupling the library tests to an application's error package.
+// clientTestError models an application-specific classification. Finish must
+// ignore it and use only the supplied outcome.
 type clientTestError struct{}
 
 func (clientTestError) Error() string       { return "invalid input" }

@@ -13,6 +13,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
 	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // notificationJSON is a wire example, independent of Go DTO serialization.
@@ -35,7 +36,7 @@ func TestNotificationHandlerWorkflow(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 40*time.Second)
 			defer cancel()
 			published, span := runtime.Tracer().Start(ctx, "test", "publish-notification")
-			defer span.Finish(nil)
+			defer span.Finish(observability.SpanOutcome{})
 			parent, valid := runtime.Tracer().TraceContext(published)
 			if !valid {
 				t.Fatal("publisher has no trace")

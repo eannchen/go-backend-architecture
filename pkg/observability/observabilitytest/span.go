@@ -9,15 +9,14 @@ type SetAttributesCall struct {
 }
 
 type FinishCall struct {
-	Err         error
-	Description []string
+	Outcome observability.SpanOutcome
 }
 
 // Span is a configurable double for its parent package's Span contract.
 type Span struct {
 	SetAttributesFunc  func(fields ...observability.Fields)
 	SetAttributesCalls []SetAttributesCall
-	FinishFunc         func(err error, description ...string)
+	FinishFunc         func(outcome observability.SpanOutcome)
 	FinishCalls        []FinishCall
 }
 
@@ -30,11 +29,11 @@ func (d *Span) SetAttributes(fields ...observability.Fields) {
 	fn(fields...)
 }
 
-func (d *Span) Finish(err error, description ...string) {
-	d.FinishCalls = append(d.FinishCalls, FinishCall{Err: err, Description: append([]string(nil), description...)})
+func (d *Span) Finish(outcome observability.SpanOutcome) {
+	d.FinishCalls = append(d.FinishCalls, FinishCall{Outcome: outcome})
 	fn := d.FinishFunc
 	if fn == nil {
 		panic("unexpected Span.Finish call")
 	}
-	fn(err, description...)
+	fn(outcome)
 }

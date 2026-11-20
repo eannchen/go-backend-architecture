@@ -14,6 +14,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
 	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
 	"github.com/eannchen/go-backend-architecture/pkg/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability/observabilitytest"
 )
 
 // TestServerSessionManagerCreate checks session creation stores the session and maps dependency failures.
@@ -83,7 +84,8 @@ func TestServerSessionManagerCreate(t *testing.T) {
 	}
 }
 
-// TestServerSessionManagerValidate checks validation accepts usable sessions and rejects missing or expired ones.
+// TestServerSessionManagerValidate checks validation accepts usable sessions,
+// rejects invalid ones, and records each workflow's span outcome.
 func TestServerSessionManagerValidate(t *testing.T) {
 	t.Parallel()
 
@@ -150,9 +152,16 @@ func TestServerSessionManagerValidate(t *testing.T) {
 				},
 				DeleteFunc: func(context.Context, string) error { return nil },
 			}
-			mgr := session.NewServerSessionManager(observability.NoopTracer{}, logger.NoopLogger{}, observability.NoopMeter{}, repo, 15*time.Minute)
+			span := &observabilitytest.Span{FinishFunc: func(observability.SpanOutcome) {}}
+			tracer := &observabilitytest.Tracer{StartFunc: func(ctx context.Context, _, _ string, _ ...observability.Fields) (context.Context, observability.Span) {
+				return ctx, span
+			}}
+			mgr := session.NewServerSessionManager(tracer, logger.NoopLogger{}, observability.NoopMeter{}, repo, 15*time.Minute)
 
 			got, err := mgr.Validate(context.Background(), tt.token)
+			if len(span.FinishCalls) != 1 || span.FinishCalls[0].Outcome.Err != err || span.FinishCalls[0].Outcome.Failed != (tt.wantCode != "") {
+				t.Fatalf("span completion = %+v; want the returned workflow outcome", span.FinishCalls)
+			}
 
 			if tt.wantCode != "" {
 				assertAppCode(t, err, tt.wantCode)

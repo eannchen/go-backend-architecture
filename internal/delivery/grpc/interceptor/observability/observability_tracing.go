@@ -42,7 +42,8 @@ func (t *Tracing) Start(ctx context.Context, rpc rpcInfo) (context.Context, appo
 // Finish records the normalized outcome and ends the span.
 func (*Tracing) Finish(span appobservability.Span, outcome rpcOutcome) {
 	fields := appobservability.FromPairs(keyRPCStatusCode, outcome.responseStatusName())
-	if errorType := outcome.errorType(); errorType != "" {
+	errorType := outcome.errorType()
+	if errorType != "" {
 		fields[keyErrorType] = errorType
 	}
 	if outcome.applicationError.causeChain != "" {
@@ -58,7 +59,7 @@ func (*Tracing) Finish(span appobservability.Span, outcome rpcOutcome) {
 		fields[keyApplicationErrorMessage] = outcome.applicationError.applicationErrorMessage
 	}
 	span.SetAttributes(fields)
-	span.Finish(outcome.handlerError)
+	span.Finish(appobservability.SpanOutcome{Err: outcome.handlerError, Failed: errorType != ""})
 }
 
 // metadataCarrier adapts multi-value gRPC metadata to the tracing carrier's

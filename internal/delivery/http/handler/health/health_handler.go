@@ -52,7 +52,7 @@ func (h *Handler) GetHealth(c *echo.Context) (err error) {
 	ctx, span := h.tracer.Start(c.Request().Context(), "handler", "health_handler.get_health")
 	var spanErr error
 	defer func() {
-		span.Finish(spanErr)
+		span.Finish(observability.SpanOutcome{Err: spanErr, Failed: spanErr != nil})
 	}()
 
 	var req openapi.GetHealthParams

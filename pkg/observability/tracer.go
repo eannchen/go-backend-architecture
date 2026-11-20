@@ -17,6 +17,20 @@ type TextMapCarrier interface {
 	Keys() []string
 }
 
+// SpanOutcome separates the caller's failure decision from diagnostic errors.
+// Its zero value describes successful completion without a recorded error.
+type SpanOutcome struct {
+	// Err is recorded as an error event when non-nil, regardless of Failed.
+	// It must be safe to export; exclude credentials and sensitive payloads.
+	Err error
+	// Failed determines the span status. The caller decides whether an error
+	// or response represents a failed operation; the tracer does not classify it.
+	Failed bool
+	// Description optionally explains a failed status. If empty, Err.Error()
+	// is used when available. It has no effect when Failed is false.
+	Description string
+}
+
 // Span measures one operation within a trace, such as a request or database call.
 // The code that starts it must call Finish once when the operation completes.
 type Span interface {
@@ -24,14 +38,11 @@ type Span interface {
 	// keys. Pass one Fields map; the current implementation uses only the first.
 	// Exclude credentials and sensitive payloads from attributes and errors.
 	SetAttributes(fields ...Fields)
-	// Finish records the outcome and ends the span's duration. Pass nil on success.
-	// The current implementation records errors as events. Errors reporting
-	// IsClientError() == true retain a successful span status; other errors mark
-	// the span as failed. The first description overrides the failure status text
-	// if nonempty; otherwise err.Error() is used. Further descriptions are ignored.
-	// The original error is still recorded, so it must also be safe.
+	// Finish records the supplied outcome and ends the span's duration.
+	// An error can be recorded without failing the span, and a failed response
+	// can fail the span without a Go error. Pass SpanOutcome{} for success.
 	// Finishing a span does not cancel its context or stop the operation's code.
-	Finish(err error, description ...string)
+	Finish(outcome SpanOutcome)
 }
 
 // TraceContext identifies the active span without exposing vendor types.
@@ -117,4 +128,4 @@ func (NoopTracer) TraceContext(context.Context) (TraceContext, bool) {
 
 func (noopSpan) SetAttributes(_ ...Fields) {}
 
-func (noopSpan) Finish(_ error, _ ...string) {}
+func (noopSpan) Finish(SpanOutcome) {}

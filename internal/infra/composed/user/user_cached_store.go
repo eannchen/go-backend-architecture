@@ -31,7 +31,7 @@ func (r *CachedUserStore) GetByID(ctx context.Context, id int64) (user domainuse
 	ctx, span := r.tracer.Start(ctx, "repository", "cached_user_store.get_by_id",
 		observability.FromPairs("user.id", id),
 	)
-	defer func() { span.Finish(err) }()
+	defer func() { span.Finish(observability.SpanOutcome{Err: err, Failed: err != nil}) }()
 
 	cached, found, cacheErr := r.cache.GetByID(ctx, id)
 	if cacheErr != nil {

@@ -56,12 +56,17 @@ func (t *Tracing) Start(ctx context.Context, rpc rpcInfo) (context.Context, appo
 // Finish records the bounded transport outcome and completes the span.
 func (*Tracing) Finish(span appobservability.Span, outcome rpcOutcome) {
 	fields := appobservability.FromPairs(keyRPCStatusCode, outcome.responseStatusName())
-	if errorType := outcome.errorType(); errorType != "" {
+	errorType := outcome.errorType()
+	if errorType != "" {
 		fields[keyErrorType] = errorType
 		fields[keyApplicationRPCStatusMessage] = outcome.responseStatusMessage
 	}
 	span.SetAttributes(fields)
-	span.Finish(outcome.callError, outcome.responseStatusMessage)
+	span.Finish(appobservability.SpanOutcome{
+		Err:         outcome.callError,
+		Failed:      errorType != "",
+		Description: outcome.responseStatusMessage,
+	})
 }
 
 // metadataCarrier adapts multi-value outgoing gRPC metadata to the tracing

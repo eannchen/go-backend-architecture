@@ -63,7 +63,7 @@ func (a *Authenticator) Authorize(ctx context.Context, provider string) (authori
 	ctx, span := a.tracer.Start(ctx, "usecase", "oauth_authenticator.authorize_url",
 		observability.FromPairs("oauth.provider", provider),
 	)
-	defer func() { span.Finish(err) }()
+	defer func() { span.Finish(observability.SpanOutcome{Err: err, Failed: err != nil}) }()
 
 	p, ok := a.providers[provider]
 	if !ok {
@@ -101,7 +101,7 @@ func (a *Authenticator) HandleCallback(ctx context.Context, provider, code, stat
 			outcome = "error"
 		}
 		a.oauthTotal.Add(ctx, 1, observability.FromPairs("oauth.provider", provider, "outcome", outcome))
-		span.Finish(err)
+		span.Finish(observability.SpanOutcome{Err: err, Failed: err != nil})
 	}()
 
 	p, ok := a.providers[provider]

@@ -63,7 +63,7 @@ func TestMiddlewareUsesOneOutcomeForTracingMetricsAndAccessLog(t *testing.T) {
 	appErr := apperr.Wrap(cause, apperr.CodeInvalidArgument, "invalid request", apperr.Fields("field", "name"))
 	span := &observabilitytest.Span{
 		SetAttributesFunc: func(...observability.Fields) {},
-		FinishFunc:        func(error, ...string) {},
+		FinishFunc:        func(observability.SpanOutcome) {},
 	}
 	tracer := &observabilitytest.Tracer{
 		ExtractFunc: func(ctx context.Context, _ observability.TextMapCarrier) context.Context { return ctx },
@@ -93,7 +93,7 @@ func TestMiddlewareUsesOneOutcomeForTracingMetricsAndAccessLog(t *testing.T) {
 	if tracer.StartServerCalls[0].SpanName != "GET /protected" || tracer.StartServerCalls[0].Fields[0][keyHTTPRoute] != "/protected" {
 		t.Fatalf("trace start = (%q, %#v)", tracer.StartServerCalls[0].SpanName, tracer.StartServerCalls[0].Fields)
 	}
-	if len(span.FinishCalls) != 1 || !errors.Is(span.FinishCalls[0].Err, cause) {
+	if len(span.FinishCalls) != 1 || !errors.Is(span.FinishCalls[0].Outcome.Err, cause) {
 		t.Fatalf("span finish calls = %#v, want application cause", span.FinishCalls)
 	}
 	attributes := mergeSpanAttributes(span.SetAttributesCalls)

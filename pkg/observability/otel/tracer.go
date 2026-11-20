@@ -2,7 +2,6 @@ package otel
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -16,10 +15,6 @@ import (
 type tracer struct {
 	provider    trace.TracerProvider
 	serviceName string
-}
-
-type clientErrorReporter interface {
-	IsClientError() bool
 }
 
 // NewTracer uses the supplied provider for every span, independently of OTel's
@@ -111,28 +106,20 @@ func (s *span) SetAttributes(optionalFields ...observability.Fields) {
 	s.span.SetAttributes(toTraceAttributes(fields)...)
 }
 
-func (s *span) Finish(err error, description ...string) {
-
-	if err != nil {
-		s.span.RecordError(err)
-		if isClientError(err) {
-			s.span.SetStatus(codes.Ok, "")
-		} else {
-			desc := err.Error()
-			if len(description) > 0 && description[0] != "" {
-				desc = description[0]
-			}
-			s.span.SetStatus(codes.Error, desc)
+func (s *span) Finish(outcome observability.SpanOutcome) {
+	if outcome.Err != nil {
+		s.span.RecordError(outcome.Err)
+	}
+	if outcome.Failed {
+		description := outcome.Description
+		if description == "" && outcome.Err != nil {
+			description = outcome.Err.Error()
 		}
+		s.span.SetStatus(codes.Error, description)
 	} else {
 		s.span.SetStatus(codes.Ok, "")
 	}
 	s.span.End()
-}
-
-func isClientError(err error) bool {
-	var reporter clientErrorReporter
-	return errors.As(err, &reporter) && reporter.IsClientError()
 }
 
 func toTraceAttributes(fields observability.Fields) []attribute.KeyValue {

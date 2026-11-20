@@ -31,7 +31,8 @@ func (t *Tracing) Start(ctx context.Context, request requestInfo) (context.Conte
 // Finish records the normalized outcome and ends the span.
 func (*Tracing) Finish(span observability.Span, outcome requestOutcome) {
 	fields := observability.FromPairs(keyHTTPResponseStatusCode, outcome.responseStatusCode)
-	if errorType := outcome.errorType(); errorType != "" {
+	errorType := outcome.errorType()
+	if errorType != "" {
 		fields[keyErrorType] = errorType
 	}
 	if outcome.applicationError.causeChain != "" {
@@ -47,7 +48,7 @@ func (*Tracing) Finish(span observability.Span, outcome requestOutcome) {
 		fields[keyApplicationErrorMessage] = outcome.applicationError.applicationErrorMessage
 	}
 	span.SetAttributes(fields)
-	span.Finish(outcome.applicationError.originalError)
+	span.Finish(observability.SpanOutcome{Err: outcome.applicationError.originalError, Failed: errorType != ""})
 }
 
 // headerCarrier adapts HTTP headers to the transport-neutral tracing carrier.

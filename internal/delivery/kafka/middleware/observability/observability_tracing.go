@@ -22,5 +22,5 @@ func (t *Tracing) Start(ctx context.Context, operation string, record *kgo.Recor
 
 func (t *Tracing) Finish(span observability.Span, outcome processingOutcome) {
 	span.SetAttributes(observability.FromPairs(keyApplicationKafkaOutcome, outcome.outcome))
-	span.Finish(outcome.err)
+	span.Finish(observability.SpanOutcome{Err: outcome.err, Failed: outcome.err != nil})
 }
