@@ -107,7 +107,7 @@ func NewShareReader(cfg config.KafkaShareConsumerConfig, tlsConfig *tls.Config, 
 
 // FetchRecords waits for a bounded set of records. Every previously fetched
 // record needs an Accept, Release, or Reject decision before fetching again:
-// franz-go v1.22.2 would otherwise auto-accept unfinished records on the next poll.
+// franz-go would otherwise auto-accept unfinished records on the next poll.
 // Treat records as read-only; use the reader methods instead of Record.Ack.
 // After handlers stop, ReleaseRemaining can abandon undecided work safely.
 // Holding records does not extend their Kafka locks. Finish well before each
@@ -149,20 +149,21 @@ func (r *ShareReader) FetchRecords(ctx context.Context) ([]*kgo.Record, error) {
 	}
 }
 
-// Accept queues successful processing for this group. FlushAcknowledgments
-// confirms the broker's result. Only the reader's owner calls this method.
+// Accept queues successful processing for this group; it does not wait for Kafka.
+// FlushAcknowledgments reports results for the pending queue, not for this record
+// individually. Only the reader's owner calls this method.
 func (r *ShareReader) Accept(record *kgo.Record) error {
 	return r.markRecord(record, kgo.AckAccept)
 }
 
-// Release queues another delivery attempt. Only the reader's owner calls it;
-// FlushAcknowledgments confirms the broker's result.
+// Release queues another delivery attempt without waiting for Kafka.
+// Only the reader's owner calls it.
 func (r *ShareReader) Release(record *kgo.Record) error {
 	return r.markRecord(record, kgo.AckRelease)
 }
 
 // Reject queues an end to delivery to this group, without publishing to a DLT.
-// Only the reader's owner calls it; FlushAcknowledgments confirms the result.
+// It does not wait for Kafka. Only the reader's owner calls it.
 func (r *ShareReader) Reject(record *kgo.Record) error {
 	return r.markRecord(record, kgo.AckReject)
 }
@@ -193,7 +194,7 @@ func (r *ShareReader) markRecord(record *kgo.Record, decision kgo.AckStatus) err
 
 // ReleaseRemaining queues release for undecided records in the active batch.
 // The owner calls it after handlers stop. Existing decisions are preserved;
-// FlushAcknowledgments confirms the results. With no active batch it does nothing.
+// Results arrive asynchronously. With no active batch it does nothing.
 func (r *ShareReader) ReleaseRemaining() error {
 	if r.closed {
 		return fmt.Errorf("release remaining share records: %w", io.ErrClosedPipe)
@@ -211,12 +212,13 @@ func (r *ShareReader) ReleaseRemaining() error {
 	return nil
 }
 
-// FlushAcknowledgments waits for marked decisions and reports the first failure.
-// It leaves undecided records alone. After a completed flush, the report is
-// cleared; the owner chooses whether to continue or close.
-//
-// With franz-go v1.22.2 and Kafka 4.2.1, a lost-lock error (InvalidRecordState)
-// can stall later fetches. Recreate the reader after that error.
+// FlushAcknowledgments waits for the client's entire pending acknowledgment
+// queue and its callbacks, or until ctx ends. It leaves undecided records alone.
+// Canceling the wait does not cancel acknowledgments already in progress: their
+// results can arrive later and be reported by a subsequent call. This is not a
+// result for only the current batch or only this call's acknowledgments.
+// A completed wait consumes the saved callback failure; an interrupted wait
+// retains it, so the same failure may be returned again when waiting resumes.
 func (r *ShareReader) FlushAcknowledgments(ctx context.Context) error {
 	if r.closed {
 		return fmt.Errorf("flush share acknowledgments: %w", io.ErrClosedPipe)
@@ -270,7 +272,7 @@ func (r *ShareReader) Close(ctx context.Context) error {
 		return r.closeErr
 	}
 	r.closed = true
-	// Confirm decisions already queued by the owner before starting to leave.
+	// Wait for decisions already queued by the owner before starting to leave.
 	markedErr := r.flushAcknowledgments(ctx)
 	// Leaving queues release acknowledgments for unfinished records.
 	leaveErr := r.client.LeaveGroupContext(ctx)

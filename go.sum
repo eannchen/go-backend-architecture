@@ -175,10 +175,10 @@ github.com/tklauser/go-sysconf v0.3.16 h1:frioLaCQSsF5Cy1jgRBrzr6t502KIIwQ0MArYI
 github.com/tklauser/go-sysconf v0.3.16/go.mod h1:/qNL9xxDhc7tx3HSRsLWNnuzbVfh3e7gh/BmM179nYI=
 github.com/tklauser/numcpus v0.11.0 h1:nSTwhKH5e1dMNsCdVBukSZrURJRoHbSEQjdEbY+9RXw=
 github.com/tklauser/numcpus v0.11.0/go.mod h1:z+LwcLq54uWZTX0u/bGobaV34u6V7KNlTZejzM6/3MQ=
-github.com/twmb/franz-go v1.22.2 h1:EdwIHGzD/4mgCpl/sNS0C74JYn6cL/r2KYS+8UC96Ww=
-github.com/twmb/franz-go v1.22.2/go.mod h1:HzZMc00pBWNfe0hNcNK4NxnsDNyKOoXnlTBkB4SUTjI=
-github.com/twmb/franz-go/pkg/kmsg v1.15.0 h1:mILdOQm4JkWojbSYVQ7KJNJ1qMdYNsLrdNOBUVKM6IA=
-github.com/twmb/franz-go/pkg/kmsg v1.15.0/go.mod h1:sGkGxKexpRLBThFHJLjjywcyfkK09qB/g+X+wFWZQ/A=
+github.com/twmb/franz-go v1.22.3 h1:RHe35s34pKefMLyL+ZYJ6mQVtfFZz4zHDHVkTyACur0=
+github.com/twmb/franz-go v1.22.3/go.mod h1:OhbFLkvp6GLcN5daC7I4Q2z0W/rFP16HG+gTbe9CDC4=
+github.com/twmb/franz-go/pkg/kmsg v1.15.1 h1:3sj7ekbH33t73nsBcHS0wtp/PyMIViHLNItZrE8V9zM=
+github.com/twmb/franz-go/pkg/kmsg v1.15.1/go.mod h1:sGkGxKexpRLBThFHJLjjywcyfkK09qB/g+X+wFWZQ/A=
 github.com/twmb/franz-go/plugin/kotel v1.7.1 h1:bVJ/qai5rNIkAxMX+Em2fsMOe1v6n12N9c9Rm6upv0E=
 github.com/twmb/franz-go/plugin/kotel v1.7.1/go.mod h1:Cq5tsiazIWro0y/SNpYEwoVW0C6KK1dIYyhccDXV9bs=
 github.com/yusufpapurcu/wmi v1.2.4 h1:zFUKzehAFReQwLys1b/iSMl+JQGSCSjtVqQn9bBrPo0=

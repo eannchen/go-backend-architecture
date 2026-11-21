@@ -13,8 +13,8 @@ require (
 	github.com/resend/resend-go/v3 v3.1.1
 	github.com/testcontainers/testcontainers-go v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.42.0
-	github.com/twmb/franz-go v1.22.2
-	github.com/twmb/franz-go/pkg/kmsg v1.15.0
+	github.com/twmb/franz-go v1.22.3
+	github.com/twmb/franz-go/pkg/kmsg v1.15.1
 	github.com/twmb/franz-go/plugin/kotel v1.7.1
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.18.0

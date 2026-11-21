@@ -208,9 +208,9 @@ func TestShareClosePreservesMarkedAndReleasesUnfinished(t *testing.T) {
 	}
 }
 
-// TestShareLockExpiryAndRestartRecovery verifies redelivery, reporting a late
-// acknowledgment failure, and the owner's explicit restart recovery.
-func TestShareLockExpiryAndRestartRecovery(t *testing.T) {
+// TestShareLockExpiryAndContinuedPolling verifies redelivery and reporting a late
+// acknowledgment failure without preventing the same client from fetching new work.
+func TestShareLockExpiryAndContinuedPolling(t *testing.T) {
 	topic := createIntegrationTopic(t, 1)
 	group := createIntegrationShareGroup(t, topic+"-share", 3000)
 	writer := newIntegrationWriter(t, topic)
@@ -255,27 +255,20 @@ func TestShareLockExpiryAndRestartRecovery(t *testing.T) {
 	if err := second.FlushAcknowledgments(ctx); err != nil {
 		t.Fatal(err)
 	}
-	// With franz-go v1.22.2 + Kafka 4.2.1, this rejection can misroute subsequent
-	// fetches to broker 0 (our broker is 1). Until that SDK behavior is fixed,
-	// the owner explicitly recreates the reader instead of continuing to poll.
-	if err := first.Close(ctx); err != nil {
-		t.Fatal(err)
-	}
-	restarted := newIntegrationShareReader(t, topic, group, 1)
 	if err := writer.WriteRecords(ctx, &kgo.Record{Value: []byte("next")}); err != nil {
 		t.Fatal(err)
 	}
-	next, err := restarted.FetchRecords(ctx)
+	next, err := first.FetchRecords(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if next[0].Offset != original.Offset+1 {
-		t.Fatal("expected new work after restart")
+		t.Fatal("expected new work after the earlier acknowledgment failure")
 	}
-	if err := restarted.Accept(next[0]); err != nil {
+	if err := first.Accept(next[0]); err != nil {
 		t.Fatal(err)
 	}
-	if err := restarted.FlushAcknowledgments(ctx); err != nil {
+	if err := first.FlushAcknowledgments(ctx); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -295,6 +288,120 @@ func TestSharePollingCancellationThenClose(t *testing.T) {
 	defer stop()
 	if err := reader.Close(shutdownCtx); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestShareCanceledFlushRetainsPendingResults protects the cumulative queue
+// contract: canceling one wait must not discard a callback that completes later.
+func TestShareCanceledFlushRetainsPendingResults(t *testing.T) {
+	topic := createIntegrationTopic(t, 1)
+	group := createIntegrationShareGroup(t, topic+"-share", 30000)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	writer := newIntegrationWriter(t, topic)
+	if err := writer.WriteRecords(ctx, &kgo.Record{Value: []byte("work")}); err != nil {
+		t.Fatal(err)
+	}
+
+	callbackEntered := make(chan struct{})
+	callbackResume := make(chan struct{})
+	callbackDone := make(chan struct{})
+	var hold, resume sync.Once
+	reader := &ShareReader{maxPollRecords: 1}
+	client, err := kgo.NewClient(
+		kgo.SeedBrokers(integrationBrokers...), kgo.ConsumeTopics(topic), kgo.ShareGroup(group),
+		kgo.ShareMaxRecords(1), kgo.ShareMaxRecordsStrict(), kgo.MaxConcurrentFetches(0),
+		kgo.ShareAckCallback(func(client *kgo.Client, results kgo.ShareAckResults) {
+			first := false
+			hold.Do(func() {
+				first = true
+				close(callbackEntered)
+				<-callbackResume
+				// The broker and SDK are real. Delay result delivery and inject a
+				// rejection to test a late failure without relying on network timing.
+				for i := range results {
+					results[i].Err = kerr.InvalidRecordState
+				}
+			})
+			reader.recordAckResults(client, results)
+			if first {
+				close(callbackDone)
+			}
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader.client = client
+	flushCtx, cancelFlush := context.WithCancel(ctx)
+	defer cancelFlush()
+	flushDone := make(chan struct{})
+	flushing := false
+	t.Cleanup(func() {
+		cancelFlush()
+		resume.Do(func() { close(callbackResume) })
+		cleanupCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stop()
+		if flushing {
+			select {
+			case <-flushDone:
+			case <-cleanupCtx.Done():
+				t.Error("flush owner did not finish")
+				return
+			}
+		}
+		// An early assertion may leave the deliberately injected failure pending.
+		if err := reader.Close(cleanupCtx); err != nil && !errors.Is(err, ErrShareAcknowledgment) {
+			t.Error(err)
+		}
+	})
+
+	records, err := reader.FetchRecords(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.Accept(records[0]); err != nil {
+		t.Fatal(err)
+	}
+	flushed := make(chan error, 1)
+	flushing = true
+	go func() {
+		defer close(flushDone)
+		flushed <- reader.FlushAcknowledgments(flushCtx)
+	}()
+	select {
+	case <-callbackEntered:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	cancelFlush()
+	select {
+	case err := <-flushed:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("interrupted flush = %v, want cancellation", err)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	<-flushDone
+	select {
+	case <-callbackDone:
+		t.Fatal("callback finished before the canceled wait returned")
+	default:
+	}
+
+	resume.Do(func() { close(callbackResume) })
+	select {
+	case <-callbackDone:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	// This call queues no new decisions, but still reports the earlier result.
+	if err := reader.FlushAcknowledgments(ctx); !errors.Is(err, ErrShareAcknowledgment) || !errors.Is(err, kerr.InvalidRecordState) {
+		t.Fatalf("resumed flush lost the earlier failure: %v", err)
+	}
+	if err := reader.FlushAcknowledgments(ctx); err != nil {
+		t.Fatalf("completed flush did not consume the earlier report: %v", err)
 	}
 }
 
