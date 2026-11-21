@@ -204,7 +204,12 @@ func newSelectionPlan(profile string) (selectionPlan, error) {
 	plan := selectionPlan{profile: profile, sqlcSource: "sqlc.kafka.yaml", envFragments: []string{"config/env/common.env.example", "config/env/" + profile + ".env.example"}}
 	if profile == kafkaWorkerProfile {
 		removals = append(removals, shareOnly...)
-		removals = append(removals, "internal/delivery/kafka/worker/workertest/share_message_reader.go", "internal/delivery/kafka/worker/share_worker.go", "internal/delivery/kafka/worker/share_worker_test.go", "internal/delivery/kafka/integration/share_worker_integration_test.go", "internal/delivery/kafka/integration/context_middleware_integration_test.go")
+		removals = append(removals,
+			"internal/delivery/kafka/worker/workertest/share_message_reader.go",
+			"internal/delivery/kafka/worker/share_worker.go", "internal/delivery/kafka/worker/share_worker_test.go",
+			"internal/delivery/kafka/worker/share_acknowledgments.go", "internal/delivery/kafka/worker/share_acknowledgments_test.go",
+			"internal/delivery/kafka/integration/share_worker_integration_test.go", "internal/delivery/kafka/integration/context_middleware_integration_test.go",
+		)
 		plan.airSource = ".air.kafkaworker.toml"
 	} else {
 		removals = append(removals, groupOnly...)

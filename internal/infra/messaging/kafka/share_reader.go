@@ -20,32 +20,47 @@ var (
 	ErrShareDecisionAlreadySet = errors.New("share record already has a different decision")
 )
 
+// ShareAcknowledgmentErrorHandler receives asynchronous, per-partition failures.
+// The SDK calls it in the background, independently of message processing.
+// Return nil to continue, or an error to request worker shutdown through FatalErrors.
+// Report continuing failures here; let the lifecycle log a returned stop error.
+// Keep the handler quick and never call reader methods from it.
+type ShareAcknowledgmentErrorHandler func(topic string, partition int32, err error) error
+
 // ShareReader consumes a Kafka Share Group. Several readers can share records
 // from the same partition. Requires Kafka 4.2+ for the strict batch-size limit.
 //
-// One goroutine owns fetching, outcome decisions, acknowledgment flushing, and
-// Close. Handlers may run in parallel, but return outcomes to that owner.
+// One goroutine owns fetching, outcome decisions, and Close. Handlers may run
+// in parallel, but return outcomes to that owner.
 // Cancel the polling context and wait for processing to stop before Close.
 //
-// Flow: fetch -> process -> mark every outcome -> flush -> fetch again.
-// FetchRecords also flushes before polling, so a forgotten flush cannot hide errors.
-// This waits for acknowledgments between batches instead of pipelining them.
+// Default (explicit) flow: fetch -> process -> mark every outcome -> fetch again.
+// Implicit mode lets the next poll accept any records left undecided. Like Java's
+// KafkaShareConsumer, we offer both policies; franz-go itself always permits
+// next-poll auto-acceptance, so our wrapper adds the explicit-mode guard.
+// Kafka acknowledgment results arrive separately through the injected handler.
+// Only shutdown waits for the pending acknowledgment queue to drain.
 type ShareReader struct {
 	// Owned SDK client and fixed maximum number of records per poll.
-	client         *kgo.Client
-	maxPollRecords int
+	client             *kgo.Client
+	maxPollRecords     int
+	groupID            string
+	acknowledgmentMode config.KafkaShareAcknowledgmentMode
 	// Only the owner accesses the current batch and shutdown state.
 	active   *shareBatch
 	closed   bool
 	closeErr error
-	// The SDK callback runs separately. This lock protects only its error report.
-	ackMu  sync.Mutex
-	ackErr error
+	// The callback owns error reporting. Only its first stop request is queued;
+	// the buffered channel keeps the SDK callback from waiting for the worker.
+	onAcknowledgmentError ShareAcknowledgmentErrorHandler
+	fatalErrors           chan error
+	fatalOnce             sync.Once
 }
 
 // shareBatch tracks one fetch inside ShareReader. Zero means no decision yet.
 // Only the reader's owner accesses this state; handlers return outcomes to it.
 // Keeping record pointers as keys also rejects late outcomes from older fetches.
+// These references let ReleaseRemaining recover even if the caller loses its copy.
 type shareBatch struct {
 	decisions map[*kgo.Record]kgo.AckStatus
 	pending   int
@@ -61,17 +76,28 @@ func newShareBatch(records []*kgo.Record) *shareBatch {
 
 // NewShareReader validates settings and prepares a client. Like the regular
 // reader, construction does not prove that Kafka is reachable or compatible.
+// onAcknowledgmentError is required; pass an explicit handler that returns nil
+// when continuing is intended.
 // tlsConfig is loaded by app wiring and must be non-nil when cfg.Security.TLS is enabled.
-func NewShareReader(cfg config.KafkaShareConsumerConfig, tlsConfig *tls.Config, hooks ...kgo.Hook) (*ShareReader, error) {
+func NewShareReader(cfg config.KafkaShareConsumerConfig, tlsConfig *tls.Config, onAcknowledgmentError ShareAcknowledgmentErrorHandler, hooks ...kgo.Hook) (*ShareReader, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("Kafka share reader configuration: %w", err)
+	}
+	if onAcknowledgmentError == nil {
+		return nil, errors.New("Kafka share reader requires an acknowledgment error handler")
 	}
 	security, err := securityOptions(cfg.Security, tlsConfig)
 	if err != nil {
 		return nil, fmt.Errorf("Kafka client security: %w", err)
 	}
 
-	r := &ShareReader{maxPollRecords: cfg.MaxPollRecords}
+	r := &ShareReader{
+		maxPollRecords:        cfg.MaxPollRecords,
+		groupID:               cfg.GroupID,
+		acknowledgmentMode:    cfg.AcknowledgmentMode,
+		onAcknowledgmentError: onAcknowledgmentError,
+		fatalErrors:           make(chan error, 1),
+	}
 	opts := []kgo.Opt{
 		// Kotel hooks observe network and record activity for this client.
 		kgo.WithHooks(hooks...),
@@ -90,8 +116,8 @@ func NewShareReader(cfg config.KafkaShareConsumerConfig, tlsConfig *tls.Config, 
 		kgo.FetchMaxPartitionBytes(int32(cfg.FetchMaxBytes)),
 		kgo.BrokerMaxReadBytes(max(100<<20, int32(cfg.FetchMaxBytes))),
 		kgo.FetchMaxWait(cfg.FetchMaxWait), kgo.RequestTimeoutOverhead(cfg.RequestTimeout),
-		// FlushAcks waits for sending to finish but does not return every broker
-		// rejection. Observe the actual results here and expose failures to callers.
+		// Results arrive independently of polling and the current processing batch.
+		// App wiring chooses whether each failure is reported or stops this worker.
 		kgo.ShareAckCallback(r.recordAckResults),
 		// Do not add DisableAutoCommit or BlockRebalanceOnPoll: those belong to
 		// consumer groups, not Share Groups. Topics are provisioned separately.
@@ -105,27 +131,28 @@ func NewShareReader(cfg config.KafkaShareConsumerConfig, tlsConfig *tls.Config, 
 	return r, nil
 }
 
-// FetchRecords waits for a bounded set of records. Every previously fetched
-// record needs an Accept, Release, or Reject decision before fetching again:
-// franz-go would otherwise auto-accept unfinished records on the next poll.
+// FetchRecords waits for a bounded set of records. In explicit mode, every
+// previously fetched record needs an Accept, Release, or Reject decision first.
+// In implicit mode, polling again lets franz-go auto-accept undecided records.
+// Finish handlers before the next poll in either mode.
 // Treat records as read-only; use the reader methods instead of Record.Ack.
 // After handlers stop, ReleaseRemaining can abandon undecided work safely.
 // Holding records does not extend their Kafka locks. Finish well before each
 // record's AcquisitionDeadline; DeliveryCount shows its delivery attempt count.
-// Queued acknowledgments are flushed before polling, and flush errors are returned.
+// Queuing decisions is enough to poll again; broker results are asynchronous.
 func (r *ShareReader) FetchRecords(ctx context.Context) ([]*kgo.Record, error) {
 	if r.closed {
 		return nil, fmt.Errorf("fetch share batch: %w", io.EOF)
 	}
-	if r.active != nil && r.active.pending > 0 {
+	if r.acknowledgmentMode == config.KafkaShareAcknowledgmentExplicit && r.active != nil && r.active.pending > 0 {
 		return nil, ErrShareBatchPending
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("fetch share batch: %w", err)
 	}
-	if err := r.FlushAcknowledgments(ctx); err != nil {
-		return nil, fmt.Errorf("fetch share batch: flush previous acknowledgments before polling: %w", err)
-	}
+	// In implicit mode the SDK finalizes undecided records when polling starts,
+	// even if the poll later times out. They must no longer be locally releasable.
+	r.active = nil
 	for {
 		fetches := r.client.PollRecords(ctx, r.maxPollRecords)
 		records := fetches.Records()
@@ -150,8 +177,8 @@ func (r *ShareReader) FetchRecords(ctx context.Context) ([]*kgo.Record, error) {
 }
 
 // Accept queues successful processing for this group; it does not wait for Kafka.
-// FlushAcknowledgments reports results for the pending queue, not for this record
-// individually. Only the reader's owner calls this method.
+// The injected handler reports broker failures separately. Only the reader's
+// owner calls this method.
 func (r *ShareReader) Accept(record *kgo.Record) error {
 	return r.markRecord(record, kgo.AckAccept)
 }
@@ -193,7 +220,11 @@ func (r *ShareReader) markRecord(record *kgo.Record, decision kgo.AckStatus) err
 }
 
 // ReleaseRemaining queues release for undecided records in the active batch.
-// The owner calls it after handlers stop. Existing decisions are preserved;
+// Use it to abandon unfinished work, including when the caller has lost its
+// record references: the reader still holds them. In explicit mode this clears
+// the next-poll guard. Lock expiry alone does not clear that local guard.
+// The owner calls it after handlers stop. Existing decisions are preserved.
+// Call before polling again; implicit acceptance cannot be undone afterward.
 // Results arrive asynchronously. With no active batch it does nothing.
 func (r *ShareReader) ReleaseRemaining() error {
 	if r.closed {
@@ -212,54 +243,22 @@ func (r *ShareReader) ReleaseRemaining() error {
 	return nil
 }
 
-// FlushAcknowledgments waits for the client's entire pending acknowledgment
-// queue and its callbacks, or until ctx ends. It leaves undecided records alone.
-// Canceling the wait does not cancel acknowledgments already in progress: their
-// results can arrive later and be reported by a subsequent call. This is not a
-// result for only the current batch or only this call's acknowledgments.
-// A completed wait consumes the saved callback failure; an interrupted wait
-// retains it, so the same failure may be returned again when waiting resumes.
-func (r *ShareReader) FlushAcknowledgments(ctx context.Context) error {
-	if r.closed {
-		return fmt.Errorf("flush share acknowledgments: %w", io.ErrClosedPipe)
-	}
-	return r.flushAcknowledgments(ctx)
-}
-
-func (r *ShareReader) flushAcknowledgments(ctx context.Context) error {
-	// FlushAcks reports whether waiting finished. Broker failures come from callbacks.
-	flushErr := r.client.FlushAcks(ctx)
-	r.ackMu.Lock()
-	ackErr := r.ackErr
-	if flushErr == nil {
-		// Return the saved ackErr below, then let future flushes report NEW failures.
-		// A completed wait does not mean every acknowledgment succeeded.
-		r.ackErr = nil
-	}
-	r.ackMu.Unlock()
-	// If waiting was interrupted, keep the report until a later flush completes.
-	if err := errors.Join(flushErr, ackErr); err != nil {
-		return fmt.Errorf("flush share acknowledgments: %w", err)
-	}
-	return nil
-}
+// FatalErrors reports the first acknowledgment failure the injected handler
+// chose to stop for. The worker observes it independently of batch results.
+// The channel stays open: callbacks may finish after a timed-out Close, so
+// callers stop waiting when their own context ends.
+func (r *ShareReader) FatalErrors() <-chan error { return r.fatalErrors }
 
 func (r *ShareReader) recordAckResults(_ *kgo.Client, results kgo.ShareAckResults) {
-	var failure error
 	for _, result := range results {
-		if result.Err != nil {
-			failure = errors.Join(failure, fmt.Errorf("topic=%s partition=%d: %w", result.Topic, result.Partition, result.Err))
+		if result.Err == nil {
+			continue
 		}
-	}
-	if failure == nil {
-		return
-	}
-	r.ackMu.Lock()
-	defer r.ackMu.Unlock()
-	// Keep one failed result set until flush reports it, rather than accumulating
-	// an unlimited error history. A later success must not erase the failure.
-	if r.ackErr == nil {
-		r.ackErr = errors.Join(ErrShareAcknowledgment, failure)
+		if err := r.onAcknowledgmentError(result.Topic, result.Partition, result.Err); err != nil {
+			r.fatalOnce.Do(func() {
+				r.fatalErrors <- fmt.Errorf("%w: group=%s topic=%s partition=%d: %w", ErrShareAcknowledgment, r.groupID, result.Topic, result.Partition, err)
+			})
+		}
 	}
 }
 
@@ -272,15 +271,22 @@ func (r *ShareReader) Close(ctx context.Context) error {
 		return r.closeErr
 	}
 	r.closed = true
-	// Wait for decisions already queued by the owner before starting to leave.
-	markedErr := r.flushAcknowledgments(ctx)
-	// Leaving queues release acknowledgments for unfinished records.
+	// Leaving sends queued decisions and releases unfinished records, so a
+	// separate flush before leaving is unnecessary.
 	leaveErr := r.client.LeaveGroupContext(ctx)
-	// Wait for those final results while the SDK is still open.
-	finalErr := r.flushAcknowledgments(ctx)
+	// Wait for callbacks for both the queued decisions and final releases.
+	// Leaving can finish before these callbacks; keep the SDK open for this wait.
+	flushErr := r.client.FlushAcks(ctx)
 	// Always release SDK resources, even if an earlier step failed or timed out.
 	r.client.Close()
 	r.active = nil
-	r.closeErr = errors.Join(markedErr, leaveErr, finalErr)
+	// If shutdown began before the worker observed a stop request, return it
+	// here. A failure already consumed by Run is not reported a second time.
+	var fatalErr error
+	select {
+	case fatalErr = <-r.fatalErrors:
+	default:
+	}
+	r.closeErr = errors.Join(leaveErr, flushErr, fatalErr)
 	return r.closeErr
 }

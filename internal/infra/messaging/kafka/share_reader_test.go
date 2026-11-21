@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"reflect"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -20,7 +19,7 @@ import (
 // rather than reusing the ordinary group's commit/rebalance mechanisms.
 func TestShareReaderPolicy(t *testing.T) {
 	cfg := validShareConfig()
-	r, err := NewShareReader(cfg, nil)
+	r, err := NewShareReader(cfg, nil, stopOnShareAcknowledgmentError)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,10 +34,47 @@ func TestShareReaderPolicy(t *testing.T) {
 			t.Fatalf("option %T=%v want=%v", check.option, got, check.want)
 		}
 	}
+	if reader, err := NewShareReader(cfg, nil, nil); reader != nil || err == nil {
+		t.Fatal("missing acknowledgment error handler accepted")
+	}
 	bad := cfg
 	bad.MaxPollRecords = 0
-	if got, err := NewShareReader(bad, nil); got != nil || err == nil {
+	if got, err := NewShareReader(bad, nil, stopOnShareAcknowledgmentError); got != nil || err == nil {
 		t.Fatal("accepted invalid share reader config")
+	}
+	bad = cfg
+	bad.AcknowledgmentMode = "invalid"
+	if got, err := NewShareReader(bad, nil, stopOnShareAcknowledgmentError); got != nil || err == nil {
+		t.Fatal("accepted invalid acknowledgment mode")
+	}
+}
+
+// TestShareReaderAcknowledgmentModes protects the selected poll policy without
+// discarding a batch when cancellation prevents the SDK poll from starting.
+func TestShareReaderAcknowledgmentModes(t *testing.T) {
+	for _, mode := range []config.KafkaShareAcknowledgmentMode{config.KafkaShareAcknowledgmentExplicit, config.KafkaShareAcknowledgmentImplicit} {
+		t.Run(string(mode), func(t *testing.T) {
+			cfg := validShareConfig()
+			cfg.AcknowledgmentMode = mode
+			reader, err := NewShareReader(cfg, nil, stopOnShareAcknowledgmentError)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupShareReader(t, reader)
+			reader.active = newShareBatch([]*kgo.Record{{Offset: 0}})
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+			want := error(context.Canceled)
+			if mode == config.KafkaShareAcknowledgmentExplicit {
+				want = ErrShareBatchPending
+			}
+			if _, err := reader.FetchRecords(ctx); !errors.Is(err, want) {
+				t.Fatalf("fetch error=%v want=%v", err, want)
+			}
+			if reader.active == nil || reader.active.pending != 1 {
+				t.Fatal("batch discarded before polling started")
+			}
+		})
 	}
 }
 
@@ -47,7 +83,7 @@ func TestShareReaderPolicy(t *testing.T) {
 func TestShareReaderParallelHandlersReturnOutcomes(t *testing.T) {
 	cfg := validShareConfig()
 	cfg.MaxPollRecords = 4
-	r, err := NewShareReader(cfg, nil)
+	r, err := NewShareReader(cfg, nil, stopOnShareAcknowledgmentError)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,45 +113,65 @@ func TestShareReaderParallelHandlersReturnOutcomes(t *testing.T) {
 	}
 }
 
-// TestShareAcknowledgmentFailureReportedOnce ensures a queued rejection explains
-// why fetching stopped, preserves its cause, and is not reported forever.
-func TestShareAcknowledgmentFailureReportedOnce(t *testing.T) {
-	r, err := NewShareReader(validShareConfig(), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cleanupShareReader(t, r)
-	record := &kgo.Record{}
-	batch := newShareBatch([]*kgo.Record{record})
-	r.active = batch
-	r.recordAckResults(r.client, kgo.ShareAckResults{{Topic: "jobs.v1", Partition: 0, Err: kerr.InvalidRecordState}})
-	r.recordAckResults(r.client, kgo.ShareAckResults{{Topic: "jobs.v1", Partition: 0}})
-	// Reporting one failure must not prevent decisions for the remaining work.
-	if err := r.Release(record); err != nil {
-		t.Fatal(err)
-	}
-	_, err = r.FetchRecords(t.Context())
-	if !errors.Is(err, ErrShareAcknowledgment) || !errors.Is(err, kerr.InvalidRecordState) {
-		t.Fatalf("next fetch hid queued acknowledgment failure: %v", err)
-	}
-	if !strings.HasPrefix(err.Error(), "fetch share batch: flush previous acknowledgments before polling: ") {
-		t.Fatalf("fetch error did not explain the failed step: %v", err)
-	}
-	if err := r.FlushAcknowledgments(t.Context()); err != nil {
-		t.Fatalf("already reported error persisted: %v", err)
-	}
-	// A later failure must be reported independently, rather than erased by the
-	// successful flush above or confused with the previous failed record.
-	r.recordAckResults(r.client, kgo.ShareAckResults{{Topic: "jobs.v1", Partition: 0, Err: kerr.UnknownTopicID}})
-	if err := r.FlushAcknowledgments(t.Context()); !errors.Is(err, kerr.UnknownTopicID) {
-		t.Fatal(err)
+// TestShareAcknowledgmentPolicy keeps broker failures separate from fetch results
+// and lets the injected policy choose continuation or one bounded stop request.
+func TestShareAcknowledgmentPolicy(t *testing.T) {
+	for _, stop := range []bool{false, true} {
+		name := "continue"
+		if stop {
+			name = "stop"
+		}
+		t.Run(name, func(t *testing.T) {
+			calls := 0
+			r, err := NewShareReader(validShareConfig(), nil, func(topic string, partition int32, err error) error {
+				calls++
+				if topic != "jobs.v1" || partition != 2 {
+					t.Error("lost acknowledgment metadata")
+				}
+				if stop {
+					return err
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupShareReader(t, r)
+			r.recordAckResults(r.client, kgo.ShareAckResults{{Topic: "jobs.v1", Partition: 2, Err: kerr.InvalidRecordState}, {Topic: "jobs.v1", Partition: 2}})
+			r.recordAckResults(r.client, kgo.ShareAckResults{{Topic: "jobs.v1", Partition: 2, Err: kerr.UnknownTopicID}})
+			if calls != 2 {
+				t.Fatalf("error handler calls=%d want=2", calls)
+			}
+			if stop {
+				select {
+				case err := <-r.FatalErrors():
+					if !errors.Is(err, ErrShareAcknowledgment) || !errors.Is(err, kerr.InvalidRecordState) {
+						t.Fatal(err)
+					}
+				default:
+					t.Fatal("missing first stop request")
+				}
+			}
+			select {
+			case err := <-r.FatalErrors():
+				t.Fatalf("unexpected additional stop request: %v", err)
+			default:
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+			if _, err := r.FetchRecords(ctx); !errors.Is(err, context.Canceled) || errors.Is(err, ErrShareAcknowledgment) {
+				t.Fatalf("acknowledgment result leaked into fetch: %v", err)
+			}
+		})
 	}
 }
+
+func stopOnShareAcknowledgmentError(_ string, _ int32, err error) error { return err }
 
 // TestShareReaderPreservesCancellation protects empty-topic waits and clean
 // ownership when polling is canceled before a broker is contacted.
 func TestShareReaderPreservesCancellation(t *testing.T) {
-	r, err := NewShareReader(validShareConfig(), nil)
+	r, err := NewShareReader(validShareConfig(), nil, stopOnShareAcknowledgmentError)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +186,8 @@ func TestShareReaderPreservesCancellation(t *testing.T) {
 func validShareConfig() config.KafkaShareConsumerConfig {
 	return config.KafkaShareConsumerConfig{
 		Brokers: []string{"127.0.0.1:1"}, Topics: []string{"jobs.v1"}, GroupID: "shared-jobs", MaxPollRecords: 2,
-		FetchMinBytes: 1, FetchMaxBytes: 65536, FetchMaxWait: 100 * time.Millisecond, RequestTimeout: time.Second,
+		AcknowledgmentMode: config.KafkaShareAcknowledgmentExplicit,
+		FetchMinBytes:      1, FetchMaxBytes: 65536, FetchMaxWait: 100 * time.Millisecond, RequestTimeout: time.Second,
 	}
 }
 func cleanupShareReader(t *testing.T, r *ShareReader) {
@@ -147,7 +204,7 @@ func cleanupShareReader(t *testing.T, r *ShareReader) {
 // TestShareReaderRecordDecisions protects direct reader decisions from bypassing
 // batch membership, duplicate-decision checks, or the unfinished-work poll guard.
 func TestShareReaderRecordDecisions(t *testing.T) {
-	r, err := NewShareReader(validShareConfig(), nil)
+	r, err := NewShareReader(validShareConfig(), nil, stopOnShareAcknowledgmentError)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
+	kafkaworker "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/worker"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
@@ -45,6 +46,7 @@ func New(ctx context.Context) (_ *App, err error) {
 			return nil, err
 		}
 		reader, err := kafkaclient.NewShareReader(readerConfig.Kafka, tlsConfig,
+			kafkaworker.LogShareAcknowledgmentErrors(telemetry.Logger, readerConfig.Kafka.GroupID),
 			otel.KafkaHooks(telemetry.Observability.TracerProvider(), telemetry.Observability.MeterProvider(), readerConfig.Kafka.GroupID)...)
 		if err != nil {
 			return nil, err

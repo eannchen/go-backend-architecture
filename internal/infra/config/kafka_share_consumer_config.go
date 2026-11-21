@@ -8,6 +8,17 @@ import (
 	"time"
 )
 
+// KafkaShareAcknowledgmentMode offers the same choice as Java's KafkaShareConsumer:
+// explicit decisions for every record, or implicit acceptance on the next poll.
+// Our wrapper enforces explicit mode because franz-go auto-accepts undecided
+// records on the next poll. This is a client policy, not a broker setting.
+type KafkaShareAcknowledgmentMode string
+
+const (
+	KafkaShareAcknowledgmentExplicit KafkaShareAcknowledgmentMode = "explicit"
+	KafkaShareAcknowledgmentImplicit KafkaShareAcknowledgmentMode = "implicit"
+)
+
 // KafkaShareWorkerConfig reuses runtime settings, but opens only resources used
 // by this process. Pool settings belong to the worker, not the Kafka client.
 type KafkaShareWorkerConfig struct {
@@ -41,6 +52,12 @@ type KafkaShareConsumerConfig struct {
 	// All share readers with this ID cooperate on the same records. Use an ID
 	// different from an existing consumer group's ID.
 	GroupID string
+	// explicit (default): FetchRecords refuses another poll until every record
+	// has an Accept, Release, or Reject decision. implicit: polling again accepts
+	// any undecided records from the previous poll as successfully processed.
+	// In either mode, finish handlers before polling again. Decisions are queued;
+	// acknowledgment results still arrive asynchronously through the callback.
+	AcknowledgmentMode KafkaShareAcknowledgmentMode
 	// Maximum records returned by FetchRecords AND requested from the broker.
 	// It bounds one batch of work, not how many handlers run in parallel.
 	// All acquired records already have a running lock timer, so choose a small
@@ -123,10 +140,11 @@ func loadKafkaShareConsumer(topics []string, prefix, defaultGroup string, defaul
 		return KafkaShareConsumerConfig{}, err
 	}
 	cfg := KafkaShareConsumerConfig{
-		Security: security,
-		Brokers:  getCSV("KAFKA_BROKERS", []string{"localhost:9092"}),
-		Topics:   topics,
-		GroupID:  strings.TrimSpace(getEnv(prefix+"SHARE_GROUP_ID", defaultGroup)),
+		Security:           security,
+		Brokers:            getCSV("KAFKA_BROKERS", []string{"localhost:9092"}),
+		Topics:             topics,
+		GroupID:            strings.TrimSpace(getEnv(prefix+"SHARE_GROUP_ID", defaultGroup)),
+		AcknowledgmentMode: KafkaShareAcknowledgmentMode(strings.TrimSpace(getEnv(prefix+"SHARE_ACKNOWLEDGMENT_MODE", string(KafkaShareAcknowledgmentExplicit)))),
 	}
 	for _, s := range []struct {
 		key, fallback string
@@ -175,6 +193,11 @@ func (cfg KafkaShareConsumerConfig) validate(prefix string) error {
 	}
 	if strings.TrimSpace(cfg.GroupID) == "" {
 		return fmt.Errorf("%sSHARE_GROUP_ID must not be empty", prefix)
+	}
+	switch cfg.AcknowledgmentMode {
+	case KafkaShareAcknowledgmentExplicit, KafkaShareAcknowledgmentImplicit:
+	default:
+		return fmt.Errorf("%sSHARE_ACKNOWLEDGMENT_MODE must be explicit or implicit, got %q", prefix, cfg.AcknowledgmentMode)
 	}
 	// Keep a finite batch even if a typo would otherwise request an enormous one.
 	if cfg.MaxPollRecords < 1 || cfg.MaxPollRecords > 10000 {

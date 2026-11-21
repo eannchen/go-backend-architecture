@@ -18,7 +18,8 @@ type ShareMessageReader interface {
 	Accept(*kgo.Record) error
 	Release(*kgo.Record) error
 	Reject(*kgo.Record) error
-	FlushAcknowledgments(context.Context) error
+	// FatalErrors stays open and reports independently selected stop requests.
+	FatalErrors() <-chan error
 }
 
 // ShareWorkerOptions bounds local work. Batch size is configured on the reader.
@@ -46,25 +47,36 @@ func NewShareWorker(reader ShareMessageReader, handler middleware.Handler, optio
 	return &ShareWorker{reader: reader, handler: handler, options: options}, nil
 }
 
-// Run owns the reader. It finishes and acknowledges one batch before fetching
-// another. Records within a batch may finish in any order, even in one partition.
-func (w *ShareWorker) Run(ctx context.Context) error {
-	for ctx.Err() == nil {
-		records, err := w.reader.FetchRecords(ctx)
+// Run owns the reader and joins all handlers before returning. Acknowledgment
+// failures chosen as fatal cancel polling and handlers through a separate path;
+// they are never attached to whichever batch happens to be running.
+func (w *ShareWorker) Run(ctx context.Context) (result error) {
+	runCtx, cancel := context.WithCancel(ctx)
+	failures := w.reader.FatalErrors()
+	done := make(chan struct{})
+	var acknowledgmentErr error
+	go func() {
+		defer close(done)
+		select {
+		case acknowledgmentErr = <-failures:
+			cancel()
+		case <-runCtx.Done():
+		}
+	}()
+	defer func() {
+		cancel()
+		<-done // Join the observer before reading its error or closing the reader.
+		result = errors.Join(result, acknowledgmentErr)
+	}()
+	for runCtx.Err() == nil {
+		records, err := w.reader.FetchRecords(runCtx)
 		if err != nil {
-			if ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+			if runCtx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 				return nil
 			}
 			return fmt.Errorf("share worker fetch: %w", err)
 		}
-		handleErr := w.handleBatch(ctx, records)
-		// Shutdown uses a fresh cleanup context in App.Shutdown. Leave queued
-		// decisions for Close rather than trying to flush with a canceled context.
-		var flushErr error
-		if ctx.Err() == nil {
-			flushErr = w.reader.FlushAcknowledgments(ctx)
-		}
-		if err := errors.Join(handleErr, flushErr); err != nil {
+		if err := w.handleBatch(runCtx, records); err != nil {
 			return fmt.Errorf("share worker batch: %w", err)
 		}
 	}

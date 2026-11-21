@@ -56,8 +56,9 @@ func processingHandler(runtime *otel.Runtime, log logger.Logger, operation strin
 	)
 }
 
-// Checkpoints observe the next worker fetch, after the preceding commit or
-// acknowledgment flush. Every reader operation still uses the real client.
+// Checkpoints observe the next fetch after processing. Ordinary commits have
+// finished; Share Group decisions may still be pending. Reader shutdown drains
+// those acknowledgments before tests reopen the group.
 type observingReader struct {
 	*kafkaclient.Reader
 	checkpoints chan struct{}

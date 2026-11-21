@@ -8,16 +8,16 @@ import (
 
 // ShareMessageReader is a configurable double for its parent package's ShareMessageReader contract.
 type ShareMessageReader struct {
-	FetchRecordsFunc          func(ctx context.Context) ([]*kgo.Record, error)
-	FetchRecordsCalls         []ShareMessageReaderFetchRecordsCall
-	AcceptFunc                func(record *kgo.Record) error
-	AcceptCalls               []ShareMessageReaderAcceptCall
-	ReleaseFunc               func(record *kgo.Record) error
-	ReleaseCalls              []ShareMessageReaderReleaseCall
-	RejectFunc                func(record *kgo.Record) error
-	RejectCalls               []ShareMessageReaderRejectCall
-	FlushAcknowledgmentsFunc  func(ctx context.Context) error
-	FlushAcknowledgmentsCalls []ShareMessageReaderFlushAcknowledgmentsCall
+	FetchRecordsFunc  func(ctx context.Context) ([]*kgo.Record, error)
+	FetchRecordsCalls []ShareMessageReaderFetchRecordsCall
+	AcceptFunc        func(record *kgo.Record) error
+	AcceptCalls       []ShareMessageReaderAcceptCall
+	ReleaseFunc       func(record *kgo.Record) error
+	ReleaseCalls      []ShareMessageReaderReleaseCall
+	RejectFunc        func(record *kgo.Record) error
+	RejectCalls       []ShareMessageReaderRejectCall
+	FatalErrorsFunc   func() <-chan error
+	FatalErrorsCalls  []ShareMessageReaderFatalErrorsCall
 }
 
 // ShareMessageReaderFetchRecordsCall records one ShareMessageReader.FetchRecords invocation.
@@ -76,16 +76,14 @@ func (d *ShareMessageReader) Reject(record *kgo.Record) error {
 	return fn(record)
 }
 
-// ShareMessageReaderFlushAcknowledgmentsCall records one ShareMessageReader.FlushAcknowledgments invocation.
-type ShareMessageReaderFlushAcknowledgmentsCall struct {
-	Context context.Context
-}
+// ShareMessageReaderFatalErrorsCall records one ShareMessageReader.FatalErrors invocation.
+type ShareMessageReaderFatalErrorsCall struct{}
 
-func (d *ShareMessageReader) FlushAcknowledgments(ctx context.Context) error {
-	d.FlushAcknowledgmentsCalls = append(d.FlushAcknowledgmentsCalls, ShareMessageReaderFlushAcknowledgmentsCall{Context: ctx})
-	fn := d.FlushAcknowledgmentsFunc
+func (d *ShareMessageReader) FatalErrors() <-chan error {
+	d.FatalErrorsCalls = append(d.FatalErrorsCalls, ShareMessageReaderFatalErrorsCall{})
+	fn := d.FatalErrorsFunc
 	if fn == nil {
-		panic("unexpected ShareMessageReader.FlushAcknowledgments call")
+		panic("unexpected ShareMessageReader.FatalErrors call")
 	}
-	return fn(ctx)
+	return fn()
 }

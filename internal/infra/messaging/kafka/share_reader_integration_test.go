@@ -16,6 +16,8 @@ import (
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
+
+	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 )
 
 // TestShareReadersShareOnePartition proves parallel acquisition is not limited
@@ -69,7 +71,7 @@ func TestShareReadersShareOnePartition(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if err := reader.FlushAcknowledgments(ctx); err != nil {
+		if err := reader.client.FlushAcks(ctx); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -98,7 +100,7 @@ func TestShareReleaseRejectAndIndependentGroup(t *testing.T) {
 	if err := first.Release(retry); err != nil {
 		t.Fatal(err)
 	}
-	if err := first.FlushAcknowledgments(ctx); err != nil {
+	if err := first.client.FlushAcks(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := first.FetchRecords(ctx); !errors.Is(err, ErrShareBatchPending) {
@@ -116,13 +118,13 @@ func TestShareReleaseRejectAndIndependentGroup(t *testing.T) {
 	if err := second.Accept(record); err != nil {
 		t.Fatal(err)
 	}
-	if err := second.FlushAcknowledgments(ctx); err != nil {
+	if err := second.client.FlushAcks(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := first.Reject(reject); err != nil {
 		t.Fatal(err)
 	}
-	if err := first.FlushAcknowledgments(ctx); err != nil {
+	if err := first.client.FlushAcks(ctx); err != nil {
 		t.Fatal(err)
 	}
 	idleCtx, stop := context.WithTimeout(ctx, 750*time.Millisecond)
@@ -147,7 +149,7 @@ func TestShareReleaseRejectAndIndependentGroup(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := other.FlushAcknowledgments(ctx); err != nil {
+	if err := other.client.FlushAcks(ctx); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -194,7 +196,7 @@ func TestShareClosePreservesMarkedAndReleasesUnfinished(t *testing.T) {
 	if err := second.Accept(record); err != nil {
 		t.Fatal(err)
 	}
-	if err := second.FlushAcknowledgments(ctx); err != nil {
+	if err := second.client.FlushAcks(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := second.Close(ctx); err != nil {
@@ -224,7 +226,14 @@ func TestShareLockExpiryAndContinuedPolling(t *testing.T) {
 	cfg.Topics = []string{topic}
 	cfg.GroupID = group
 	cfg.MaxPollRecords = 1
-	first, err := NewShareReader(cfg, nil)
+	ackFailures := make(chan error, 1)
+	first, err := NewShareReader(cfg, nil, func(_ string, _ int32, err error) error {
+		select {
+		case ackFailures <- err:
+		default:
+		}
+		return nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,13 +255,21 @@ func TestShareLockExpiryAndContinuedPolling(t *testing.T) {
 	if err := first.Accept(original); err != nil {
 		t.Fatal(err)
 	}
-	if err := first.FlushAcknowledgments(ctx); !errors.Is(err, ErrShareAcknowledgment) {
-		t.Fatalf("late broker rejection was hidden: %v", err)
+	if err := first.client.FlushAcks(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-ackFailures:
+		if !errors.Is(err, kerr.InvalidRecordState) {
+			t.Fatal(err)
+		}
+	default:
+		t.Fatal("late broker rejection was not reported to the callback")
 	}
 	if err := second.Accept(record); err != nil {
 		t.Fatal(err)
 	}
-	if err := second.FlushAcknowledgments(ctx); err != nil {
+	if err := second.client.FlushAcks(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := writer.WriteRecords(ctx, &kgo.Record{Value: []byte("next")}); err != nil {
@@ -268,7 +285,7 @@ func TestShareLockExpiryAndContinuedPolling(t *testing.T) {
 	if err := first.Accept(next[0]); err != nil {
 		t.Fatal(err)
 	}
-	if err := first.FlushAcknowledgments(ctx); err != nil {
+	if err := first.client.FlushAcks(ctx); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -291,15 +308,15 @@ func TestSharePollingCancellationThenClose(t *testing.T) {
 	}
 }
 
-// TestShareCanceledFlushRetainsPendingResults protects the cumulative queue
-// contract: canceling one wait must not discard a callback that completes later.
-func TestShareCanceledFlushRetainsPendingResults(t *testing.T) {
+// TestShareCanceledDrainDoesNotBlockPolling proves a pending callback from an
+// earlier acknowledgment cannot delay or contaminate the next batch result.
+func TestShareCanceledDrainDoesNotBlockPolling(t *testing.T) {
 	topic := createIntegrationTopic(t, 1)
 	group := createIntegrationShareGroup(t, topic+"-share", 30000)
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	writer := newIntegrationWriter(t, topic)
-	if err := writer.WriteRecords(ctx, &kgo.Record{Value: []byte("work")}); err != nil {
+	if err := writer.WriteRecords(ctx, &kgo.Record{Value: []byte("first")}, &kgo.Record{Value: []byte("second")}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -307,7 +324,14 @@ func TestShareCanceledFlushRetainsPendingResults(t *testing.T) {
 	callbackResume := make(chan struct{})
 	callbackDone := make(chan struct{})
 	var hold, resume sync.Once
-	reader := &ShareReader{maxPollRecords: 1}
+	reported := make(chan error, 1)
+	reader := &ShareReader{maxPollRecords: 1, groupID: group, acknowledgmentMode: config.KafkaShareAcknowledgmentExplicit, fatalErrors: make(chan error, 1), onAcknowledgmentError: func(_ string, _ int32, err error) error {
+		select {
+		case reported <- err:
+		default:
+		}
+		return nil
+	}}
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(integrationBrokers...), kgo.ConsumeTopics(topic), kgo.ShareGroup(group),
 		kgo.ShareMaxRecords(1), kgo.ShareMaxRecordsStrict(), kgo.MaxConcurrentFetches(0),
@@ -350,8 +374,7 @@ func TestShareCanceledFlushRetainsPendingResults(t *testing.T) {
 				return
 			}
 		}
-		// An early assertion may leave the deliberately injected failure pending.
-		if err := reader.Close(cleanupCtx); err != nil && !errors.Is(err, ErrShareAcknowledgment) {
+		if err := reader.Close(cleanupCtx); err != nil {
 			t.Error(err)
 		}
 	})
@@ -367,7 +390,7 @@ func TestShareCanceledFlushRetainsPendingResults(t *testing.T) {
 	flushing = true
 	go func() {
 		defer close(flushDone)
-		flushed <- reader.FlushAcknowledgments(flushCtx)
+		flushed <- reader.client.FlushAcks(flushCtx)
 	}()
 	select {
 	case <-callbackEntered:
@@ -390,18 +413,35 @@ func TestShareCanceledFlushRetainsPendingResults(t *testing.T) {
 	default:
 	}
 
+	// The SDK still has the first callback pending. Fetch must not wait for it.
+	nextCtx, stopNext := context.WithTimeout(ctx, 5*time.Second)
+	next, err := reader.FetchRecords(nextCtx)
+	stopNext()
+	if err != nil {
+		t.Fatalf("pending acknowledgment blocked or failed the next batch: %v", err)
+	}
+	if len(next) != 1 || string(next[0].Value) != "second" {
+		t.Fatal("did not receive the next record")
+	}
 	resume.Do(func() { close(callbackResume) })
 	select {
 	case <-callbackDone:
 	case <-ctx.Done():
 		t.Fatal(ctx.Err())
 	}
-	// This call queues no new decisions, but still reports the earlier result.
-	if err := reader.FlushAcknowledgments(ctx); !errors.Is(err, ErrShareAcknowledgment) || !errors.Is(err, kerr.InvalidRecordState) {
-		t.Fatalf("resumed flush lost the earlier failure: %v", err)
+	select {
+	case err := <-reported:
+		if !errors.Is(err, kerr.InvalidRecordState) {
+			t.Fatalf("late callback result=%v", err)
+		}
+	default:
+		t.Fatal("late acknowledgment failure was not reported separately")
 	}
-	if err := reader.FlushAcknowledgments(ctx); err != nil {
-		t.Fatalf("completed flush did not consume the earlier report: %v", err)
+	if err := reader.Accept(next[0]); err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.client.FlushAcks(ctx); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -427,7 +467,7 @@ func TestShareCloseWaitsForFinalAcknowledgments(t *testing.T) {
 			unblockCallback := make(chan struct{})
 			callbackDone := make(chan struct{})
 			sdkClosed := make(chan struct{})
-			reader := &ShareReader{maxPollRecords: 1}
+			reader := &ShareReader{maxPollRecords: 1, groupID: group, acknowledgmentMode: config.KafkaShareAcknowledgmentExplicit, onAcknowledgmentError: stopOnShareAcknowledgmentError, fatalErrors: make(chan error, 1)}
 			client, err := kgo.NewClient(
 				kgo.SeedBrokers(integrationBrokers...), kgo.ConsumeTopics(topic), kgo.ShareGroup(group),
 				kgo.ShareMaxRecords(1), kgo.ShareMaxRecordsStrict(), kgo.MaxConcurrentFetches(0),
@@ -563,7 +603,7 @@ func newIntegrationShareReader(t *testing.T, topic, group string, maxRecords int
 	cfg.Topics = []string{topic}
 	cfg.GroupID = group
 	cfg.MaxPollRecords = maxRecords
-	reader, err := NewShareReader(cfg, nil)
+	reader, err := NewShareReader(cfg, nil, stopOnShareAcknowledgmentError)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -619,7 +659,7 @@ func TestShareGroupProvisioningScript(t *testing.T) {
 		if err := reader.Accept(record); err != nil {
 			t.Fatal(err)
 		}
-		if err := reader.FlushAcknowledgments(ctx); err != nil {
+		if err := reader.client.FlushAcks(ctx); err != nil {
 			t.Fatal(err)
 		}
 		if err := reader.Close(ctx); err != nil {
@@ -628,8 +668,8 @@ func TestShareGroupProvisioningScript(t *testing.T) {
 	}
 }
 
-// TestShareReleaseRemainingAllowsNextPoll verifies actual broker outcomes when
-// the flat reader API abandons unfinished work while retaining completed outcomes.
+// TestShareReleaseRemainingAllowsNextPoll protects recovery after the caller
+// loses record references: release unfinished work without undoing completed work.
 func TestShareReleaseRemainingAllowsNextPoll(t *testing.T) {
 	topic := createIntegrationTopic(t, 1)
 	group := createIntegrationShareGroup(t, topic+"-remaining", 30000)
@@ -650,29 +690,109 @@ func TestShareReleaseRemainingAllowsNextPoll(t *testing.T) {
 	if err := reader.Accept(records[0]); err != nil {
 		t.Fatal(err)
 	}
+	unfinishedOffset := records[1].Offset
+	// The caller loses its record references. Only the reader retains the batch.
+	records = nil
 	if _, err := reader.FetchRecords(ctx); !errors.Is(err, ErrShareBatchPending) {
 		t.Fatalf("guard=%v", err)
 	}
 	if err := reader.ReleaseRemaining(); err != nil {
 		t.Fatal(err)
 	}
-	// FetchRecords itself flushes queued outcomes before the SDK's next poll.
+	// Queued decisions clear the local guard; broker results remain asynchronous.
 	redelivered, err := reader.FetchRecords(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(redelivered) != 1 || redelivered[0].Offset != records[1].Offset || redelivered[0].DeliveryCount() < 2 {
+	if len(redelivered) != 1 || redelivered[0].Offset != unfinishedOffset || redelivered[0].DeliveryCount() < 2 {
 		t.Fatalf("unexpected redelivery=%+v", redelivered)
 	}
 	if err := reader.Accept(redelivered[0]); err != nil {
 		t.Fatal(err)
 	}
-	if err := reader.FlushAcknowledgments(ctx); err != nil {
+	if err := reader.client.FlushAcks(ctx); err != nil {
 		t.Fatal(err)
 	}
 	idle, stop := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer stop()
 	if _, err := reader.FetchRecords(idle); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("completed record returned: %v", err)
+	}
+}
+
+// TestShareImplicitAcknowledgmentOnNextPoll verifies undecided records are
+// accepted by the next SDK poll, even if that poll times out without new data.
+// Reopening the group proves acceptance reached Kafka, not just local bookkeeping.
+func TestShareImplicitAcknowledgmentOnNextPoll(t *testing.T) {
+	topic := createIntegrationTopic(t, 1)
+	group := createIntegrationShareGroup(t, topic+"-implicit", 30000)
+	writer := newIntegrationWriter(t, topic)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	if err := writer.WriteRecords(ctx,
+		&kgo.Record{Value: []byte("accepted")},
+		&kgo.Record{Value: []byte("rejected")},
+		&kgo.Record{Value: []byte("implicit")},
+	); err != nil {
+		t.Fatal(err)
+	}
+	cfg := validShareConfig()
+	cfg.Brokers, cfg.Topics, cfg.GroupID = integrationBrokers, []string{topic}, group
+	cfg.MaxPollRecords = 3
+	cfg.AcknowledgmentMode = config.KafkaShareAcknowledgmentImplicit
+	reader, err := NewShareReader(cfg, nil, stopOnShareAcknowledgmentError)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleanupShareReader(t, reader)
+	records, err := reader.FetchRecords(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 3 {
+		t.Fatalf("batch size=%d want=3", len(records))
+	}
+	if err := reader.Accept(records[0]); err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.Reject(records[1]); err != nil {
+		t.Fatal(err)
+	}
+	// The third record deliberately has no decision. Starting a poll accepts it.
+	idle, stop := context.WithTimeout(ctx, 500*time.Millisecond)
+	_, err = reader.FetchRecords(idle)
+	stop()
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("implicit poll=%v want deadline", err)
+	}
+	if reader.active != nil {
+		t.Fatal("timed-out poll retained implicitly accepted records")
+	}
+	if err := reader.ReleaseRemaining(); err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.Release(records[2]); !errors.Is(err, ErrShareRecordNotInBatch) {
+		t.Fatalf("old record still releasable: %v", err)
+	}
+	if err := reader.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.WriteRecords(ctx, &kgo.Record{Value: []byte("next")}); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := NewShareReader(cfg, nil, stopOnShareAcknowledgmentError)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleanupShareReader(t, reopened)
+	next, err := reopened.FetchRecords(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(next) != 1 || next[0].Offset != 3 {
+		t.Fatalf("previous outcomes replayed: %+v", next)
+	}
+	if err := reopened.Accept(next[0]); err != nil {
+		t.Fatal(err)
 	}
 }

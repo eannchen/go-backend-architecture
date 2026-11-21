@@ -29,8 +29,9 @@ func newSharedWorkflow(t *testing.T, runtime *otel.Runtime, topic, group string,
 	hooks := otel.KafkaHooks(runtime.TracerProvider(), runtime.MeterProvider(), group)
 	reader, err := kafkaclient.NewShareReader(config.KafkaShareConsumerConfig{
 		Brokers: backend.Brokers, Topics: []string{topic}, GroupID: group, MaxPollRecords: 1,
-		FetchMinBytes: 1, FetchMaxBytes: 1000000, FetchMaxWait: 100 * time.Millisecond, RequestTimeout: 5 * time.Second,
-	}, nil, hooks...)
+		AcknowledgmentMode: config.KafkaShareAcknowledgmentExplicit,
+		FetchMinBytes:      1, FetchMaxBytes: 1000000, FetchMaxWait: 100 * time.Millisecond, RequestTimeout: 5 * time.Second,
+	}, nil, func(_ string, _ int32, err error) error { return err }, hooks...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +57,8 @@ func newSharedWorkflow(t *testing.T, runtime *otel.Runtime, topic, group string,
 			if err := reader.Accept(record); err != nil {
 				return err
 			}
-			return reader.FlushAcknowledgments(ctx)
+			// Closing drains the queue before this test reopens the group.
+			return reader.Close(ctx)
 		},
 	})
 }

@@ -54,7 +54,7 @@ func TestClientSecurityOptions(t *testing.T) {
 			})
 			shareCfg := validShareConfig()
 			shareCfg.Security = security
-			share, err := NewShareReader(shareCfg, tlsCfg)
+			share, err := NewShareReader(shareCfg, tlsCfg, stopOnShareAcknowledgmentError)
 			if err != nil {
 				t.Fatal(err)
 			}
