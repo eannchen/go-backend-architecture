@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
-	kafkaworker "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/worker"
+	kafkaconsumer "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/consumer"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
@@ -46,19 +46,19 @@ func New(ctx context.Context) (_ *App, err error) {
 			return nil, err
 		}
 		reader, err := kafkaclient.NewShareReader(readerConfig.Kafka, tlsConfig,
-			kafkaworker.LogShareAcknowledgmentErrors(telemetry.Logger, readerConfig.Kafka.GroupID),
+			kafkaconsumer.LogShareAcknowledgmentErrors(telemetry.Logger, readerConfig.Kafka.GroupID),
 			otel.KafkaHooks(telemetry.Observability.TracerProvider(), telemetry.Observability.MeterProvider(), readerConfig.Kafka.GroupID)...)
 		if err != nil {
 			return nil, err
 		}
 		shutdowns = append(shutdowns, reader.Close)
-		worker, err := buildWorker(reader, telemetry, readerConfig, cfg.Routes)
+		consumer, err := buildConsumer(reader, telemetry, readerConfig, cfg.Routes)
 		if err != nil {
 			return nil, err
 		}
 		app.workers = append(app.workers, appruntime.Worker{
 			Name:     strings.Join(readerConfig.Kafka.Topics, ","),
-			Run:      worker.Run,
+			Run:      consumer.Run,
 			Shutdown: reader.Close,
 		})
 	}

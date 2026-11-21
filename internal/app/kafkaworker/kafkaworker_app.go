@@ -50,13 +50,13 @@ func New(ctx context.Context) (_ *App, err error) {
 			return nil, err
 		}
 		shutdowns = append(shutdowns, reader.Close)
-		worker, err := buildWorker(reader, telemetry, readerConfig, cfg.Routes)
+		consumer, err := buildConsumer(reader, telemetry, readerConfig, cfg.Routes)
 		if err != nil {
 			return nil, err
 		}
 		app.workers = append(app.workers, appruntime.Worker{
 			Name:     strings.Join(readerConfig.Kafka.Topics, ","),
-			Run:      worker.Run,
+			Run:      consumer.Run,
 			Shutdown: reader.Close,
 		})
 	}

@@ -10,9 +10,9 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/consumer"
 	notificationhandler "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/notification"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
-	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/worker"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
@@ -35,7 +35,7 @@ func newTraditionalWorkflow(t *testing.T, runtime *otel.Runtime, topic, group st
 	if err != nil {
 		t.Fatal(err)
 	}
-	delivery := worker.NewWorker(&observingReader{Reader: reader, checkpoints: checkpoints}, handler)
+	delivery := consumer.NewConsumer(&observingReader{Reader: reader, checkpoints: checkpoints}, handler)
 	return ownWorkflow(t, &workflow{
 		task:        appruntime.Worker{Name: topic, Run: delivery.Run, Shutdown: reader.Close},
 		checkpoints: checkpoints, next: reader.FetchRecord,
@@ -46,9 +46,9 @@ func newTraditionalWorkflow(t *testing.T, runtime *otel.Runtime, topic, group st
 	})
 }
 
-// TestWorkerMalformedMessageRemainsUncommitted verifies the ordinary delivery
+// TestConsumerMalformedMessageRemainsUncommitted verifies the ordinary delivery
 // failure policy through a real broker and handler, including replay on restart.
-func TestWorkerMalformedMessageRemainsUncommitted(t *testing.T) {
+func TestConsumerMalformedMessageRemainsUncommitted(t *testing.T) {
 	runtime := newTelemetry(t)
 	topic := backend.CreateTopic(t, 1)
 	group := topic + "-invalid"
@@ -66,7 +66,7 @@ func TestWorkerMalformedMessageRemainsUncommitted(t *testing.T) {
 	select {
 	case <-running.done:
 	case <-ctx.Done():
-		t.Fatal("invalid message did not stop the worker")
+		t.Fatal("invalid message did not stop the consumer")
 	}
 	if len(log.WarnCalls) != 1 {
 		t.Fatal("invalid message was not reported")

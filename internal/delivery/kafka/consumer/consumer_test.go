@@ -1,4 +1,4 @@
-package worker
+package consumer
 
 import (
 	"context"
@@ -8,19 +8,19 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/worker/workertest"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/consumer/consumertest"
 )
 
-// TestWorkerProcessingOrder protects manual progress: handle before commit,
+// TestConsumerProcessingOrder protects manual progress: handle before commit,
 // always unblock rebalances, and stop without committing failed work.
-func TestWorkerProcessingOrder(t *testing.T) {
+func TestConsumerProcessingOrder(t *testing.T) {
 	failure := errors.New("operation failed")
 	stopped := errors.New("end of input")
 	for _, stage := range []string{"success", "fetch", "handle", "commit"} {
 		t.Run(stage, func(t *testing.T) {
 			record := &kgo.Record{Topic: "mail", Partition: 1, Offset: 8}
 			var events []string
-			reader := &workertest.MessageReader{}
+			reader := &consumertest.MessageReader{}
 			reader.FetchRecordFunc = func(context.Context) (*kgo.Record, error) {
 				events = append(events, "fetch")
 				if len(reader.FetchRecordCalls) > 1 {
@@ -52,7 +52,7 @@ func TestWorkerProcessingOrder(t *testing.T) {
 				}
 				return nil
 			}
-			err := NewWorker(reader, handler).Run(t.Context())
+			err := NewConsumer(reader, handler).Run(t.Context())
 			want := []string{"fetch"}
 			switch stage {
 			case "success":
@@ -75,28 +75,28 @@ func TestWorkerProcessingOrder(t *testing.T) {
 	}
 }
 
-// TestWorkerCancellation exits normally when shutdown interrupts a blocking
+// TestConsumerCancellation exits normally when shutdown interrupts a blocking
 // fetch, with no processing or progress change.
-func TestWorkerCancellation(t *testing.T) {
+func TestConsumerCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
-	reader := &workertest.MessageReader{FetchRecordFunc: func(ctx context.Context) (*kgo.Record, error) { cancel(); return nil, ctx.Err() }}
-	err := NewWorker(reader, func(context.Context, *kgo.Record) error { t.Fatal("handler invoked"); return nil }).Run(ctx)
+	reader := &consumertest.MessageReader{FetchRecordFunc: func(ctx context.Context) (*kgo.Record, error) { cancel(); return nil, ctx.Err() }}
+	err := NewConsumer(reader, func(context.Context, *kgo.Record) error { t.Fatal("handler invoked"); return nil }).Run(ctx)
 	if err != nil || len(reader.AllowRebalanceCalls) != 0 || len(reader.CommitRecordsCalls) != 0 {
 		t.Fatalf("shutdown = %v", err)
 	}
 }
 
-// TestWorkerCancellationDuringProcessing protects unfinished work from being
+// TestConsumerCancellationDuringProcessing protects unfinished work from being
 // committed when shutdown interrupts handling, while releasing rebalance holds.
-func TestWorkerCancellationDuringProcessing(t *testing.T) {
+func TestConsumerCancellationDuringProcessing(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	reader := &workertest.MessageReader{
+	reader := &consumertest.MessageReader{
 		FetchRecordFunc:    func(context.Context) (*kgo.Record, error) { return &kgo.Record{Topic: "mail"}, nil },
 		AllowRebalanceFunc: func() {},
 	}
 	handler := func(ctx context.Context, _ *kgo.Record) error { cancel(); return ctx.Err() }
-	if err := NewWorker(reader, handler).Run(ctx); err != nil {
+	if err := NewConsumer(reader, handler).Run(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if len(reader.CommitRecordsCalls) != 0 || len(reader.AllowRebalanceCalls) != 1 {

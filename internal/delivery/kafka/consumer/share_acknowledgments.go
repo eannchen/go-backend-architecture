@@ -1,4 +1,4 @@
-package worker
+package consumer
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 
 // LogShareAcknowledgmentErrors returns a callback that warns and continues.
 // App wiring can instead supply a callback that returns an error to stop the
-// worker; the lifecycle then logs that failure and applies the sibling policy.
+// consumer; the lifecycle then logs that failure and applies the sibling policy.
 func LogShareAcknowledgmentErrors(log logger.Logger, groupID string) func(topic string, partition int32, err error) error {
 	return func(topic string, partition int32, err error) error {
 		// SDK results have no individual message context or batch identity.

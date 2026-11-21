@@ -1,4 +1,4 @@
-package workertest
+package consumertest
 
 import (
 	"context"

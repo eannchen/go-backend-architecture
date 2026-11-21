@@ -24,7 +24,7 @@ const activityJSON = `{"event_id":"evt-1","action":"report.downloaded","occurred
 
 // TestActivityHandlerDoesNotBlockNotifications holds the real activity usecase's
 // logging boundary open while a second reader handles a notification. Both
-// worker styles must route their own payload and save progress independently.
+// consumer types must route their own payload and save progress independently.
 func TestActivityHandlerDoesNotBlockNotifications(t *testing.T) {
 	for shared := range workflowFactories {
 		name := "ordinary"

@@ -1,4 +1,4 @@
-package worker
+package consumer
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-// ShareMessageReader is the worker-owned contract for fetching and deciding
+// ShareMessageReader is the consumer-owned contract for fetching and deciding
 // record outcomes. The client owns batch bookkeeping. Only Run's owner goroutine
 // calls these methods; parallel handlers return their results to it.
 type ShareMessageReader interface {
@@ -22,37 +22,37 @@ type ShareMessageReader interface {
 	FatalErrors() <-chan error
 }
 
-// ShareWorkerOptions bounds local work. Batch size is configured on the reader.
-type ShareWorkerOptions struct {
+// ShareConsumerOptions bounds local work. Batch size is configured on the reader.
+type ShareConsumerOptions struct {
 	Concurrency int
 }
 
-func (o ShareWorkerOptions) Validate() error {
+func (o ShareConsumerOptions) Validate() error {
 	if o.Concurrency < 1 || o.Concurrency > 1000 {
-		return errors.New("share worker concurrency must be between 1 and 1000")
+		return errors.New("share consumer concurrency must be between 1 and 1000")
 	}
 	return nil
 }
 
-type ShareWorker struct {
+type ShareConsumer struct {
 	reader  ShareMessageReader
 	handler middleware.Handler
-	options ShareWorkerOptions
+	options ShareConsumerOptions
 }
 
-func NewShareWorker(reader ShareMessageReader, handler middleware.Handler, options ShareWorkerOptions) (*ShareWorker, error) {
+func NewShareConsumer(reader ShareMessageReader, handler middleware.Handler, options ShareConsumerOptions) (*ShareConsumer, error) {
 	if err := options.Validate(); err != nil {
 		return nil, err
 	}
-	return &ShareWorker{reader: reader, handler: handler, options: options}, nil
+	return &ShareConsumer{reader: reader, handler: handler, options: options}, nil
 }
 
 // Run owns the reader and joins all handlers before returning. Acknowledgment
 // failures chosen as fatal cancel polling and handlers through a separate path;
 // they are never attached to whichever batch happens to be running.
-func (w *ShareWorker) Run(ctx context.Context) (result error) {
+func (c *ShareConsumer) Run(ctx context.Context) (result error) {
 	runCtx, cancel := context.WithCancel(ctx)
-	failures := w.reader.FatalErrors()
+	failures := c.reader.FatalErrors()
 	done := make(chan struct{})
 	var acknowledgmentErr error
 	go func() {
@@ -69,15 +69,15 @@ func (w *ShareWorker) Run(ctx context.Context) (result error) {
 		result = errors.Join(result, acknowledgmentErr)
 	}()
 	for runCtx.Err() == nil {
-		records, err := w.reader.FetchRecords(runCtx)
+		records, err := c.reader.FetchRecords(runCtx)
 		if err != nil {
 			if runCtx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 				return nil
 			}
-			return fmt.Errorf("share worker fetch: %w", err)
+			return fmt.Errorf("share consumer fetch: %w", err)
 		}
-		if err := w.handleBatch(runCtx, records); err != nil {
-			return fmt.Errorf("share worker batch: %w", err)
+		if err := c.handleBatch(runCtx, records); err != nil {
+			return fmt.Errorf("share consumer batch: %w", err)
 		}
 	}
 	return nil
@@ -88,22 +88,22 @@ type shareOutcome struct {
 	err    error
 }
 
-func (w *ShareWorker) handleBatch(ctx context.Context, records []*kgo.Record) error {
+func (c *ShareConsumer) handleBatch(ctx context.Context, records []*kgo.Record) error {
 	batchCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	// Both queues are bounded by this finite batch / configured concurrency.
 	// A queued record already holds a Kafka lock, so keep batches small.
 	jobs := make(chan *kgo.Record, len(records))
-	results := make(chan shareOutcome, w.options.Concurrency)
+	results := make(chan shareOutcome, c.options.Concurrency)
 	for _, record := range records {
 		jobs <- record
 	}
 	close(jobs)
 	var handlers sync.WaitGroup
-	for range min(w.options.Concurrency, len(records)) {
+	for range min(c.options.Concurrency, len(records)) {
 		handlers.Go(func() {
 			for record := range jobs {
-				results <- shareOutcome{record: record, err: w.handler(batchCtx, record)}
+				results <- shareOutcome{record: record, err: c.handler(batchCtx, record)}
 			}
 		})
 	}
@@ -119,17 +119,17 @@ func (w *ShareWorker) handleBatch(ctx context.Context, records []*kgo.Record) er
 		var markErr error
 		switch {
 		case errors.Is(result.err, middleware.ErrInvalidMessage):
-			markErr = w.reader.Reject(result.record)
+			markErr = c.reader.Reject(result.record)
 		case result.err != nil:
-			markErr = w.reader.Release(result.record)
+			markErr = c.reader.Release(result.record)
 			// Cancellation caused by shutdown or another failed handler is expected.
-			// A handler's own timeout is a failure and stops this worker after the batch.
+			// A handler's own timeout is a failure and stops this consumer after the batch.
 			if batchCtx.Err() == nil || (!errors.Is(result.err, context.Canceled) && !errors.Is(result.err, context.DeadlineExceeded)) {
 				failure = errors.Join(failure, fmt.Errorf("handle topic=%s partition=%d offset=%d: %w", result.record.Topic, result.record.Partition, result.record.Offset, result.err))
 				cancel()
 			}
 		default:
-			markErr = w.reader.Accept(result.record)
+			markErr = c.reader.Accept(result.record)
 		}
 		if markErr != nil {
 			failure = errors.Join(failure, fmt.Errorf("mark share outcome: %w", markErr))

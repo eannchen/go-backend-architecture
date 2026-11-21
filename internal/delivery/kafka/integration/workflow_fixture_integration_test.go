@@ -101,21 +101,21 @@ type workflow struct {
 	complete    func(context.Context, *kgo.Record) error
 }
 
-// newWorkflow builds real clients and workers. Group preparation is owned by
+// newWorkflow builds real clients and consumers. Group preparation is owned by
 // the test, allowing the same group to be reopened to inspect saved progress.
 func newWorkflow(t *testing.T, runtime *otel.Runtime, shared bool, topic, group string, handler middleware.Handler) *workflow {
 	t.Helper()
 	factory := workflowFactories[shared]
 	if factory == nil {
-		t.Fatal("worker style is not installed")
+		t.Fatal("consumer type is not installed")
 	}
 	return factory(t, runtime, topic, group, handler)
 }
 
 type workflowFactory func(*testing.T, *otel.Runtime, string, string, middleware.Handler) *workflow
 
-// Each worker-specific test file registers its factory. Profile selection removes
-// that file with its production worker, so shared scenarios test installed styles.
+// Each consumer-specific test file registers its factory. Profile selection removes
+// that file with its production consumer, so shared scenarios test installed styles.
 var workflowFactories = map[bool]workflowFactory{}
 
 func prepareGroup(t *testing.T, shared bool, group string) {

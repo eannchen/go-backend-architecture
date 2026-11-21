@@ -2,6 +2,7 @@ package kafkaworker
 
 import (
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/consumer"
 	activityhandler "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/activity"
 	notificationhandler "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/notification"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
@@ -9,14 +10,13 @@ import (
 	observabilitymw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/observability"
 	recoverymw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/recovery"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/router"
-	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/worker"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/activity"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
 )
 
-func buildWorker(reader *kafkaclient.Reader, telemetry *appruntime.Telemetry, cfg config.KafkaWorkerReaderConfig, routes config.KafkaWorkerRoutesConfig) (*worker.Worker, error) {
+func buildConsumer(reader *kafkaclient.Reader, telemetry *appruntime.Telemetry, cfg config.KafkaWorkerReaderConfig, routes config.KafkaWorkerRoutesConfig) (*consumer.Consumer, error) {
 	// Apply the same middleware order to each route, with a distinct operation
 	// name so logs, traces, and metrics identify the selected workflow.
 	decorate := func(handler middleware.Handler, operation string) middleware.Handler {
@@ -35,5 +35,5 @@ func buildWorker(reader *kafkaclient.Reader, telemetry *appruntime.Telemetry, cf
 	if err != nil {
 		return nil, err
 	}
-	return worker.NewWorker(reader, handler), nil
+	return consumer.NewConsumer(reader, handler), nil
 }

@@ -1,4 +1,4 @@
-package workertest_test
+package consumertest_test
 
 import (
 	"context"
@@ -6,13 +6,13 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/worker/workertest"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/consumer/consumertest"
 )
 
 // TestMessageReaderCommitHistory keeps the argument slice stable when the caller
 // reuses it, while preserving the original record pointers and call context.
 func TestMessageReaderCommitHistory(t *testing.T) {
-	reader := &workertest.MessageReader{CommitRecordsFunc: func(context.Context, ...*kgo.Record) error { return nil }}
+	reader := &consumertest.MessageReader{CommitRecordsFunc: func(context.Context, ...*kgo.Record) error { return nil }}
 	first, second := &kgo.Record{Offset: 1}, &kgo.Record{Offset: 2}
 	records := []*kgo.Record{first}
 	ctx := t.Context()

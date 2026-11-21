@@ -11,9 +11,9 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	appruntime "github.com/eannchen/go-backend-architecture/internal/app/runtime"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/consumer"
 	notificationhandler "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/handler/notification"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
-	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/worker"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/notification"
@@ -36,7 +36,7 @@ func newSharedWorkflow(t *testing.T, runtime *otel.Runtime, topic, group string,
 		t.Fatal(err)
 	}
 	observed := &observingShareReader{ShareReader: reader, checkpoints: checkpoints}
-	delivery, err := worker.NewShareWorker(observed, handler, worker.ShareWorkerOptions{Concurrency: 2})
+	delivery, err := consumer.NewShareConsumer(observed, handler, consumer.ShareConsumerOptions{Concurrency: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,9 +63,9 @@ func newSharedWorkflow(t *testing.T, runtime *otel.Runtime, topic, group string,
 	})
 }
 
-// TestShareWorkerRejectsMalformedMessage verifies the delivery policy against
+// TestShareConsumerRejectsMalformedMessage verifies the delivery policy against
 // Kafka: malformed JSON ends delivery to this group, then valid work proceeds.
-func TestShareWorkerRejectsMalformedMessage(t *testing.T) {
+func TestShareConsumerRejectsMalformedMessage(t *testing.T) {
 	runtime := newTelemetry(t)
 	topic := backend.CreateTopic(t, 1)
 	group := topic + "-reject"

@@ -205,15 +205,15 @@ func newSelectionPlan(profile string) (selectionPlan, error) {
 	if profile == kafkaWorkerProfile {
 		removals = append(removals, shareOnly...)
 		removals = append(removals,
-			"internal/delivery/kafka/worker/workertest/share_message_reader.go",
-			"internal/delivery/kafka/worker/share_worker.go", "internal/delivery/kafka/worker/share_worker_test.go",
-			"internal/delivery/kafka/worker/share_acknowledgments.go", "internal/delivery/kafka/worker/share_acknowledgments_test.go",
-			"internal/delivery/kafka/integration/share_worker_integration_test.go", "internal/delivery/kafka/integration/context_middleware_integration_test.go",
+			"internal/delivery/kafka/consumer/consumertest/share_message_reader.go",
+			"internal/delivery/kafka/consumer/share_consumer.go", "internal/delivery/kafka/consumer/share_consumer_test.go",
+			"internal/delivery/kafka/consumer/share_acknowledgments.go", "internal/delivery/kafka/consumer/share_acknowledgments_test.go",
+			"internal/delivery/kafka/integration/share_consumer_integration_test.go", "internal/delivery/kafka/integration/context_middleware_integration_test.go",
 		)
 		plan.airSource = ".air.kafkaworker.toml"
 	} else {
 		removals = append(removals, groupOnly...)
-		removals = append(removals, "internal/delivery/kafka/worker/workertest/message_reader.go", "internal/delivery/kafka/worker/workertest/message_reader_test.go", "internal/delivery/kafka/worker/worker.go", "internal/delivery/kafka/worker/worker_test.go", "internal/delivery/kafka/integration/worker_integration_test.go")
+		removals = append(removals, "internal/delivery/kafka/consumer/consumertest/message_reader.go", "internal/delivery/kafka/consumer/consumertest/message_reader_test.go", "internal/delivery/kafka/consumer/consumer.go", "internal/delivery/kafka/consumer/consumer_test.go", "internal/delivery/kafka/integration/consumer_integration_test.go")
 		plan.airSource = ".air.kafkashareworker.toml"
 	}
 	slices.Sort(removals)
