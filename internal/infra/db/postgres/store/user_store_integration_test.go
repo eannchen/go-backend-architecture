@@ -12,13 +12,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
+	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // TestUserStoreIntegration checks user persistence and retrieval against actual SQL and schema constraints.
 func TestUserStoreIntegration(t *testing.T) {
-	pool := requirePostgresTestPool(t)
+	pool := postgresTestPool
 
 	store := NewUserStore(pool, observability.NoopTracer{})
 	ctx := context.Background()
@@ -54,11 +54,11 @@ func TestUserStoreIntegration(t *testing.T) {
 		t.Fatalf("expected id lookup %+v, got %+v", created, byID)
 	}
 
-	if _, err := store.CreateByEmail(ctx, email); !errors.Is(err, repodb.ErrDuplicateKey) {
+	if _, err := store.CreateByEmail(ctx, email); !errors.Is(err, domainuser.ErrAlreadyExists) {
 		t.Fatalf("expected duplicate key error, got %v", err)
 	}
 
-	oauthUser, err := store.UpsertOAuthUser(ctx, repodb.OAuthUserUpsert{
+	oauthUser, err := store.UpsertOAuthUser(ctx, authoauth.OAuthUserUpsert{
 		Provider:       "google",
 		ProviderUserID: providerUserID,
 		Email:          oauthEmail,
@@ -70,7 +70,7 @@ func TestUserStoreIntegration(t *testing.T) {
 		t.Fatalf("unexpected oauth user: %+v", oauthUser)
 	}
 
-	oauthAgain, err := store.UpsertOAuthUser(ctx, repodb.OAuthUserUpsert{
+	oauthAgain, err := store.UpsertOAuthUser(ctx, authoauth.OAuthUserUpsert{
 		Provider:       "google",
 		ProviderUserID: providerUserID,
 		Email:          "ignored@example.com",
@@ -85,14 +85,14 @@ func TestUserStoreIntegration(t *testing.T) {
 
 // TestUserStoreIntegration_MissingUserMapsNotFound checks a missing user maps the database result to the repository sentinel.
 func TestUserStoreIntegration_MissingUserMapsNotFound(t *testing.T) {
-	store := NewUserStore(requirePostgresTestPool(t), observability.NoopTracer{})
+	store := NewUserStore(postgresTestPool, observability.NoopTracer{})
 	ctx := context.Background()
 	missingEmail := "missing-" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com"
 
-	if _, err := store.GetByEmail(ctx, missingEmail); !errors.Is(err, repodb.ErrNotFound) {
+	if _, err := store.GetByEmail(ctx, missingEmail); !errors.Is(err, domainuser.ErrNotFound) {
 		t.Fatalf("GetByEmail error = %v, want ErrNotFound", err)
 	}
-	if _, err := store.GetByID(ctx, -1); !errors.Is(err, repodb.ErrNotFound) {
+	if _, err := store.GetByID(ctx, -1); !errors.Is(err, domainuser.ErrNotFound) {
 		t.Fatalf("GetByID error = %v, want ErrNotFound", err)
 	}
 }

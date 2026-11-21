@@ -1,6 +1,7 @@
 package health
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/labstack/echo/v5"
@@ -8,27 +9,23 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
+
+// Checker is the application behavior required by this adapter.
+type Checker interface {
+	Check(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error)
+}
 
 func NewHandler(
 	log logger.Logger,
 	tracer observability.Tracer,
-	responder httpresponse.Responder,
-	usecase usecasehealth.Usecase,
+	responder *httpresponse.Responder,
+	usecase Checker,
 	streamConfig StreamConfig,
 ) *Handler {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
-	if responder == nil {
-		responder = httpresponse.NewResponder()
-	}
 	return &Handler{
 		logger:    log,
 		tracer:    tracer,
@@ -41,8 +38,8 @@ func NewHandler(
 type Handler struct {
 	logger    logger.Logger
 	tracer    observability.Tracer
-	responder httpresponse.Responder
-	usecase   usecasehealth.Usecase
+	responder *httpresponse.Responder
+	usecase   Checker
 	stream    StreamConfig
 }
 
@@ -55,7 +52,7 @@ func (h *Handler) GetHealth(c *echo.Context) (err error) {
 	ctx, span := h.tracer.Start(c.Request().Context(), "handler", "health_handler.get_health")
 	var spanErr error
 	defer func() {
-		span.Finish(spanErr)
+		span.Finish(observability.SpanOutcome{Err: spanErr, Failed: spanErr != nil})
 	}()
 
 	var req openapi.GetHealthParams

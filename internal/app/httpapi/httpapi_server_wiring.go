@@ -21,7 +21,7 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
 )
 
-func (d wiring) buildServer(responder httpresponse.Responder, repos appRepositories, handlers appHandlers, usecases appUsecases) (*httpdelivery.Server, error) {
+func (d wiring) buildServer(responder *httpresponse.Responder, repos appRepositories, handlers appHandlers, usecases appUsecases) (*httpdelivery.Server, error) {
 	secureCfg := echoMiddleware.SecureConfig{
 		XSSProtection:      "1; mode=block",
 		ContentTypeNosniff: "nosniff",

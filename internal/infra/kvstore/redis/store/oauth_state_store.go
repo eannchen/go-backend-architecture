@@ -7,7 +7,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
+	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
 )
 
 const oauthStateKeyPrefix = "oauth_state:"
@@ -32,7 +32,7 @@ func NewOAuthStateStore(client *goredis.Client) *OAuthStateStore {
 	return &OAuthStateStore{client: client}
 }
 
-func (s *OAuthStateStore) Store(ctx context.Context, state string, data repokvstore.OAuthStateData, ttl time.Duration) error {
+func (s *OAuthStateStore) Store(ctx context.Context, state string, data authoauth.OAuthStateData, ttl time.Duration) error {
 	if err := s.client.Set(ctx, oauthStateKeyPrefix+state, data.BrowserBindingHash, ttl).Err(); err != nil {
 		return fmt.Errorf("store oauth state: %w", err)
 	}
@@ -40,15 +40,13 @@ func (s *OAuthStateStore) Store(ctx context.Context, state string, data repokvst
 }
 
 // Consume atomically reads and deletes the state binding.
-func (s *OAuthStateStore) Consume(ctx context.Context, state string) (repokvstore.OAuthStateData, bool, error) {
+func (s *OAuthStateStore) Consume(ctx context.Context, state string) (authoauth.OAuthStateData, bool, error) {
 	value, err := consumeOAuthStateScript.Run(ctx, s.client, []string{oauthStateKeyPrefix + state}).Text()
 	if err != nil {
 		if err == goredis.Nil {
-			return repokvstore.OAuthStateData{}, false, nil
+			return authoauth.OAuthStateData{}, false, nil
 		}
-		return repokvstore.OAuthStateData{}, false, fmt.Errorf("consume oauth state: %w", err)
+		return authoauth.OAuthStateData{}, false, fmt.Errorf("consume oauth state: %w", err)
 	}
-	return repokvstore.OAuthStateData{BrowserBindingHash: value}, true, nil
+	return authoauth.OAuthStateData{BrowserBindingHash: value}, true, nil
 }
-
-var _ repokvstore.OAuthStateRepository = (*OAuthStateStore)(nil)

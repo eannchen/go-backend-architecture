@@ -10,13 +10,14 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	diagnosticsv1 "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/gen/diagnostics/v1"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
+	diagnosticstest "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics/diagnosticstest"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
 )
 
 // TestGetHealthMapsReadyResult checks readiness data is translated to the detailed gRPC response.
 func TestGetHealthMapsReadyResult(t *testing.T) {
-	uc := &healthtest.Usecase{
+	uc := &diagnosticstest.HealthChecker{
 		CheckFunc: func(_ context.Context, mode usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			if mode != usecasehealth.CheckModeReady {
 				t.Fatalf("mode = %q, want %q", mode, usecasehealth.CheckModeReady)
@@ -25,7 +26,7 @@ func TestGetHealthMapsReadyResult(t *testing.T) {
 		},
 	}
 
-	got, err := NewService(uc, nil).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
+	got, err := NewService(uc, response.NewResponder()).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
 	if err != nil {
 		t.Fatalf("GetHealth() error = %v", err)
 	}
@@ -50,7 +51,7 @@ func TestGetHealthMapsReadyResult(t *testing.T) {
 
 // TestGetHealthMapsLiveMode checks liveness selects the correct usecase mode.
 func TestGetHealthMapsLiveMode(t *testing.T) {
-	uc := &healthtest.Usecase{
+	uc := &diagnosticstest.HealthChecker{
 		CheckFunc: func(_ context.Context, mode usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			if mode != usecasehealth.CheckModeLive {
 				t.Fatalf("mode = %q, want %q", mode, usecasehealth.CheckModeLive)
@@ -59,7 +60,7 @@ func TestGetHealthMapsLiveMode(t *testing.T) {
 		},
 	}
 
-	got, err := NewService(uc, nil).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{
+	got, err := NewService(uc, response.NewResponder()).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{
 		Mode: diagnosticsv1.HealthCheckMode_HEALTH_CHECK_MODE_LIVE,
 	})
 	if err != nil {
@@ -75,7 +76,7 @@ func TestGetHealthMapsLiveMode(t *testing.T) {
 
 // TestGetHealthReturnsUnavailableAsDetailedResult checks dependency unavailability remains a detailed health result for callers.
 func TestGetHealthReturnsUnavailableAsDetailedResult(t *testing.T) {
-	uc := &healthtest.Usecase{
+	uc := &diagnosticstest.HealthChecker{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			result := readyResult()
 			result.Cache.Status = "down"
@@ -84,7 +85,7 @@ func TestGetHealthReturnsUnavailableAsDetailedResult(t *testing.T) {
 		},
 	}
 
-	got, err := NewService(uc, nil).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
+	got, err := NewService(uc, response.NewResponder()).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
 	if err != nil {
 		t.Fatalf("GetHealth() error = %v", err)
 	}
@@ -110,7 +111,7 @@ func TestGetHealthReturnsWrappedContextErrorsAsStatuses(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			uc := &healthtest.Usecase{
+			uc := &diagnosticstest.HealthChecker{
 				CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
 					return usecasehealth.Result{}, apperr.Wrap(
 						tt.cause,
@@ -120,7 +121,7 @@ func TestGetHealthReturnsWrappedContextErrorsAsStatuses(t *testing.T) {
 				},
 			}
 
-			_, err := NewService(uc, nil).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
+			_, err := NewService(uc, response.NewResponder()).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
 
 			if status.Code(err) != tt.want {
 				t.Fatalf("status code = %v, want %v", status.Code(err), tt.want)
@@ -135,7 +136,7 @@ func TestGetHealthReturnsWrappedContextErrorsAsStatuses(t *testing.T) {
 // TestGetHealthDoesNotMaskReturnedErrorWhenContextIsCanceled checks a returned usecase failure is not hidden by later context cancellation.
 func TestGetHealthDoesNotMaskReturnedErrorWhenContextIsCanceled(t *testing.T) {
 	returnedErr := errors.New("database failed")
-	uc := &healthtest.Usecase{
+	uc := &diagnosticstest.HealthChecker{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			return usecasehealth.Result{}, returnedErr
 		},
@@ -143,7 +144,7 @@ func TestGetHealthDoesNotMaskReturnedErrorWhenContextIsCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := NewService(uc, nil).GetHealth(ctx, &diagnosticsv1.GetHealthRequest{})
+	_, err := NewService(uc, response.NewResponder()).GetHealth(ctx, &diagnosticsv1.GetHealthRequest{})
 
 	if status.Code(err) != codes.Internal {
 		t.Fatalf("status code = %v, want %v", status.Code(err), codes.Internal)
@@ -155,28 +156,28 @@ func TestGetHealthDoesNotMaskReturnedErrorWhenContextIsCanceled(t *testing.T) {
 
 // TestGetHealthRejectsUnknownMode checks unknown modes are rejected at the transport boundary.
 func TestGetHealthRejectsUnknownMode(t *testing.T) {
-	uc := &healthtest.Usecase{}
+	uc := &diagnosticstest.HealthChecker{}
 
-	_, err := NewService(uc, nil).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{
+	_, err := NewService(uc, response.NewResponder()).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{
 		Mode: diagnosticsv1.HealthCheckMode(99),
 	})
 	if status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("status code = %v, want %v", status.Code(err), codes.InvalidArgument)
 	}
-	if uc.CheckCalls != 0 {
-		t.Fatalf("usecase calls = %d, want 0", uc.CheckCalls)
+	if len(uc.CheckCalls) != 0 {
+		t.Fatalf("usecase calls = %d, want 0", len(uc.CheckCalls))
 	}
 }
 
 // TestGetHealthHidesUnexpectedErrors checks unexpected usecase failures are hidden behind a safe server status.
 func TestGetHealthHidesUnexpectedErrors(t *testing.T) {
-	uc := &healthtest.Usecase{
+	uc := &diagnosticstest.HealthChecker{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			return usecasehealth.Result{}, errors.New("database password leaked")
 		},
 	}
 
-	_, err := NewService(uc, nil).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
+	_, err := NewService(uc, response.NewResponder()).GetHealth(context.Background(), &diagnosticsv1.GetHealthRequest{})
 	if status.Code(err) != codes.Internal {
 		t.Fatalf("status code = %v, want %v", status.Code(err), codes.Internal)
 	}

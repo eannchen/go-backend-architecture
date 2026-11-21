@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
+	authotp "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp"
 )
 
 // TestOTPStoreIntegration checks OTP persistence and consumption against real Redis operations.
 func TestOTPStoreIntegration(t *testing.T) {
-	client := requireRedisTestClient(t)
+	client := redisTestClient
 
 	store := NewOTPStore(client)
 	ctx := context.Background()
@@ -44,7 +44,7 @@ func TestOTPStoreIntegration(t *testing.T) {
 	if !matched {
 		t.Fatal("expected matching OTP hash to consume the code")
 	}
-	if _, err := store.Consume(ctx, email, "hashed-code"); !errors.Is(err, repokvstore.ErrOTPNotFound) {
+	if _, err := store.Consume(ctx, email, "hashed-code"); !errors.Is(err, authotp.ErrOTPNotFound) {
 		t.Fatalf("second consume error = %v, want ErrOTPNotFound", err)
 	}
 }

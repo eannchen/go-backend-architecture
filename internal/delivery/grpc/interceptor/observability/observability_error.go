@@ -6,7 +6,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
-	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
+	appobservability "github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 type applicationErrorInfo struct {

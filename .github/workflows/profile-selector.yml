@@ -26,6 +26,10 @@ jobs:
             label: Validate Public HTTP profile
           - profile: service-grpc
             label: Validate Service gRPC profile
+          - profile: kafka-worker
+            label: Validate Kafka worker profile
+          - profile: kafka-share-worker
+            label: Validate Kafka Share Group worker profile
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

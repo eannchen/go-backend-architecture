@@ -13,7 +13,7 @@ import (
 
 // TestUserCacheStoreIntegration checks user cache reads and writes against real Redis serialization and key behavior.
 func TestUserCacheStoreIntegration(t *testing.T) {
-	client := requireRedisTestClient(t)
+	client := redisTestClient
 
 	ctx := context.Background()
 	store := NewUserCacheStore(client, time.Minute)

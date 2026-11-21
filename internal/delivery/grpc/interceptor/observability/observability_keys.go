@@ -1,12 +1,12 @@
 package observability
 
 const (
+	// keyRPCStatusCode is the OTel native gRPC status name used by logs, spans, and metrics.
+	keyRPCStatusCode = "rpc.status_code"
 	// keyRPCSystemName is the OTel RPC-system attribute; gRPC requires the value "grpc".
 	keyRPCSystemName = "rpc.system.name"
 	// keyRPCMethod is the OTel fully-qualified logical method, such as package.Service/Method.
 	keyRPCMethod = "rpc.method"
-	// keyRPCResponseStatusCode is the OTel native gRPC status name, such as OK or UNAVAILABLE.
-	keyRPCResponseStatusCode = "rpc.response.status_code"
 	// keyErrorType is the stable OTel failure class and uses the native gRPC status name.
 	keyErrorType = "error.type"
 	// keyLogDurationMS is a template log field; span duration and metric histograms record time separately.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // Tracing owns distributed-context extraction and server-span lifecycle.
@@ -14,9 +14,6 @@ type Tracing struct {
 
 // NewTracing creates HTTP server tracing.
 func NewTracing(tracer observability.Tracer) *Tracing {
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
 	return &Tracing{tracer: tracer}
 }
 
@@ -34,7 +31,8 @@ func (t *Tracing) Start(ctx context.Context, request requestInfo) (context.Conte
 // Finish records the normalized outcome and ends the span.
 func (*Tracing) Finish(span observability.Span, outcome requestOutcome) {
 	fields := observability.FromPairs(keyHTTPResponseStatusCode, outcome.responseStatusCode)
-	if errorType := outcome.errorType(); errorType != "" {
+	errorType := outcome.errorType()
+	if errorType != "" {
 		fields[keyErrorType] = errorType
 	}
 	if outcome.applicationError.causeChain != "" {
@@ -50,7 +48,7 @@ func (*Tracing) Finish(span observability.Span, outcome requestOutcome) {
 		fields[keyApplicationErrorMessage] = outcome.applicationError.applicationErrorMessage
 	}
 	span.SetAttributes(fields)
-	span.Finish(outcome.applicationError.originalError)
+	span.Finish(observability.SpanOutcome{Err: outcome.applicationError.originalError, Failed: errorType != ""})
 }
 
 // headerCarrier adapts HTTP headers to the transport-neutral tracing carrier.

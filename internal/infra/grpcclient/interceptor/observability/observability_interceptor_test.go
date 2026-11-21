@@ -5,16 +5,18 @@ import (
 	"errors"
 	"io"
 	"testing"
+	"time"
 
 	googlegrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
-	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
-	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
+	appobservability "github.com/eannchen/go-backend-architecture/pkg/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability/grpcsemconv"
+	"github.com/eannchen/go-backend-architecture/pkg/observability/observabilitytest"
 )
 
 // TestUnaryInjectsTraceAndRecordsOutcome checks unary calls propagate trace context and record their outcome.
@@ -46,20 +48,20 @@ func TestUnaryInjectsTraceAndRecordsOutcome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unary() error = %v", err)
 	}
-	if tracer.StartClientCalls != 1 || tracer.InjectCalls != 1 {
-		t.Fatalf("tracer calls = start:%d inject:%d", tracer.StartClientCalls, tracer.InjectCalls)
+	if len(tracer.StartClientCalls) != 1 || len(tracer.InjectCalls) != 1 {
+		t.Fatalf("tracer calls = start:%d inject:%d", len(tracer.StartClientCalls), len(tracer.InjectCalls))
 	}
 	if len(log.InfoCalls) != 1 || len(log.ErrorNoStackCalls) != 0 {
 		t.Fatalf("log calls = info:%d error:%d", len(log.InfoCalls), len(log.ErrorNoStackCalls))
 	}
-	requests := meter.CounterSamples("grpc_client_requests_total")
-	if len(requests) != 1 || requests[0].Fields[keyRPCMethod] != "diagnostics.v1.DiagnosticsService/GetHealth" || requests[0].Fields[keyRPCResponseStatusCode] != "OK" || requests[0].Fields[keyApplicationDependencyName] != "diagnostics" {
+	requests := meter.CounterSamples("app.grpc.client.requests")
+	if len(requests) != 1 || requests[0].Fields[keyRPCMethod] != "diagnostics.v1.DiagnosticsService/GetHealth" || requests[0].Fields[keyRPCStatusCode] != "OK" || requests[0].Fields[keyApplicationDependencyName] != "diagnostics" {
 		t.Fatalf("request metrics = %#v", requests)
 	}
 	if requests[0].Fields[keyServerAddress] != "diagnostics" || requests[0].Fields[keyServerPort] != 9090 {
 		t.Fatalf("request metric destination = %#v", requests[0].Fields)
 	}
-	if len(span.FinishCalls) != 1 || span.FinishCalls[0].Err != nil {
+	if len(span.FinishCalls) != 1 || span.FinishCalls[0].Outcome.Err != nil {
 		t.Fatalf("span finish calls = %#v", span.FinishCalls)
 	}
 }
@@ -92,8 +94,8 @@ func TestUnaryRecordsRemoteFailure(t *testing.T) {
 	if !errors.Is(err, wireErr) {
 		t.Fatalf("Unary() error = %v, want wire error", err)
 	}
-	if tracer.InjectCalls != 0 {
-		t.Fatalf("Inject() calls = %d, want no external trace propagation", tracer.InjectCalls)
+	if len(tracer.InjectCalls) != 0 {
+		t.Fatalf("Inject() calls = %d, want no external trace propagation", len(tracer.InjectCalls))
 	}
 	if len(log.ErrorNoStackCalls) != 1 || !errors.Is(log.ErrorNoStackCalls[0].Err, wireErr) {
 		t.Fatalf("error logs = %#v", log.ErrorNoStackCalls)
@@ -101,7 +103,7 @@ func TestUnaryRecordsRemoteFailure(t *testing.T) {
 	if loggedOutcome.DependencyName != "external-provider" || loggedOutcome.RPCMethod != "test.Service/Fail" || loggedOutcome.GRPCStatusCode != codes.Unavailable || !errors.Is(loggedOutcome.RPCError, wireErr) {
 		t.Fatalf("log policy outcome = %+v", loggedOutcome)
 	}
-	if samples := meter.CounterSamples("grpc_client_errors_total"); len(samples) != 1 || samples[0].Fields[keyRPCResponseStatusCode] != "UNAVAILABLE" {
+	if samples := meter.CounterSamples("app.grpc.client.errors"); len(samples) != 1 || samples[0].Fields[keyRPCStatusCode] != "UNAVAILABLE" {
 		t.Fatalf("error metrics = %#v", samples)
 	}
 }
@@ -133,11 +135,11 @@ func TestStreamFinishesOnEOF(t *testing.T) {
 	if err := stream.RecvMsg(nil); err != io.EOF {
 		t.Fatalf("RecvMsg() error = %v, want EOF", err)
 	}
-	active := meter.UpDownCounterSamples("grpc_client_active_streams")
+	active := meter.UpDownCounterSamples("app.grpc.client.active_streams")
 	if len(active) != 2 || active[0].Value != 1 || active[1].Value != -1 {
 		t.Fatalf("active stream metrics = %#v", active)
 	}
-	if len(span.FinishCalls) != 1 || span.FinishCalls[0].Err != nil {
+	if len(span.FinishCalls) != 1 || span.FinishCalls[0].Outcome.Err != nil {
 		t.Fatalf("span finish calls = %#v", span.FinishCalls)
 	}
 }
@@ -175,8 +177,8 @@ func TestUnaryCapabilitiesCanBeSelectedIndependently(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Unary() error = %v", err)
 		}
-		if tracer.StartClientCalls != 1 || tracer.InjectCalls != 0 || len(span.FinishCalls) != 1 {
-			t.Fatalf("tracing calls = start:%d inject:%d finish:%d", tracer.StartClientCalls, tracer.InjectCalls, len(span.FinishCalls))
+		if len(tracer.StartClientCalls) != 1 || len(tracer.InjectCalls) != 0 || len(span.FinishCalls) != 1 {
+			t.Fatalf("tracing calls = start:%d inject:%d finish:%d", len(tracer.StartClientCalls), len(tracer.InjectCalls), len(span.FinishCalls))
 		}
 	})
 
@@ -188,7 +190,7 @@ func TestUnaryCapabilitiesCanBeSelectedIndependently(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Unary() error = %v", err)
 		}
-		if samples := meter.CounterSamples("grpc_client_requests_total"); len(samples) != 1 {
+		if samples := meter.CounterSamples("app.grpc.client.requests"); len(samples) != 1 {
 			t.Fatalf("request metric samples = %#v, want one", samples)
 		}
 	})
@@ -230,7 +232,7 @@ func successfulInvoker(context.Context, string, any, any, *googlegrpc.ClientConn
 func newTestSpan() *observabilitytest.Span {
 	return &observabilitytest.Span{
 		SetAttributesFunc: func(...appobservability.Fields) {},
-		FinishFunc:        func(error, ...string) {},
+		FinishFunc:        func(appobservability.SpanOutcome) {},
 	}
 }
 
@@ -240,3 +242,35 @@ type testClientStream struct {
 }
 
 func (s *testClientStream) RecvMsg(any) error { return s.recvErr }
+
+// TestClientDurationMetricAttributes protects the standard RPC client status
+// attribute and treats every non-OK client result as an operation failure.
+func TestClientDurationMetricAttributes(t *testing.T) {
+	for _, code := range []codes.Code{codes.OK, codes.InvalidArgument, codes.Unavailable} {
+		t.Run(code.String(), func(t *testing.T) {
+			meter := observabilitytest.NewRecordingMeter()
+			NewRequestMetrics(meter).Record(t.Context(), newRPCOutcome(
+				newRPCInfo("billing", "billing.internal", 443, "/example.Service/Call", "unary"),
+				time.Second, status.Error(code, "safe error"),
+			))
+			samples := meter.HistogramSamples("rpc.client.call.duration")
+			if len(samples) != 1 || samples[0].Value != 1 {
+				t.Fatalf("duration=%v", samples)
+			}
+			fields := samples[0].Fields
+			if fields[keyRPCSystemName] != "grpc" || fields[keyRPCStatusCode] != grpcsemconv.StatusName(code) {
+				t.Fatalf("attributes=%v", fields)
+			}
+			if _, exists := fields["rpc.response.status_code"]; exists {
+				t.Fatal("duration uses legacy status attribute")
+			}
+			if code == codes.OK {
+				if _, exists := fields[keyErrorType]; exists {
+					t.Fatal("successful call has error.type")
+				}
+			} else if fields[keyErrorType] != grpcsemconv.StatusName(code) {
+				t.Fatalf("error.type=%v", fields[keyErrorType])
+			}
+		})
+	}
+}

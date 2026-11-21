@@ -19,9 +19,9 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	"github.com/eannchen/go-backend-architecture/internal/infra/security/tlsconfig/tlsconfigtest"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/pkg/tlsconfig/tlsconfigtest"
 )
 
 // TestServerRegistersAndServesServices checks registered services can actually handle calls on the assembled server.
@@ -83,7 +83,7 @@ func TestServerRegistersReflectionWhenEnabled(t *testing.T) {
 	listener := bufconn.Listen(1 << 20)
 	server := newServer(
 		ServerConfig{Address: "bufconn", ReflectionEnabled: true},
-		nil,
+		logger.NoopLogger{},
 		listener,
 		nil,
 		nil,
@@ -111,7 +111,7 @@ func TestServerForcesStopWhenGracefulShutdownExpires(t *testing.T) {
 	listener := bufconn.Listen(1 << 20)
 	server := newServer(
 		ServerConfig{Address: "bufconn"},
-		nil,
+		logger.NoopLogger{},
 		listener,
 		nil,
 		nil,
@@ -169,7 +169,7 @@ func TestNewServerRejectsNegativeMessageLimits(t *testing.T) {
 		{Address: "127.0.0.1:0", MaxSendMessageBytes: -1},
 	}
 	for _, cfg := range tests {
-		if _, err := NewServer(cfg, nil, nil, nil); err == nil {
+		if _, err := NewServer(cfg, logger.NoopLogger{}, nil, nil); err == nil {
 			t.Fatalf("NewServer(%+v) error = nil, want validation error", cfg)
 		}
 	}
@@ -203,7 +203,7 @@ func TestServerEnforcesMessageLimits(t *testing.T) {
 			service := &payloadServiceServer{responseSize: tt.responseSize}
 			server := newServer(
 				tt.cfg,
-				nil,
+				logger.NoopLogger{},
 				listener,
 				nil,
 				nil,
@@ -324,7 +324,7 @@ func startSecureHealthServer(t *testing.T, tlsCfg *tls.Config) *bufconn.Listener
 			Address:              "bufconn",
 			TransportCredentials: credentials.NewTLS(tlsCfg),
 		},
-		nil,
+		logger.NoopLogger{},
 		listener,
 		nil,
 		nil,

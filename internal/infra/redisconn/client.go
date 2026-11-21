@@ -6,8 +6,9 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 )
 
-// NewClient builds a shared Redis client from project config.
-// Callers in cache/redis and kvstore/redis can reuse the same instance.
+// NewClient creates a Redis client with its own connection pool. Each call creates
+// a separate pool, even with identical settings. App composition chooses whether
+// cache and KV stores share a client and owns closing each client once.
 func NewClient(cfg config.RedisConfig) *goredis.Client {
 	return goredis.NewClient(&goredis.Options{
 		Addr:         cfg.Addr,

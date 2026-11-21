@@ -1,11 +1,11 @@
 # Public packages
 
-This directory is reserved for packages intentionally imported by other Go modules.
+This directory contains technical libraries intended for reuse by other Go modules.
 
 ## Boundaries
 
 - New code belongs under `internal` unless external reuse is a supported requirement.
-- Public packages must not expose application-specific wiring or internal infrastructure types.
+- Public packages own their typed configuration and import no project `internal` packages. Environment loading and application wiring stay internal.
 
 ## Extending
 

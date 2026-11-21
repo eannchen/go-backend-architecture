@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
 )
 
 // TestRunLifecycle checks startup and shutdown order and failure handling for owned runtime resources.
@@ -29,7 +29,7 @@ func TestRunLifecycle(t *testing.T) {
 			name:            "fatal server start error",
 			startErr:        startErr,
 			wantCode:        1,
-			wantLogMessages: []string{"server exited with error"},
+			wantLogMessages: []string{"application exited with error"},
 		},
 		{
 			name:            "graceful shutdown error",
@@ -42,7 +42,7 @@ func TestRunLifecycle(t *testing.T) {
 			startErr:        startErr,
 			shutdownErr:     shutdownErr,
 			wantCode:        1,
-			wantLogMessages: []string{"server exited with error", "graceful shutdown failed"},
+			wantLogMessages: []string{"application exited with error", "graceful shutdown failed"},
 		},
 	}
 

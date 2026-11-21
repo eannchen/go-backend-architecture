@@ -5,8 +5,7 @@ import (
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 type Decision struct {
@@ -14,29 +13,23 @@ type Decision struct {
 	RetryAfter time.Duration
 }
 
-type Limiter interface {
-	AllowIP(context.Context, string) (Decision, error)
-}
-
 type Config struct {
 	Capacity       int
 	RefillInterval time.Duration
 }
 
-type ipLimiter struct {
-	repo repokvstore.TokenBucketRepository
+// IPLimiter implements the global IP rate-limit policy.
+type IPLimiter struct {
+	repo TokenBucketRepository
 	log  logger.Logger
 	cfg  Config
 }
 
-func NewIPLimiter(repo repokvstore.TokenBucketRepository, log logger.Logger, cfg Config) Limiter {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
-	return &ipLimiter{repo, log, cfg}
+func NewIPLimiter(repo TokenBucketRepository, log logger.Logger, cfg Config) *IPLimiter {
+	return &IPLimiter{repo, log, cfg}
 }
 
-func (l *ipLimiter) AllowIP(ctx context.Context, ip string) (Decision, error) {
+func (l *IPLimiter) AllowIP(ctx context.Context, ip string) (Decision, error) {
 	if ip == "" {
 		return Decision{}, apperr.New(apperr.CodeTooManyRequests, "rate limit: client IP unavailable")
 	}

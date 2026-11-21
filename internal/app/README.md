@@ -5,7 +5,7 @@ This directory contains the composition roots for executable processes.
 ## Responsibilities and boundaries
 
 - `runtime` owns infrastructure and lifecycle code shared by executable types.
-- `httpapi` and `grpcapi` choose concrete implementations and assemble their delivery adapters.
+- Each executable package chooses concrete implementations and assembles its delivery adapters.
 - Composition packages contain wiring and lifecycle orchestration, not business rules or protocol mapping.
 
 ## Extending

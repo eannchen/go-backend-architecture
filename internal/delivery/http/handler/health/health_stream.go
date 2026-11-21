@@ -8,8 +8,9 @@ import (
 
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // StreamPath is the bounded Server-Sent Events health demonstration route.
@@ -27,7 +28,7 @@ func (h *Handler) StreamHealth(c *echo.Context) (err error) {
 	ctx, span := h.tracer.Start(c.Request().Context(), "handler", "health_handler.stream_health")
 	var spanErr error
 	defer func() {
-		span.Finish(spanErr)
+		span.Finish(observability.SpanOutcome{Err: spanErr, Failed: spanErr != nil})
 	}()
 
 	var req openapi.StreamHealthParams

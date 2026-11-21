@@ -13,7 +13,7 @@ type appHandlers struct {
 	auth   httpdelivery.RouteRegistrar
 }
 
-func (d wiring) buildHandlers(responder httpresponse.Responder, usecases appUsecases) appHandlers {
+func (d wiring) buildHandlers(responder *httpresponse.Responder, usecases appUsecases) appHandlers {
 	sessMW := sessionmw.New(usecases.sessionManager, d.cfg.Auth.Session.CookieName, responder)
 	return appHandlers{
 		health: healthhttp.NewHandler(d.log, d.tracer, responder, usecases.health, healthhttp.StreamConfig{

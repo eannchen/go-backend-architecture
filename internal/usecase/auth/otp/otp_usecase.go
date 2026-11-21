@@ -11,31 +11,19 @@ import (
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
-	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external/otp"
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
+	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
-// OTPAuthenticator handles one-time-password authentication.
-// Implementations decide the channel (email, SMS) and code format.
-//
-// Strategy examples:
-//   - Email OTP: sends a numeric code via email.
-//   - SMS OTP: sends a code via SMS provider.
-type OTPAuthenticator interface {
-	SendCode(ctx context.Context, email string) error
-	VerifyCode(ctx context.Context, email, code string) (auth.Identity, error)
-}
-
-type otpAuthenticator struct {
+// Authenticator implements email OTP authentication.
+type Authenticator struct {
 	log         logger.Logger
 	tracer      observability.Tracer
-	otpRepo     repokvstore.OTPRepository
-	emailSender repoexternal.EmailSender
-	userRepo    repodb.UserRepository
+	otpRepo     OTPRepository
+	emailSender EmailSender
+	userRepo    domainuser.Repository
 	codeLength  int
 	ttl         time.Duration
 	sendTotal   observability.Counter
@@ -53,27 +41,19 @@ func NewOTPAuthenticator(
 	log logger.Logger,
 	tracer observability.Tracer,
 	meter observability.Meter,
-	otpRepo repokvstore.OTPRepository,
-	emailSender repoexternal.EmailSender,
-	userRepo repodb.UserRepository,
+	otpRepo OTPRepository,
+	emailSender EmailSender,
+	userRepo domainuser.Repository,
 	cfg OTPConfig,
-) OTPAuthenticator {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
-	if meter == nil {
-		meter = observability.NoopMeter{}
-	}
+) *Authenticator {
+
 	if cfg.CodeLength <= 0 {
 		cfg.CodeLength = 6
 	}
 	if cfg.TTL <= 0 {
 		cfg.TTL = 5 * time.Minute
 	}
-	return &otpAuthenticator{
+	return &Authenticator{
 		log:         log,
 		tracer:      tracer,
 		otpRepo:     otpRepo,
@@ -81,16 +61,16 @@ func NewOTPAuthenticator(
 		userRepo:    userRepo,
 		codeLength:  cfg.CodeLength,
 		ttl:         cfg.TTL,
-		sendTotal: meter.Counter("auth_otp_send_total",
+		sendTotal: meter.Counter("app.auth.otp.sends",
 			observability.MetricOption{Description: "OTP send attempts by outcome.", Unit: "{attempt}"},
 		),
-		verifyTotal: meter.Counter("auth_otp_verify_total",
+		verifyTotal: meter.Counter("app.auth.otp.verifications",
 			observability.MetricOption{Description: "OTP verify attempts by outcome.", Unit: "{attempt}"},
 		),
 	}
 }
 
-func (a *otpAuthenticator) SendCode(ctx context.Context, email string) (err error) {
+func (a *Authenticator) SendCode(ctx context.Context, email string) (err error) {
 	ctx, span := a.tracer.Start(ctx, "usecase", "otp_authenticator.send_code")
 	defer func() {
 		outcome := "success"
@@ -98,7 +78,7 @@ func (a *otpAuthenticator) SendCode(ctx context.Context, email string) (err erro
 			outcome = "error"
 		}
 		a.sendTotal.Add(ctx, 1, observability.FromPairs("outcome", outcome))
-		span.Finish(err)
+		span.Finish(observability.SpanOutcome{Err: err, Failed: err != nil})
 	}()
 
 	if email == "" {
@@ -125,7 +105,7 @@ func (a *otpAuthenticator) SendCode(ctx context.Context, email string) (err erro
 	return nil
 }
 
-func (a *otpAuthenticator) VerifyCode(ctx context.Context, email, code string) (identity auth.Identity, err error) {
+func (a *Authenticator) VerifyCode(ctx context.Context, email, code string) (identity auth.Identity, err error) {
 	ctx, span := a.tracer.Start(ctx, "usecase", "otp_authenticator.verify_code")
 	defer func() {
 		outcome := "success"
@@ -133,7 +113,7 @@ func (a *otpAuthenticator) VerifyCode(ctx context.Context, email, code string) (
 			outcome = "error"
 		}
 		a.verifyTotal.Add(ctx, 1, observability.FromPairs("outcome", outcome))
-		span.Finish(err)
+		span.Finish(observability.SpanOutcome{Err: err, Failed: err != nil})
 	}()
 
 	if email == "" || code == "" {
@@ -142,7 +122,7 @@ func (a *otpAuthenticator) VerifyCode(ctx context.Context, email, code string) (
 
 	matched, err := a.otpRepo.Consume(ctx, email, hashCode(code))
 	if err != nil {
-		if !errors.Is(err, repokvstore.ErrOTPNotFound) {
+		if !errors.Is(err, ErrOTPNotFound) {
 			return auth.Identity{}, apperr.Wrap(err, apperr.CodeInternal, "consume otp code")
 		}
 		return auth.Identity{}, apperr.New(apperr.CodeUnauthorized, "invalid or expired otp code")
@@ -154,12 +134,12 @@ func (a *otpAuthenticator) VerifyCode(ctx context.Context, email, code string) (
 
 	user, err := a.userRepo.GetByEmail(ctx, email)
 	if err != nil {
-		if !errors.Is(err, repodb.ErrNotFound) {
+		if !errors.Is(err, domainuser.ErrNotFound) {
 			return auth.Identity{}, apperr.Wrap(err, apperr.CodeInternal, "find user")
 		}
 		user, err = a.userRepo.CreateByEmail(ctx, email)
 		if err != nil {
-			if errors.Is(err, repodb.ErrDuplicateKey) {
+			if errors.Is(err, domainuser.ErrAlreadyExists) {
 				// Race: another request created the user; treat as conflict so client can retry or re-login.
 				return auth.Identity{}, apperr.New(apperr.CodeConflict, "email already registered")
 			}

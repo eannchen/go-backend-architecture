@@ -10,27 +10,22 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 )
 
-// Responder maps delivery and application errors to gRPC statuses.
-type Responder interface {
-	Error(cause error, code codes.Code, message string) error
-	AppError(err error) error
-}
-
-type responder struct{}
+// Responder maps application outcomes to GRPC responses.
+type Responder struct{}
 
 // NewResponder creates an injectable gRPC responder.
-func NewResponder() Responder {
-	return &responder{}
+func NewResponder() *Responder {
+	return &Responder{}
 }
 
-func (r *responder) Error(cause error, code codes.Code, message string) error {
+func (r *Responder) Error(cause error, code codes.Code, message string) error {
 	return &responseError{
 		cause:      cause,
 		grpcStatus: status.New(code, message),
 	}
 }
 
-func (r *responder) AppError(err error) error {
+func (r *Responder) AppError(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -86,24 +81,4 @@ func (e *responseError) Unwrap() error {
 // GRPCStatus lets grpc-go serialize the intended status code and safe message.
 func (e *responseError) GRPCStatus() *status.Status {
 	return e.grpcStatus
-}
-
-// IsClientError lets transport-neutral tracing distinguish expected client
-// outcomes from server failures without importing gRPC.
-func (e *responseError) IsClientError() bool {
-	switch e.grpcStatus.Code() {
-	case codes.Canceled,
-		codes.InvalidArgument,
-		codes.NotFound,
-		codes.AlreadyExists,
-		codes.PermissionDenied,
-		codes.Unauthenticated,
-		codes.ResourceExhausted,
-		codes.FailedPrecondition,
-		codes.Aborted,
-		codes.OutOfRange:
-		return true
-	default:
-		return false
-	}
 }

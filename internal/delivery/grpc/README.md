@@ -7,6 +7,7 @@ This package adapts gRPC calls to application usecases and owns the gRPC server 
 - Generated Protobuf types remain under `gen`; services map them to and from usecase types.
 - `server.go` owns listening, server options, interceptor chains, service registration, reflection, and graceful transport shutdown.
 - Interceptors provide request IDs and deadlines, caller identity, observability, and panic recovery.
+- `grpccontext` owns caller identity and its context accessors shared by interceptors and services.
 - The responder maps application and delivery failures to safe gRPC statuses while preserving internal causes.
 - Standard gRPC health and custom diagnostics are separate services with different contracts.
 

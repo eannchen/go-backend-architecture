@@ -5,20 +5,22 @@ import (
 
 	composeduser "github.com/eannchen/go-backend-architecture/internal/infra/composed/user"
 	postgresstore "github.com/eannchen/go-backend-architecture/internal/infra/db/postgres/store"
-	repocache "github.com/eannchen/go-backend-architecture/internal/repository/cache"
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
+	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
+	authotp "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp"
+	authsession "github.com/eannchen/go-backend-architecture/internal/usecase/auth/session"
+	globalratelimit "github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
+	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
 type appRepositories struct {
-	dbHealthRepo     repodb.DBHealthRepository
-	cacheHealthStore repocache.CacheHealthStore
-	kvHealthStore    repokvstore.KVHealthStore
-	userRepo         repodb.UserRepository
-	sessionRepo      repokvstore.SessionRepository
-	otpRepo          repokvstore.OTPRepository
-	oauthStateRepo   repokvstore.OAuthStateRepository
-	tokenBucketRepo  repokvstore.TokenBucketRepository
+	dbHealthRepo     usecasehealth.DatabaseHealth
+	cacheHealthStore usecasehealth.Pinger
+	kvHealthStore    usecasehealth.Pinger
+	userRepo         *composeduser.CachedUserStore
+	sessionRepo      authsession.SessionRepository
+	otpRepo          authotp.OTPRepository
+	oauthStateRepo   authoauth.OAuthStateRepository
+	tokenBucketRepo  globalratelimit.TokenBucketRepository
 }
 
 func (d wiring) buildRepositories(pool *pgxpool.Pool, redis redisStores) appRepositories {
