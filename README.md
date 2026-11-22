@@ -4,7 +4,7 @@
 [![Build and unit tests](https://img.shields.io/github/actions/workflow/status/eannchen/go-backend-architecture/quality.yml?branch=main&label=Build%20and%20unit%20tests)](https://github.com/eannchen/go-backend-architecture/actions/workflows/quality.yml)
 [![Integration tests](https://img.shields.io/github/actions/workflow/status/eannchen/go-backend-architecture/integration.yml?branch=main&label=Integration%20tests)](https://github.com/eannchen/go-backend-architecture/actions/workflows/integration.yml)
 
-A modular Go backend template built with Clean Architecture. Business workflows stay independent of delivery and infrastructure. Each runnable application wires the capabilities it needs, and new process types can reuse the same core. The template includes foundations for security, data access, observability, testing, and lifecycle management.
+A modular Go backend template with independently runnable HTTP, gRPC, and Kafka applications. Clean Architecture keeps business workflows separate from transport and infrastructure. Shared foundations cover security, data access, observability, testing, and lifecycle management.
 
 ## Table of Contents
 
@@ -25,53 +25,54 @@ A modular Go backend template built with Clean Architecture. Business workflows 
 - **Architecture**: Clean Architecture with clear layer boundaries, explicit dependency wiring, focused interfaces, and independently runnable binaries
 - **Public HTTP**: OpenAPI-generated request and response models, OTP/OAuth sessions, CORS and security headers, Redis rate limiting, health endpoints, and Server-Sent Events
 - **Service gRPC**: Protobuf services, standard and detailed health APIs, interceptors, TLS/mTLS caller identity, reflection controls, and outbound client building blocks
+- **Kafka**: Consumer group and Share Group binaries, topic routing, independent workflow settings, TLS/SASL clients, bounded concurrent handling, optional record-lock renewal, and processing middleware
 - **Relational storage**: SQL-first PostgreSQL with sqlc for static queries, Squirrel for dynamic queries, Goose migrations, and repository-owned transaction boundaries
 - **Cache and key-value state**: Redis adapters for caching, sessions, OTP, OAuth state, and atomic rate limiting, with explicit composition
 - **Observability**: OpenTelemetry traces, metrics, and log emission; Zap output; OTLP export; optional request-ID interoperability
-- **Testing**: Layer-owned unit tests, transport workflow tests, and container-backed PostgreSQL and Redis integration tests
-- **CI**: Static checks, race-enabled tests, integration tests, and validation of both selectable project profiles
+- **Testing**: Layer-owned unit tests, transport workflow tests, and container-backed PostgreSQL, Redis, and Kafka integration tests
+- **CI**: Static checks, race-enabled tests, integration tests, and validation of all four selectable project profiles
 - **AI agent setup**: Guidance for Codex, Claude, Cursor, and GitHub Copilot, plus an optional phased TDD workflow
 
 ## Architecture
 
-Go imports follow the arrows in the diagram. Usecases do not import delivery or infrastructure, so changes to a server or storage adapter stay outside business code.
+Imports follow the arrows below. Usecases never import delivery or infrastructure.
 
 ![Concentric Clean Architecture layers used by the template](docs/assets/clean-architecture.svg)
 
-The rings group code by responsibility; the arrows specify imports. Sharing a ring does not mean two packages have identical dependencies.
+The circles group responsibilities; the package diagram shows imports, not execution order.
 
 | Layer | Responsibility |
 | --- | --- |
 | `internal/delivery` | Inbound protocol handling, transport validation, and response mapping |
-| `internal/usecase` | Application workflows and business decisions |
-| `internal/repository` | Outbound capability contracts required by usecases |
-| `internal/domain` | Business entities, value objects, and reusable invariants |
-| `internal/infra` | Adapters for persistence, caching, external services, security, logging, and telemetry |
-| `internal/logger`, `internal/observability`, `internal/security` | Shared technical contracts used across layers |
+| `internal/usecase` | Application workflows, business decisions, and their outbound dependency contracts |
+| `internal/domain` | Business entities, reusable invariants, and shared business repository contracts |
+| `internal/infra` | Persistence, caching, messaging, and external-service adapters |
+| `pkg` | Reusable technical libraries: logging, observability, TLS configuration, and gRPC metadata helpers |
 | `internal/app` and `cmd` | Concrete dependency selection, process lifecycle, and startup |
+
+Interfaces belong beside their consumers: delivery defines the usecase behavior it needs, and usecases define outbound dependencies. Shared business repositories belong in domain, such as `internal/domain/user`. Infrastructure implements contracts; app wiring checks compatibility through Go's implicit interfaces.
 
 ### Multi-binary composition
 
-Each binary has its own `cmd` entry point and `internal/app` composition root. Binaries can reuse domain, usecases, contracts, and infrastructure adapters without moving business code into delivery packages.
+Each binary has a `cmd` entry point and `internal/app` composition root. Binaries reuse domain, usecases, and adapters, and can be deployed and scaled independently.
 
 ```mermaid
 flowchart LR
     http[HTTP binary] --> core[Shared domain · usecases · contracts]
     grpc[gRPC binary] --> core
-    future[Future worker or consumer] -.-> core
+    kafka[Kafka consumer group binary] --> core
+    share[Kafka Share Group binary] --> core
 ```
-
-Separate binaries can be deployed and scaled independently while sharing application behavior.
 
 ### SOLID in this codebase
 
-SOLID is applied through package boundaries and dependency direction.
+Package boundaries and dependency direction apply SOLID:
 
-- **S — Single responsibility:** delivery maps protocols, usecases coordinate workflows, repositories define outbound needs, infrastructure integrates technologies, and app packages only compose them.
-- **O — Open/closed:** a new delivery adapter, provider, store, decorator, or binary is normally added behind an existing contract and selected in composition. A contract still changes when the application genuinely needs new behavior.
-- **L — Liskov substitution:** implementations of a contract preserve its result, error, context, and consistency semantics, so callers do not need implementation-specific branches when an adapter or test double is substituted.
-- **I — Interface segregation:** contracts expose focused behavior required by a usecase or component instead of broad CRUD or vendor-shaped APIs.
-- **D — Dependency inversion:** usecases depend on repository and shared technical contracts; app packages inject infrastructure implementations. Delivery depends on usecase behavior rather than constructing stores or clients.
+- **S — Single responsibility:** delivery maps protocols, usecases coordinate workflows, infrastructure integrates technologies, and app wires dependencies.
+- **O — Open/closed:** add adapters behind existing contracts and select them in app wiring; change contracts when application needs change.
+- **L — Liskov substitution:** adapters and test doubles preserve the contract's result, error, cancellation, and consistency semantics.
+- **I — Interface segregation:** interfaces expose the behavior their callers need, rather than broad CRUD or vendor APIs.
+- **D — Dependency inversion:** business code depends on contracts; app wiring injects implementations. Delivery does not construct stores or clients.
 
 ### Core design patterns
 
@@ -82,18 +83,18 @@ SOLID is applied through package boundaries and dependency direction.
 | Repository | Usecases request behavior through contracts shaped around their workflows, while infrastructure owns persistence and provider details. |
 | Decorator | A composed repository or cache wrapper adds caching or coordination without changing the usecase-facing contract. |
 | Strategy | Provider, security, and client policies are selected through small contracts or configuration where behavior must vary. |
-| Middleware/interceptor | Cross-cutting transport behavior is applied consistently around HTTP requests and gRPC calls. |
+| Middleware/interceptor | Cross-cutting transport behavior is applied consistently around HTTP requests, gRPC calls, and Kafka record handling. |
 | Null object | Optional behavior can use a safe no-op implementation instead of spreading nil checks through callers. |
 
 The complete dependency, placement, error, performance, and testing rules are in [`AGENTS.md`](AGENTS.md).
 
 ## Delivery adapters
 
-Out of the box, the template has a browser/public HTTP application and a service-to-service gRPC application; a selected project may retain either or both. They can share business and infrastructure capabilities while each delivery package owns its transport-specific input, output, and error handling.
+Keep all four applications or select one profile. Each delivery adapter owns transport validation and outcome mapping while sharing usecases and infrastructure.
 
 ### Public HTTP
 
-The HTTP application is designed for browser and public API traffic. It owns user-facing authentication, server-side protections, JSON response semantics, and streaming behavior.
+The HTTP application handles browser and public API traffic.
 
 | Concern | Design |
 | --- | --- |
@@ -115,7 +116,7 @@ See [`internal/delivery/http/README.md`](internal/delivery/http/README.md) for p
 
 ### Service-to-service gRPC
 
-The gRPC application is designed for independently deployed backend services. A Protobuf service method is comparable to an HTTP route, a Protobuf message to a transport DTO, metadata to headers, an interceptor to middleware, and a gRPC status code to an HTTP status at the protocol boundary.
+The gRPC application handles service-to-service calls through Protobuf services and messages.
 
 | Concern | Design |
 | --- | --- |
@@ -132,11 +133,36 @@ The unary and stream interceptor chain follows the same ownership model as HTTP 
 request context → optional caller identity → observability → recovery → service → usecase
 ```
 
-Both chains put recovery inside observability so recovered panics appear in telemetry. HTTP starts observability before request context because Echo lets inner middleware replace the request; outer middleware reads its updated context on return. CORS runs before the limiter so preflight requests can finish early.
+Recovery runs inside observability so recovered panics appear in telemetry. HTTP starts observability first because Echo lets it read the updated request context on return. CORS runs before rate limiting so preflight requests can finish early.
 
-gRPC interceptors cannot pass an updated context back outward. Request context and optional caller identity therefore run before observability, which needs their values. Authentication and rate limiting are not universal gRPC interceptors: deployments may enforce them at a gateway or service mesh, while standalone services can add interceptors matched to their identity and quota model.
+gRPC cannot pass an updated context outward, so context and caller identity run before observability. Authentication and rate limiting can be added at the service boundary or enforced by a gateway or service mesh.
 
 See [`internal/delivery/grpc/README.md`](internal/delivery/grpc/README.md) and [`internal/infra/grpcclient/README.md`](internal/infra/grpcclient/README.md) for the server and outbound-client boundaries.
+
+### Kafka consumers
+
+Both Kafka binaries use [franz-go](https://github.com/twmb/franz-go). A record is a Kafka message. The Share Group reader requires Kafka 4.2+; local development and integration tests use 4.2.1.
+
+| Mode | Work assignment and completion | Template behavior |
+| --- | --- | --- |
+| Consumer group (`kafkaworker`) | Each partition belongs to one consumer in the group at a time. A committed offset saves where that group should resume. | Handles one record at a time per reader and commits after success. Handling or commit failure stops that consumer without advancing past the failed record. |
+| Share Group (`kafkashareworker`) | Members can process different records from the same partition concurrently. Kafka temporarily locks each acquired record and accepts individual acknowledgments. | Uses a bounded handler pool. Successful handling queues Accept; invalid input queues Reject; other failures queue Release and stop the consumer after handlers finish. Record order is not preserved. |
+
+Notification and activity processing demonstrate different topic handlers with separate readers and group settings. Both usecases log simulated work. Set `KAFKA_NOTIFICATION_TOPIC` or `KAFKA_ACTIVITY_TOPIC` to empty to disable that workflow. A reader can subscribe to several topics that share consumer settings.
+
+The processing chain is shared by both modes:
+
+```text
+record context and deadline → observability → recovery → topic handler → usecase
+```
+
+Consumer groups delay partition reassignment during handling and committing. Share Groups instead lock individual records; optional best-effort renewal extends locks for running and queued work. Both modes can redeliver records, so handlers must handle repeated delivery safely.
+
+Share Group acknowledgments are asynchronous. The default callback logs failures and continues; app wiring can request shutdown instead. Explicit mode requires a decision for every fetched record before another poll; implicit mode lets the next poll accept undecided records. Reader comments cover renewal, recovery, and flushing options.
+
+**Fan-out:** different group IDs let independent workflows each read the same topic. **Fan-in:** multiple producers can write to one topic; combining related records requires application logic. Keys can select partitions, but Kafka does not inspect payloads to choose handlers.
+
+The [Kafka clients](internal/infra/messaging/kafka) provide publishing, both reader modes, and TLS/SASL options. See [`config/env`](config/env) for workflow settings and client comments for API behavior and setup examples.
 
 ## Runtime reliability
 
@@ -145,14 +171,15 @@ The template makes request limits, background work, and shutdown explicit.
 - Cancellation and deadlines reach storage and outbound calls, so work can stop when a caller disconnects or its time limit expires.
 - Background tasks use an application-lifecycle context, not a request context. The component that starts a goroutine controls how it stops and waits for it to finish; concurrent work is bounded.
 - Retries have bounded attempts and repeat writes only when an idempotency design makes that safe.
-- Shutdown stops components in reverse dependency order and reports cleanup failures.
+- Shutdown is coordinated across application paths, uses bounded cleanup contexts, stops components in reverse dependency order, and reports cleanup failures.
+- Kafka applications can stop all consumers on a failure (`stop-all`, the default) or leave healthy consumers running (`independent`) through `KAFKA_WORKER_FAILURE_POLICY`. Each consumer owns its reader; telemetry stays available until reader cleanup finishes.
 - Errors retain their original causes; unexpected failures are logged once where they are handled.
 
 See [`AGENTS.md`](AGENTS.md) for the corresponding implementation rules.
 
 ## Observability
 
-Tracing and metrics use interfaces in `internal/observability`, while structured logs use `internal/logger`. Their OpenTelemetry integration lives in infrastructure, so delivery adapters, usecases, and infrastructure operations can record telemetry without importing the SDK.
+Reusable contracts and implementations live in `pkg/observability` and `pkg/logger`. These packages own typed configuration and import no project `internal` packages. App wiring loads settings and injects dependencies, including explicit OpenTelemetry providers.
 
 | Signal | What it records |
 | --- | --- |
@@ -162,7 +189,7 @@ Tracing and metrics use interfaces in `internal/observability`, while structured
 
 ### Trace propagation and correlation
 
-The diagram follows one request across services; work inside a service can have its own spans and metrics.
+A request can continue one trace across services:
 
 ```mermaid
 sequenceDiagram
@@ -181,21 +208,23 @@ sequenceDiagram
     A->>O: Export spans, metrics, and correlated logs
 ```
 
-The OpenTelemetry SDK creates trace and span IDs locally, even when the collector is unavailable. An inbound adapter extracts valid parent context when present, and spans created during internal work inherit it. For a trusted outbound dependency, optional injection lets a downstream service that extracts the context join the same trace; external providers do not automatically receive internal correlation metadata.
+The SDK creates trace and span IDs locally, even without a collector. Inbound adapters extract parent context; internal spans inherit it. Selected outbound clients inject context for trusted downstream services. External providers do not receive it automatically.
 
-Zap output and OTLP logs read trace and span IDs from the active OpenTelemetry span context. HyperDX can therefore navigate between a log and its trace when both signals arrive with those native IDs. Local logs remain useful when export is unavailable, but they are a diagnostic fallback—not a replacement for the spans that were not collected.
+Zap and OTLP logs use active trace/span IDs, letting HyperDX link logs to traces. Local logs remain useful when export fails, but cannot replace uncollected spans.
 
-`x-request-id` is a separate, optional convention for gateways, support workflows, or systems that do not share trace context. The current HTTP and gRPC adapters accept valid caller-provided IDs under configurable keys and may return them; they do not generate an ID when absent. Selected internal clients can propagate it explicitly.
+`x-request-id` is a separate optional correlation ID. HTTP and gRPC accept valid caller-provided IDs under configurable keys and may return them; neither generates missing IDs. Selected internal clients can propagate them explicitly.
 
-Traces or logs can record request-specific details such as the exact path `/users/42`, an error message, or an ID when safe. Metrics instead use stable labels such as the route pattern `/users/:id` and status code; individual paths or IDs would create a separate metric series for many requests.
+Traces and logs can include safe request details. Metrics use bounded labels, such as `/users/:id` and status code, rather than concrete paths or IDs that create many series.
 
-See [`internal/observability/README.md`](internal/observability/README.md) and the transport instrumentation guides for [HTTP](internal/delivery/http/middleware/observability/README.md) and [gRPC](internal/delivery/grpc/interceptor/observability/README.md).
+Kafka clients use kotel hooks for client traces, metrics, and trace-header propagation. Delivery middleware measures individual handling attempts; successful handling does not mean the later commit or acknowledgment succeeded. Message keys are excluded from kotel trace attributes.
+
+See [`pkg/observability/README.md`](pkg/observability/README.md) and the transport instrumentation guides for [HTTP](internal/delivery/http/middleware/observability/README.md) and [gRPC](internal/delivery/grpc/interceptor/observability/README.md).
 
 ## Data design
 
 ### SQL-first PostgreSQL
 
-SQL stays behind repository contracts, keeping PostgreSQL and generated types out of business APIs. Rather than relying on an ORM to generate queries, the template writes SQL directly. This keeps joins, batching, locking, and selected columns explicit, making query behavior easier to review and important queries easier to tune with query plans. The tradeoff is more SQL and mapping code; an ORM can be reasonable for a CRUD-heavy application where convenience matters more.
+SQL and generated types stay inside infrastructure. Explicit SQL makes joins, batching, locking, and selected columns reviewable. This costs more SQL and mapping code than an ORM, but keeps query behavior under application control.
 
 | Tool | Role |
 | --- | --- |
@@ -204,11 +233,11 @@ SQL stays behind repository contracts, keeping PostgreSQL and generated types ou
 | Squirrel | Parameterized construction for queries whose shape changes at runtime |
 | Goose | Ordered database migrations for existing environments |
 
-[`AGENTS.md`](AGENTS.md) also gives guidance for repository operations and SQL: methods should follow usecase needs rather than generic CRUD. Related reads should be shaped to avoid N+1 access; stable cacheable data may be separated from volatile data when the extra round trip has a measured consistency or reuse benefit. Multi-write workflows should expose one atomic repository operation, leaving transaction handles inside the PostgreSQL adapter. Indexes and material query changes should be evaluated against actual access patterns and query plans.
+Repository methods follow usecase needs. Shape reads to avoid N+1 queries, keep transaction handles inside PostgreSQL adapters, and evaluate indexes and material query changes with query plans. See [`AGENTS.md`](AGENTS.md) for detailed rules.
 
 ### Redis caching and state
 
-Redis serves two roles here. Cached data can be reloaded from a primary store, while short-lived state such as sessions, OTPs, and rate-limit counters directly affects feature behavior. Separate adapters let each role define its own failure policy.
+Redis holds replaceable cached data and feature state such as sessions, OTPs, and rate-limit counters. Each adapter owns its failure policy.
 
 | Package role | Responsibility |
 | --- | --- |
@@ -216,27 +245,29 @@ Redis serves two roles here. Cached data can be reloaded from a primary store, w
 | Key-value store | Owns sessions, OTPs, OAuth state, and rate-limit state whose Redis operations are part of the feature's behavior. |
 | Composed adapter | Coordinates a primary repository and supporting cache behind one repository contract. |
 
-A composed adapter can implement the cache policy a feature needs—for example, read-through, write-through, write-behind, or explicit invalidation. That policy must define acceptable staleness and how cache read, write, and invalidation failures affect the operation.
+The user store demonstrates cache-aside: check Redis, read PostgreSQL on a miss, then populate the cache. Each policy must define acceptable staleness and how read, write, and invalidation failures affect the operation.
+
+`internal/infra/redisconn` creates Redis clients; cache and key-value stores receive them through injection. App composition chooses whether stores share one connection pool or use separate clients or Redis instances, and closes each owned client once.
 
 See [`internal/infra/db/postgres/store/README.md`](internal/infra/db/postgres/store/README.md) and [`internal/infra/composed/README.md`](internal/infra/composed/README.md) for adapter-specific guidance.
 
 ## Testing and CI
 
-Unit tests check one component with its dependencies controlled. Integration tests check real boundaries, such as a storage adapter with its database or a server's request path through its delivery code.
+Unit tests isolate one component; integration tests exercise real transport or backend boundaries.
 
 | Scope | What is tested | Current examples |
 | --- | --- | --- |
 | Unit | One domain, usecase, delivery, or infrastructure component with its dependencies controlled | Business rules, response mapping, and middleware/interceptor behavior |
-| Storage adapter integration | A real adapter against a disposable backend | PostgreSQL and Redis adapters tested with Testcontainers |
-| Transport integration | A request through the real HTTP or gRPC server stack | HTTP authentication uses real PostgreSQL and Redis with controlled external providers; gRPC health uses in-process transport with a controlled usecase |
+| Infrastructure integration | A real adapter against a disposable backend | PostgreSQL and Redis stores; Kafka publishing, commits, rebalances, acknowledgments, renewal, and shutdown with Testcontainers |
+| Transport integration | A request or record through the real delivery path | HTTP authentication with PostgreSQL and Redis; in-process gRPC health; Kafka workflows with a real broker, usecases, middleware, and telemetry |
 
-See [`AGENTS.md`](AGENTS.md) for test-double and concurrency-test rules.
+Tests use matching source filenames. Infrastructure integration tests stay in adapter packages; transport workflows live under `internal/delivery/<transport>/integration`. Reusable doubles belong to the contract owner's `<owner>test` package. Full rules are in [`AGENTS.md`](AGENTS.md).
 
 | CI check | What it verifies |
 | --- | --- |
 | Build and race-enabled tests | Formatting, vet, build, and all untagged Go tests |
-| Integration tests | PostgreSQL and Redis adapters, HTTP authentication workflows, and in-process gRPC server behavior |
-| Template profiles | Runs the selector for HTTP-only and gRPC-only projects separately, then builds and tests each result |
+| Integration tests | PostgreSQL, Redis, and Kafka adapters; HTTP, gRPC, and Kafka delivery workflows |
+| Template profiles | Selects each of the four profiles, generates its database code, then builds and tests the result |
 
 ## AI agent setup
 
@@ -246,7 +277,7 @@ The repository keeps coding guidance in one place so agents follow the same conv
 
 | File | Purpose |
 | --- | --- |
-| [`AGENTS.md`](AGENTS.md) | Shared implementation rules for architecture, correctness, performance, testing, and change discipline, read by Codex and Cursor. |
+| [`AGENTS.md`](AGENTS.md) | Shared implementation and communication rules, including contract ownership, validation boundaries, and testing conventions; read by Codex and Cursor. |
 | [`.claude/CLAUDE.md`](.claude/CLAUDE.md) | Imports the shared rules for Claude instead of maintaining a divergent copy. |
 | [`.github/copilot-instructions.md`](.github/copilot-instructions.md) | Tells GitHub Copilot to consult `AGENTS.md` for the shared rules. |
 
@@ -267,7 +298,7 @@ Invoke `$tdd-change` in Codex or `/tdd-change` in Claude, Cursor, or GitHub Copi
 | gRPC | [grpc-go](https://github.com/grpc/grpc-go), [Protocol Buffers](https://protobuf.dev/), [Buf](https://buf.build/) |
 | PostgreSQL | [pgx](https://github.com/jackc/pgx), [sqlc](https://sqlc.dev/), [Squirrel](https://github.com/Masterminds/squirrel), [Goose](https://github.com/pressly/goose) |
 | Redis | [go-redis](https://github.com/redis/go-redis) |
-| Object storage | [AWS SDK for Go v2](https://aws.github.io/aws-sdk-go-v2/docs/) for S3-compatible Cloudflare R2 |
+| Kafka | [franz-go](https://github.com/twmb/franz-go), [kotel](https://pkg.go.dev/github.com/twmb/franz-go/plugin/kotel), [Apache Kafka](https://kafka.apache.org/) |
 | Authentication | [OAuth2 for Go](https://pkg.go.dev/golang.org/x/oauth2), [Resend](https://resend.com/) |
 | Observability | [OpenTelemetry](https://opentelemetry.io/), [OTLP](https://opentelemetry.io/docs/specs/otlp/), [Zap](https://github.com/uber-go/zap), [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/), [HyperDX](https://www.hyperdx.io/) |
 | Testing and CI | [Testcontainers for Go](https://golang.testcontainers.org/), [GitHub Actions](https://docs.github.com/actions) |
@@ -277,45 +308,50 @@ Invoke `$tdd-change` in Codex or `/tdd-change` in Claude, Cursor, or GitHub Copi
 
 ```text
 cmd/                         process entry points
+config/
+├── air/                     per-binary live-reload configurations
+├── env/                     shared and per-profile environment examples
+└── sqlc/                    per-profile database generation configurations
 contracts/                   OpenAPI and Protobuf sources
 internal/
 ├── app/                     composition roots and shared runtime lifecycle
-├── delivery/                HTTP and gRPC inbound adapters
-├── domain/                  business entities and reusable invariants
-├── usecase/                 application workflows
-├── repository/              outbound capability contracts
-├── infra/                   database, cache, provider, security, and telemetry adapters
-├── logger/                  shared logging contract
-├── observability/           shared telemetry contracts and context helpers
-└── security/                shared security contracts
+├── delivery/                HTTP, gRPC, and Kafka inbound adapters
+├── domain/                  business entities, invariants, and shared repository contracts
+├── usecase/                 workflows and their outbound dependency contracts
+└── infra/                   database, Redis, messaging, and provider adapters
+pkg/
+├── logger/                  logging contract and Zap implementation
+├── observability/           telemetry contracts and OpenTelemetry implementation
+├── tlsconfig/               reusable TLS configuration loading
+└── grpcmetadata/            gRPC metadata key validation
 make/                        capability-owned Make targets
-tools/                       one-time profile selection and project bootstrap
+tools/                       profile selection, identity bootstrap, and Kafka setup
 ```
 
 ## Use as a Starter
 
 ### Requirements
 
-- [Go 1.26+](https://go.dev/doc/install)
+- [Go 1.27+](https://go.dev/doc/install)
 - [Docker](https://docs.docker.com/get-docker/) with [Docker Compose](https://docs.docker.com/compose/install/)
 - [GNU Make](https://www.gnu.org/software/make/)
 
 ### 1. Choose the source shape
 
-Keep both applications, or preview and apply one profile before bootstrapping:
+Keep the full template, or preview one of four profiles before bootstrapping:
 
 ```bash
 # Preview first; no files are changed.
 go run ./tools/profile-selector --profile public-http
 go run ./tools/profile-selector --profile service-grpc
+go run ./tools/profile-selector --profile kafka-worker
+go run ./tools/profile-selector --profile kafka-share-worker
 
-# Keep exactly one profile.
+# Apply the chosen profile; public-http is shown here.
 go run ./tools/profile-selector --profile public-http --apply
-# or
-go run ./tools/profile-selector --profile service-grpc --apply
 ```
 
-The selector requires a clean checkout, removes the unused capability and itself, installs the selected `.air.toml`, `sqlc.yaml`, and `.env.example`, and writes `.template-profile`. Commit the selection before the next step.
+The selector requires a clean checkout, removes unused profiles and itself, installs root-level `.air.toml`, `sqlc.yaml`, and `.env.example` from `config/`, adjusts sqlc paths, and writes `.template-profile`. Commit the selection before the next step.
 
 ### 2. Bootstrap project identity
 
@@ -324,25 +360,42 @@ The selector requires a clean checkout, removes the unused capability and itself
 go mod tidy
 ```
 
-The bootstrap updates module/import paths, service and local resource names, contract package paths, and the README title. It does not rename the checkout directory or configure the Git remote.
+The bootstrap updates module/import paths, service identity, the main Compose resource names, contract package paths, and the README title. It does not rename the checkout directory or configure the Git remote. If retaining Kafka, review the separate project name in `docker-compose.kafka.yml` as well.
 
 ### 3. Start local dependencies and the application
 
 ```bash
 cp .env.example .env
 make install
+```
+
+For HTTP or gRPC, start the main local stack:
+
+```bash
 make dev-up
 make migrate-up  # when the selected source includes database migrations
 ```
 
-Run the default installed application with `make run`, or choose explicitly when both are present:
+For Kafka profiles, start the separate broker and prepare the enabled topics:
 
 ```bash
-make run-httpapi  # HTTP on :8080
-make run-grpcapi  # gRPC on :9090
+make dev-kafka-up
+# Share Group profile only: configure initial position and record-lock duration.
+make kafka-share-group-init
 ```
 
-Verify the HTTP health endpoint:
+Run `make run` for the selected profile, or choose an installed application explicitly:
+
+```bash
+make run-httpapi           # HTTP on :8080
+make run-grpcapi           # gRPC on :9090
+make run-kafkaworker       # consumer group
+make run-kafkashareworker  # Share Group
+```
+
+Kafka workers reuse runtime configuration and telemetry without opening PostgreSQL or Redis connections. They can run with Kafka alone; set `OTEL_EXPORT_ENABLED=false` if no collector is running. In the full template, Kafka settings use their defaults unless overridden; use the matching `config/env/kafka-*.env.example` fragment as a reference.
+
+Verify the HTTP health endpoint when HTTP is installed:
 
 ```bash
 curl 'http://localhost:8080/health?check=ready'
@@ -356,7 +409,18 @@ grpcurl -plaintext \
   localhost:9090 grpc.health.v1.Health/Check
 ```
 
-The local stack exposes PostgreSQL on `5432`, Redis on `6379`, HyperDX on `8081`, and OTLP on `4317`/`4318`.
+For either Kafka profile, publish an example to the default notification topic:
+
+```bash
+printf '%s\n' '{"request_id":"req-1","recipient":"user-1","content":"Your report is ready"}' | \
+  docker compose -f docker-compose.kafka.yml exec -T kafka \
+  /opt/kafka/bin/kafka-console-producer.sh \
+  --bootstrap-server kafka:19092 --topic notifications.requested.v1
+```
+
+The worker logs the simulated notification. Use your configured topic name if it differs from the default. The local broker has one replica per partition, no TLS or SASL, and persistent storage; stopping it preserves records and group progress.
+
+The main local stack exposes PostgreSQL on `5432`, Redis on `6379`, HyperDX on `8081`, and OTLP on `4317`/`4318`. Kafka runs in a separate Compose project on `9092`.
 
 ### 4. Verify the project
 
@@ -364,7 +428,7 @@ The local stack exposes PostgreSQL on `5432`, Redis on `6379`, HyperDX on `8081`
 make check             # formatting, vet, and build
 make test              # unit tests
 make test-race         # unit tests with race detection
-make test-integration  # HTTP, gRPC, and storage integration tests
+make test-integration  # transport and infrastructure integration tests
 make ci                # complete sequence once the project has a contract baseline
 ```
 
@@ -377,4 +441,4 @@ make openapi-generate openapi-check
 make proto-generate proto-check
 ```
 
-Use `make dev-logs` to follow local infrastructure and `make dev-down` to stop it. The transport processes can be stopped separately with `make run-httpapi-stop` or `make run-grpcapi-stop`.
+Use `make dev-logs` to follow local infrastructure and `make dev-down` to stop it. Use `make dev-kafka-logs` and `make dev-kafka-down` for the separate Kafka stack; stopping it retains its data volume. HTTP and gRPC processes can be stopped with `make run-httpapi-stop` or `make run-grpcapi-stop`; stop Kafka workers with Ctrl-C.
