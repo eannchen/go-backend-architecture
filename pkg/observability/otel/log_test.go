@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	otellog "go.opentelemetry.io/otel/log"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 
@@ -83,10 +84,10 @@ func TestToLogValue(t *testing.T) {
 	}
 }
 
-func logAttributes(record sdklog.Record) map[string]otellog.Value {
-	out := make(map[string]otellog.Value, record.AttributesLen())
-	record.WalkAttributes(func(attribute otellog.KeyValue) bool {
-		out[attribute.Key] = attribute.Value
+func logAttributes(record sdklog.Record) map[string]attribute.Value {
+	out := make(map[string]attribute.Value, record.AttributesLen())
+	record.WalkAttributes(func(field attribute.KeyValue) bool {
+		out[string(field.Key)] = field.Value
 		return true
 	})
 	return out

@@ -7,6 +7,7 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/pkg/observability"
 
+	"go.opentelemetry.io/otel/attribute"
 	otellog "go.opentelemetry.io/otel/log"
 )
 
@@ -37,7 +38,7 @@ func (e *otelLogEmitter) Emit(ctx context.Context, severity observability.Severi
 	record.SetObservedTimestamp(now)
 	record.SetSeverity(sev)
 	record.SetSeverityText(severity.String())
-	record.SetBody(otellog.StringValue(message))
+	record.SetBody(attribute.StringValue(message))
 	record.AddAttributes(toLogAttributes(fields)...)
 	// Passing the active span context lets the OTel SDK attach its trace and span
 	// IDs to the log record. Observability backends can then link this log to the
@@ -58,44 +59,44 @@ func toOTelSeverity(level observability.Severity) otellog.Severity {
 	}
 }
 
-func toLogAttributes(fields observability.Fields) []otellog.KeyValue {
-	out := make([]otellog.KeyValue, 0, len(fields))
+func toLogAttributes(fields observability.Fields) []attribute.KeyValue {
+	out := make([]attribute.KeyValue, 0, len(fields))
 	for key, value := range fields {
-		out = append(out, otellog.KeyValue{
-			Key:   key,
+		out = append(out, attribute.KeyValue{
+			Key:   attribute.Key(key),
 			Value: toLogValue(value),
 		})
 	}
 	return out
 }
 
-func toLogValue(v any) otellog.Value {
+func toLogValue(v any) attribute.Value {
 	switch t := v.(type) {
 	case string:
-		return otellog.StringValue(t)
+		return attribute.StringValue(t)
 	case bool:
-		return otellog.BoolValue(t)
+		return attribute.BoolValue(t)
 	case int:
-		return otellog.IntValue(t)
+		return attribute.IntValue(t)
 	case int32:
-		return otellog.Int64Value(int64(t))
+		return attribute.Int64Value(int64(t))
 	case int64:
-		return otellog.Int64Value(t)
+		return attribute.Int64Value(t)
 	case uint:
-		return otellog.Int64Value(int64(t))
+		return attribute.Int64Value(int64(t))
 	case uint32:
-		return otellog.Int64Value(int64(t))
+		return attribute.Int64Value(int64(t))
 	case uint64:
-		return otellog.Int64Value(int64(t))
+		return attribute.Int64Value(int64(t))
 	case float32:
-		return otellog.Float64Value(float64(t))
+		return attribute.Float64Value(float64(t))
 	case float64:
-		return otellog.Float64Value(t)
+		return attribute.Float64Value(t)
 	case time.Time:
-		return otellog.StringValue(t.Format(time.RFC3339Nano))
+		return attribute.StringValue(t.Format(time.RFC3339Nano))
 	case error:
-		return otellog.StringValue(t.Error())
+		return attribute.StringValue(t.Error())
 	default:
-		return otellog.StringValue(fmt.Sprintf("%v", v))
+		return attribute.StringValue(fmt.Sprintf("%v", v))
 	}
 }
