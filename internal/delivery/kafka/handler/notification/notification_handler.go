@@ -16,7 +16,7 @@ type Processor interface {
 }
 
 // NewNotificationHandler maps the Kafka payload to the transport-free usecase.
-// Topic routing selects this handler; workers own the commit/acknowledgment policy.
+// Topic routing selects this handler; consumers own the commit/acknowledgment policy.
 func NewNotificationHandler(usecase Processor) middleware.Handler {
 	return func(ctx context.Context, record *kgo.Record) error {
 		request, err := decodeNotification(record.Value)

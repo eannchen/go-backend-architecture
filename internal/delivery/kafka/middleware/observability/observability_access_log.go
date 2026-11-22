@@ -7,7 +7,7 @@ import (
 )
 
 // AccessLog writes one completion log for each record processing attempt.
-// The worker commits or acknowledges afterward, so success means handling finished.
+// The consumer commits or acknowledges afterward, so success means handling finished.
 type AccessLog struct{ log logger.Logger }
 
 func NewAccessLog(log logger.Logger) *AccessLog {

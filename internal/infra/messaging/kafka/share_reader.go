@@ -21,43 +21,45 @@ var (
 	ErrShareDecisionAlreadySet = errors.New("share record already has a different decision")
 )
 
-// ShareAcknowledgmentErrorHandler receives asynchronous, per-partition failures.
-// The SDK calls it in the background, independently of message processing.
-// Return nil to continue, or an error to request worker shutdown through FatalErrors.
-// Report continuing failures here; let the lifecycle log a returned stop error.
-// Keep the handler quick and never call reader methods from it.
+// ShareAcknowledgmentErrorHandler receives acknowledgment failures through
+// franz-go's background callback. A failure identifies a topic and partition, not a
+// processing batch. Return nil to continue, or an error to request consumer shutdown
+// through FatalErrors. Log continuing failures here; the app logs stop errors.
+// Keep the callback quick. Do not call reader methods or FlushAcks from it.
 type ShareAcknowledgmentErrorHandler func(topic string, partition int32, err error) error
 
-// ShareReader consumes a Kafka Share Group. Several readers can share records
-// from the same partition. Requires Kafka 4.2+ for the strict batch-size limit.
+// ShareReader consumes records as a member of a Kafka Share Group. Unlike a regular
+// consumer group, several members can process records from the same partition.
+// Kafka temporarily locks each delivered record; lock expiry permits redelivery.
+// Requires Kafka 4.2+ for the strict batch-size limit.
 //
-// One goroutine owns fetching, outcome decisions, renewal, and Close. Handlers
-// may run in parallel, but return outcomes to that owner.
+// One goroutine owns fetching, Accept/Release/Reject decisions, renewal, and Close.
+// Handlers may run in parallel, but return outcomes to that owner.
 // Cancel the polling context and wait for processing to stop before Close.
 //
 // Default (explicit) flow: fetch -> process -> mark every outcome -> fetch again.
-// Implicit mode lets the next poll accept any records left undecided. Like Java's
-// KafkaShareConsumer, we offer both policies; franz-go itself always permits
-// next-poll auto-acceptance, so our wrapper adds the explicit-mode guard.
-// Kafka acknowledgment results arrive separately through the injected handler.
-// Record operations only queue decisions. An optional flusher requests earlier
-// sends outside processing; shutdown performs the final acknowledgment drain.
+// Implicit mode lets the next poll accept undecided records. Java's KafkaShareConsumer
+// also offers both modes; franz-go auto-accepts on the next poll, so this wrapper
+// adds the explicit-mode guard. Expired locks do not clear that local guard.
+// Decisions only queue acknowledgments. Broker failures arrive separately through
+// the injected callback. The optional flusher requests earlier sends; Close waits
+// for pending acknowledgments within its context deadline.
 type ShareReader struct {
-	// Owned SDK client and fixed maximum number of records per poll.
+	// franz-go client and settings fixed at construction.
 	client             *kgo.Client
 	maxPollRecords     int
 	groupID            string
 	acknowledgmentMode config.KafkaShareAcknowledgmentMode
-	// Only the owner accesses the current batch and shutdown state.
+	// Only the polling goroutine accesses the batch and shutdown state.
 	active   *shareBatch
 	closed   bool
 	closeErr error
-	// Optional background flusher. It uses only the thread-safe SDK client,
+	// Optional background flusher. It uses only the thread-safe franz-go client,
 	// never the active batch. Close cancels and joins it before leaving Kafka.
 	stopAckFlusher context.CancelFunc
 	ackFlusherDone chan struct{}
 	// The callback owns error reporting. Only its first stop request is queued;
-	// the buffered channel keeps the SDK callback from waiting for the worker.
+	// the buffered channel keeps the franz-go callback from waiting for the consumer.
 	onAcknowledgmentError ShareAcknowledgmentErrorHandler
 	fatalErrors           chan error
 	fatalOnce             sync.Once
@@ -65,8 +67,8 @@ type ShareReader struct {
 
 // shareBatch tracks one fetch inside ShareReader. Zero means no decision yet.
 // Only the reader's owner accesses this state; handlers return outcomes to it.
-// Keeping record pointers as keys also rejects late outcomes from older fetches.
-// These references let ReleaseRemaining recover even if the caller loses its copy.
+// Record pointers identify the fetched records and reject outcomes from older polls.
+// These references let ReleaseRemaining recover if the caller loses its references.
 type shareBatch struct {
 	decisions map[*kgo.Record]kgo.AckStatus
 	pending   int
@@ -105,28 +107,33 @@ func NewShareReader(cfg config.KafkaShareConsumerConfig, tlsConfig *tls.Config, 
 		fatalErrors:           make(chan error, 1),
 	}
 	opts := []kgo.Opt{
-		// Kotel hooks observe network and record activity for this client.
+		// App wiring supplies hooks, including kotel's client traces and metrics.
 		kgo.WithHooks(hooks...),
 		kgo.SeedBrokers(cfg.Brokers...), kgo.ConsumeTopics(cfg.Topics...), kgo.ShareGroup(cfg.GroupID),
-		// Ask for a strict record-count limit, then return at most that many records
-		// to the caller. This makes one batch's work finite, even for large log batches.
+		// Bound both broker acquisition and records returned per poll. Without strict
+		// mode, Kafka may deliver a whole stored batch that exceeds the requested count.
 		kgo.ShareMaxRecords(int32(cfg.MaxPollRecords)), kgo.ShareMaxRecordsStrict(),
-		// 0 is a special SDK mode: allow one fetch while PollRecords is running,
-		// with no background fetching between polls. It does not mean zero requests
-		// or "zero extra" requests. A value of 1 allows one fetch between polls too.
-		// Share Group locks start when Kafka hands out records, so fetching ahead
-		// would spend their lock time while our handlers are busy with this batch.
-		// ShareMaxRecordsStrict also defaults to 0; keep our choice explicit here.
+		// 0 means one fetch while polling, with none between polls. A value of 1
+		// also allows fetching ahead while handlers run. Since broker locks start
+		// on acquisition, fetching ahead would waste lock time in a local buffer.
+		// Strict mode also selects 0 by default; keep this choice explicit.
 		kgo.MaxConcurrentFetches(0),
+		// Kafka waits up to FetchMaxWait to collect FetchMinBytes. The byte limits
+		// bound requested responses, not handler concurrency; the first record
+		// batch may exceed them. BrokerMaxReadBytes is a separate hard response
+		// limit; responses exceeding it fail rather than grow memory without bound.
 		kgo.FetchMinBytes(int32(cfg.FetchMinBytes)), kgo.FetchMaxBytes(int32(cfg.FetchMaxBytes)),
 		kgo.FetchMaxPartitionBytes(int32(cfg.FetchMaxBytes)),
 		kgo.BrokerMaxReadBytes(max(100<<20, int32(cfg.FetchMaxBytes))),
+		// RequestTimeout adds network time to Kafka's fetch wait. Neither setting
+		// limits handler duration or changes the broker's record-lock duration.
 		kgo.FetchMaxWait(cfg.FetchMaxWait), kgo.RequestTimeoutOverhead(cfg.RequestTimeout),
 		// Results arrive independently of polling and the current processing batch.
-		// App wiring chooses whether each failure is reported or stops this worker.
+		// App wiring chooses whether each failure is logged or stops this consumer.
 		kgo.ShareAckCallback(r.recordAckResults),
-		// Do not add DisableAutoCommit or BlockRebalanceOnPoll: those belong to
-		// consumer groups, not Share Groups. Topics are provisioned separately.
+		// Share Groups acknowledge individual records, rather than committing a
+		// partition offset. DisableAutoCommit and BlockRebalanceOnPoll apply only
+		// to regular consumer groups. Topics are provisioned separately.
 	}
 	opts = append(opts, security...)
 	client, err := kgo.NewClient(opts...)
@@ -138,7 +145,8 @@ func NewShareReader(cfg config.KafkaShareConsumerConfig, tlsConfig *tls.Config, 
 	return r, nil
 }
 
-// startAckFlusher is called once after the SDK client is constructed.
+// startAckFlusher optionally requests earlier acknowledgment sends. Zero keeps
+// franz-go's normal background sending. Call once after constructing the client.
 func (r *ShareReader) startAckFlusher(interval time.Duration) {
 	if interval == 0 {
 		return
@@ -182,8 +190,8 @@ func runAckFlusher(ctx context.Context, interval time.Duration, flushAcks func(c
 // Finish handlers before the next poll in either mode.
 // Treat records as read-only; use the reader methods instead of Record.Ack.
 // After handlers stop, ReleaseRemaining can abandon undecided work safely.
-// Holding records does not extend their Kafka locks. Finish well before each
-// record's AcquisitionDeadline; DeliveryCount shows its delivery attempt count.
+// Holding records does not extend their locks. AcquisitionDeadline estimates the
+// original lock expiry; renewal does not update it. DeliveryCount counts attempts.
 // Queuing decisions is enough to poll again; broker results are asynchronous.
 func (r *ShareReader) FetchRecords(ctx context.Context) ([]*kgo.Record, error) {
 	if r.closed {
@@ -195,7 +203,7 @@ func (r *ShareReader) FetchRecords(ctx context.Context) ([]*kgo.Record, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("fetch share batch: %w", err)
 	}
-	// In implicit mode the SDK finalizes undecided records when polling starts,
+	// In implicit mode franz-go finalizes undecided records when polling starts,
 	// even if the poll later times out. They must no longer be locally releasable.
 	r.active = nil
 	for {
@@ -221,21 +229,21 @@ func (r *ShareReader) FetchRecords(ctx context.Context) ([]*kgo.Record, error) {
 	}
 }
 
-// Accept queues successful processing for this group; it does not wait for Kafka.
-// The injected handler reports broker failures separately. Only the reader's
-// owner calls this method.
+// Accept queues successful completion for this group. It does not wait for Kafka;
+// the injected callback reports broker failures. Only the polling goroutine calls it.
 func (r *ShareReader) Accept(record *kgo.Record) error {
 	return r.markRecord(record, kgo.AckAccept)
 }
 
-// Release queues another delivery attempt without waiting for Kafka.
-// Only the reader's owner calls it.
+// Release queues a request to make the record available to this group again.
+// It does not wait for Kafka. Only the polling goroutine calls it.
 func (r *ShareReader) Release(record *kgo.Record) error {
 	return r.markRecord(record, kgo.AckRelease)
 }
 
-// Reject queues an end to delivery to this group, without publishing to a DLT.
-// It does not wait for Kafka. Only the reader's owner calls it.
+// Reject queues an end to delivery to this group. It does not delete the retained
+// record or publish it to a dead-letter topic. Only the polling goroutine calls it;
+// broker failures are reported asynchronously.
 func (r *ShareReader) Reject(record *kgo.Record) error {
 	return r.markRecord(record, kgo.AckReject)
 }
@@ -257,20 +265,20 @@ func (r *ShareReader) markRecord(record *kgo.Record, decision kgo.AckStatus) err
 	if previous != 0 {
 		return ErrShareDecisionAlreadySet
 	}
-	// Queue the SDK acknowledgment before recording the local outcome.
+	// Queue the franz-go acknowledgment before recording the local outcome.
 	r.client.MarkAcks(decision, record)
 	r.active.decisions[record] = decision
 	r.active.pending--
 	return nil
 }
 
-// RenewRemaining queues best-effort renewal for undecided records, including
-// queued work. It does not complete records or wait for Kafka. The SDK sends
-// acknowledgments in the background and reports failures through the callback.
-// Its v1.22.3 background timer is 1s; shorter renewal ticks do not force sends.
-// A queued renewal does not guarantee continued ownership; handlers must tolerate
-// redelivery. Overlapping renewal and final decisions can produce SDK duplicate-
-// acknowledgment errors; these are reported asynchronously as well.
+// RenewRemaining requests longer locks for undecided records, including queued work.
+// It only queues requests; broker failures arrive through the callback. In franz-go
+// v1.22.3 the background timer is 1s; AckFlushInterval can request earlier sends.
+// Renewal is best-effort: it neither completes records nor guarantees ownership.
+// Renewing and then completing a record can cause duplicate acknowledgments in
+// franz-go; Kafka may reject them and redeliver affected records. Handlers must
+// tolerate repeated delivery whether renewal is enabled or not.
 func (r *ShareReader) RenewRemaining() error {
 	if r.closed {
 		return fmt.Errorf("renew remaining share records: %w", io.ErrClosedPipe)
@@ -278,8 +286,8 @@ func (r *ShareReader) RenewRemaining() error {
 	if r.active == nil || r.active.pending == 0 {
 		return nil
 	}
-	// One goroutine owns this map; the SDK's acknowledgment state is separate.
-	// This filter skips our final decisions. MarkAcks atomically checks the SDK
+	// One goroutine owns this map; franz-go's acknowledgment state is separate.
+	// This filter skips our final decisions. MarkAcks atomically checks its own
 	// state when queuing renewal, so a final Accept/Release/Reject cannot be
 	// overwritten. Selecting a record here does not provide that protection.
 	records := make([]*kgo.Record, 0, r.active.pending)
@@ -316,8 +324,8 @@ func (r *ShareReader) ReleaseRemaining() error {
 	return nil
 }
 
-// FatalErrors reports the first acknowledgment failure the injected handler
-// chose to stop for. The worker observes it independently of batch results.
+// FatalErrors reports the first acknowledgment failure the injected callback
+// chose to stop for. The consumer observes it separately from processing results.
 // The channel stays open: callbacks may finish after a timed-out Close, so
 // callers stop waiting when their own context ends.
 func (r *ShareReader) FatalErrors() <-chan error { return r.fatalErrors }
@@ -338,7 +346,7 @@ func (r *ShareReader) recordAckResults(_ *kgo.Client, results kgo.ShareAckResult
 // Close is called by the owner after polling and handlers have stopped.
 // It releases unfinished records; it never accepts them as successful work.
 // Repeated calls return the first shutdown result. The context limits network
-// and acknowledgment waits; SDK resources are closed even if it expires.
+// and acknowledgment waits; franz-go resources are closed even if it expires.
 func (r *ShareReader) Close(ctx context.Context) error {
 	if r.closed {
 		return r.closeErr
@@ -352,17 +360,23 @@ func (r *ShareReader) Close(ctx context.Context) error {
 	// separate flush before leaving is unnecessary.
 	leaveErr := r.client.LeaveGroupContext(ctx)
 	// Wait for callbacks for both the queued decisions and final releases.
-	// Leaving can finish before these callbacks; keep the SDK open for this wait.
+	// Leaving can finish before these callbacks; keep the client open for this wait.
 	flushErr := r.client.FlushAcks(ctx)
-	// Always release SDK resources, even if an earlier step failed or timed out.
+	// Always release franz-go resources, even if an earlier step failed or timed out.
 	r.client.Close()
 	r.active = nil
-	// If shutdown began before the worker observed a stop request, return it
+	// If shutdown began before the consumer observed a stop request, return it
 	// here. A failure already consumed by Run is not reported a second time.
 	var fatalErr error
 	select {
 	case fatalErr = <-r.fatalErrors:
 	default:
+	}
+	if leaveErr != nil {
+		leaveErr = fmt.Errorf("leave Kafka share group: %w", leaveErr)
+	}
+	if flushErr != nil {
+		flushErr = fmt.Errorf("drain Kafka share acknowledgments: %w", flushErr)
 	}
 	r.closeErr = errors.Join(leaveErr, flushErr, fatalErr)
 	return r.closeErr

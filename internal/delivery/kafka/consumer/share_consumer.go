@@ -11,9 +11,9 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-// ShareMessageReader is the consumer-owned contract for fetching and deciding
-// record outcomes. The client owns batch bookkeeping. Only Run's owner goroutine
-// calls these methods; parallel handlers return their results to it.
+// ShareMessageReader fetches records and queues per-record acknowledgment decisions.
+// Run owns these calls; parallel handlers return outcomes without touching the reader.
+// FatalErrors is observed separately so acknowledgment failures can stop a blocked poll.
 type ShareMessageReader interface {
 	FetchRecords(context.Context) ([]*kgo.Record, error)
 	Accept(*kgo.Record) error
@@ -26,11 +26,14 @@ type ShareMessageReader interface {
 	FatalErrors() <-chan error
 }
 
-// ShareConsumerOptions bounds local work. Batch size is configured on the reader.
+// ShareConsumerOptions controls handling within one fetched batch. The reader
+// limits batch size. Share Groups allow parallel handling within a partition;
+// this consumer does not preserve record order.
 type ShareConsumerOptions struct {
+	// Maximum simultaneous handlers in this process, not the number of group members.
 	Concurrency int
 	// Zero disables renewal. A positive interval renews undecided records in
-	// the current batch, including queued records. Leave enough time for SDK
+	// the current batch, including queued records. Leave enough time for franz-go
 	// background sending and network delays before the broker lock expires.
 	RenewalInterval time.Duration
 }
@@ -58,8 +61,9 @@ func NewShareConsumer(reader ShareMessageReader, handler middleware.Handler, opt
 	return &ShareConsumer{reader: reader, handler: handler, options: options}, nil
 }
 
-// Run owns the reader and joins all handlers before returning. Acknowledgment
-// failures chosen as fatal cancel polling and handlers through a separate path;
+// Run uses the reader exclusively and waits for all handlers before returning.
+// Parent cancellation is normal shutdown; the app closes the reader afterward.
+// Acknowledgment failures chosen as fatal cancel polling and handlers separately;
 // they are never attached to whichever batch happens to be running.
 func (c *ShareConsumer) Run(ctx context.Context) (result error) {
 	runCtx, cancel := context.WithCancel(ctx)
@@ -108,8 +112,8 @@ func (c *ShareConsumer) handleBatch(ctx context.Context, records []*kgo.Record) 
 		defer ticker.Stop()
 		renewalTicks = ticker.C
 	}
-	// Both queues are bounded by this finite batch / configured concurrency.
-	// A queued record already holds a Kafka lock, so keep batches small.
+	// Jobs are bounded by batch size and results by handler concurrency. Records
+	// waiting in jobs already hold broker locks, so keep batches near concurrency.
 	jobs := make(chan *kgo.Record, len(records))
 	results := make(chan shareOutcome, c.options.Concurrency)
 	for _, record := range records {
@@ -120,13 +124,19 @@ func (c *ShareConsumer) handleBatch(ctx context.Context, records []*kgo.Record) 
 	for range min(c.options.Concurrency, len(records)) {
 		handlers.Go(func() {
 			for record := range jobs {
-				results <- shareOutcome{record: record, err: c.handler(batchCtx, record)}
+				// Do not start queued work after shutdown or a batch failure. Still
+				// report every record so the owner can release unfinished work.
+				err := batchCtx.Err()
+				if err == nil {
+					err = c.handler(batchCtx, record)
+				}
+				results <- shareOutcome{record: record, err: err}
 			}
 		})
 	}
 	// Only the sender side closes results, after every handler goroutine exits.
-	// The owner drains results concurrently so it can mark outcomes and cancel
-	// the remaining work as soon as a failure arrives.
+	// Draining until results closes also waits for all handlers, including after
+	// cancellation. Handlers must honor their context; Go cannot forcibly stop them.
 	go func() {
 		handlers.Wait()
 		close(results)

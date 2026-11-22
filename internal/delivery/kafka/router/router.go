@@ -9,7 +9,7 @@ import (
 )
 
 // New binds subscribed topics to handlers at startup. The private map is read
-// concurrently by share workers; later changes to the caller's map have no effect.
+// concurrently by share consumers; later changes to the caller's map have no effect.
 func New(topics []string, routes map[string]middleware.Handler) (middleware.Handler, error) {
 	handlers := make(map[string]middleware.Handler, len(topics))
 	for _, topic := range topics {

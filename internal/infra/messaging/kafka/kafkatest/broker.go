@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/twmb/franz-go/pkg/kerr"
@@ -179,7 +180,58 @@ func (b *Broker) CreateTopic(t *testing.T, partitions int32) string {
 			}
 		}
 	})
+	// Topic creation can finish before its partition leaders are ready for I/O.
+	// Wait for metadata rather than adding a fixed delay before every test.
+	if err := b.waitForTopic(ctx, topic, partitions); err != nil {
+		t.Fatal(err)
+	}
 	return topic
+}
+
+func (b *Broker) waitForTopic(ctx context.Context, topic string, partitions int32) error {
+	req := kmsg.NewPtrMetadataRequest()
+	req.Topics = []kmsg.MetadataRequestTopic{{Topic: kmsg.StringPtr(topic)}}
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		response, err := req.RequestWith(ctx, b.Admin)
+		if err != nil {
+			return fmt.Errorf("wait for Kafka topic %q: %w", topic, err)
+		}
+		ready := false
+		for _, result := range response.Topics {
+			if err := kerr.ErrorForCode(result.ErrorCode); err != nil && !kerr.IsRetriable(err) {
+				return fmt.Errorf("Kafka topic %q metadata: %w", topic, err)
+			}
+			ready = result.ErrorCode == 0 && len(result.Partitions) == int(partitions)
+			for _, partition := range result.Partitions {
+				if err := kerr.ErrorForCode(partition.ErrorCode); err != nil && !kerr.IsRetriable(err) {
+					return fmt.Errorf("Kafka topic %q partition %d metadata: %w", topic, partition.Partition, err)
+				}
+				ready = ready && partition.ErrorCode == 0 && partition.Leader >= 0 && len(partition.ISR) > 0
+			}
+		}
+		if ready {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for Kafka topic %q partition leaders: %w", topic, ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
+// PublisherConfig gives real-broker tests time for metadata discovery, producer
+// initialization, and retries on a busy CI runner. Unit-test deadlines are too short
+// for this setup. Small batches keep tests quick without weakening acknowledgments.
+func (b *Broker) PublisherConfig(topic string) config.KafkaPublisherConfig {
+	return config.KafkaPublisherConfig{
+		Brokers: b.Brokers, Topic: topic, PartitionStrategy: config.PartitionRoundRobin, RequiredAcks: config.KafkaAcksAll,
+		RequestTimeout: 10 * time.Second, ProduceTimeout: 10 * time.Second, DeliveryTimeout: 30 * time.Second,
+		MaxBufferedRecords: 25, BatchBytes: 65536, BatchTimeout: time.Millisecond, MaxAttempts: 10,
+		WriteBackoffMin: 100 * time.Millisecond, WriteBackoffMax: time.Second, Compression: config.CompressionNone,
+	}
 }
 
 func (b *Broker) CleanupGroup(t *testing.T, group string) {

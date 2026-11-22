@@ -11,7 +11,7 @@ import (
 )
 
 // Middleware coordinates traces, metrics, and completion logs for record handling.
-// Commits and acknowledgments happen afterward in the worker.
+// Commits and acknowledgments happen afterward in the consumer.
 type Middleware struct {
 	tracing   *Tracing
 	metrics   *ProcessingMetrics

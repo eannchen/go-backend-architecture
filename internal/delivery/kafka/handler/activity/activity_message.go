@@ -24,7 +24,7 @@ func decodeActivity(value []byte) (activity.Request, error) {
 	var message activityMessage
 	decoder := json.NewDecoder(bytes.NewReader(value))
 	decoder.DisallowUnknownFields()
-	// Fixed diagnostics keep payload fragments out of worker logs.
+	// Fixed diagnostics keep payload fragments out of consumer logs.
 	if err := decoder.Decode(&message); err != nil {
 		return activity.Request{}, errors.New("invalid activity JSON")
 	}

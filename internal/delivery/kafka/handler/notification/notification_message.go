@@ -26,7 +26,7 @@ func decodeNotification(value []byte) (notification.Request, error) {
 	decoder := json.NewDecoder(bytes.NewReader(value))
 	decoder.DisallowUnknownFields()
 	// Use a fixed diagnostic: JSON decoder errors can include sensitive payload
-	// fragments. The worker reports the topic/partition/offset instead of the data.
+	// fragments. The consumer reports the topic/partition/offset instead of the data.
 	if err := decoder.Decode(&message); err != nil {
 		return notification.Request{}, errors.New("invalid notification JSON")
 	}

@@ -16,14 +16,14 @@ type Config struct {
 	HandlingTimeout time.Duration
 	// Reserve time to acknowledge a Share Group record before its lock expires.
 	AcknowledgmentMargin time.Duration
-	// The consumer requests best-effort renewal. The SDK does not update its
+	// The consumer requests best-effort renewal. Franz-go does not update its
 	// original acquisition deadline, so it cannot bound renewed work here.
 	// HandlingTimeout and parent cancellation still apply; ownership may be lost.
 	RenewalEnabled bool
 }
 
 // Middleware carries trace metadata and applies a processing deadline while
-// preserving worker cancellation. Handlers must honor context cancellation.
+// preserving consumer cancellation. Handlers must honor context cancellation.
 type Middleware struct {
 	tracer observability.Tracer
 	config Config
@@ -40,7 +40,7 @@ func (m *Middleware) Handler() middleware.Middleware {
 			deadline := time.Now().Add(m.config.HandlingTimeout)
 			// Share Groups temporarily lock each fetched record for this consumer.
 			// If the lock expires before Kafka receives our acknowledgment, another
-			// consumer can get the record. Finish before the SDK's estimated lock
+			// consumer can get the record. Finish before franz-go's estimated lock
 			// deadline, leaving margin for sending the acknowledgment.
 			//
 			// Consumer groups assign whole partitions and have no per-record
@@ -69,7 +69,7 @@ func (m *Middleware) Handler() middleware.Middleware {
 }
 
 // Kotel stores its receive span in record.Context. Transfer that trace onto the
-// worker context so shutdown cancellation and handler deadlines still apply.
+// consumer context so shutdown cancellation and handler deadlines still apply.
 // Header extraction also supports callers using a reader without kotel hooks.
 func recordContext(ctx context.Context, tracer observability.Tracer, record *kgo.Record) context.Context {
 	headers := make(messageHeaders, len(record.Headers))

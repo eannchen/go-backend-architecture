@@ -14,19 +14,21 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 )
 
-// Reader receives messages from subscribed topics as a member of a consumer group.
-// franz-go calls a message a "record"; kgo is the name of its Go package.
+// Reader receives records as a member of a regular Kafka consumer group.
+// Within that group, each partition is assigned to one consumer at a time.
+// A record is Kafka's term for a message; kgo is franz-go's client package.
 //
 // Use it in this order, one record at a time:
-//  1. FetchRecord gets a message without saving progress.
-//  2. The worker handles that message.
+//  1. FetchRecord gets a record without saving progress.
+//  2. The consumer handles that record.
 //  3. If handling succeeded, CommitRecords saves the group's progress in Kafka.
 //  4. AllowRebalance lets Kafka move partitions between consumers if needed.
 //     Call it even when handling or committing failed.
 //
-// A "rebalance" is a change to which consumer handles which partitions, for
-// example when another worker starts or stops. We briefly hold up that change
-// while handling a record. Close the reader after its processing loop stops.
+// A rebalance reassigns partitions when consumers join, leave, or fail. This
+// reader delays reassignment during handling and committing. This is not a
+// permanent ownership guarantee: Kafka can remove an unresponsive consumer.
+// Stop the processing loop before closing the reader.
 type Reader struct {
 	client    *kgo.Client
 	closed    atomic.Bool
@@ -49,48 +51,36 @@ func NewReader(cfg config.KafkaConsumerConfig, tlsConfig *tls.Config, hooks ...k
 		offset = kgo.NewOffset().AtEnd()
 	}
 	opts := []kgo.Opt{
-		// Kotel hooks observe network and record activity for this client.
+		// App wiring supplies hooks, including kotel's client traces and metrics.
 		kgo.WithHooks(hooks...),
-		// Find the Kafka cluster, choose the topic, and join the named group.
-		// Workers with the same GroupID share partitions. A different GroupID
-		// gets its own progress and can read the same messages independently.
+		// Discover brokers, subscribe to topics, and join the group. Consumers
+		// with the same GroupID divide partitions; different groups read and
+		// commit their progress independently.
 		kgo.SeedBrokers(cfg.Brokers...), kgo.ConsumeTopics(cfg.Topics...), kgo.ConsumerGroup(cfg.GroupID),
-		// For a group with no saved progress: earliest starts at the oldest retained
-		// messages; latest starts at the end and waits for new messages.
-		// Existing saved progress takes priority over this choice.
-		// If Kafka has deleted data needed by a saved position, stop with an error
-		// rather than automatically jumping elsewhere and possibly skipping work.
+		// For partitions without a committed offset, earliest reads retained
+		// records and latest waits for new ones. Existing commits take priority.
+		// If a committed offset is no longer retained, return an error rather
+		// than silently resetting the position and potentially skipping work.
 		kgo.ConsumeStartOffset(offset), kgo.ConsumeResetOffset(kgo.NoResetOffset()),
-		// Do not let the client save progress automatically, including on close.
-		// Reading a message does not mean our usecase successfully handled it.
-		// The worker calls CommitRecords only after successful handling.
+		// Disable automatic commits, including on close. Our consumer commits
+		// explicitly after handling succeeds; polling alone does not save progress.
 		kgo.DisableAutoCommit(),
-		// After polling gives us a record, ask franz-go to hold up partition
-		// reassignment while we handle it and commit successful work. We must
-		// explicitly call AllowRebalance afterward, including on failure.
+		// Delay partition reassignment after polling while handling and committing.
+		// The caller must call AllowRebalance after every attempt, even on failure.
 		kgo.BlockRebalanceOnPoll(),
-		// When a rebalance begins (e.g. another worker joins), Kafka allows group
-		// members time to finish current work, commit, and rejoin the group.
-		// This configures that rebalance time allowance. It is NOT a new timer
-		// starting each time we fetch a record, and does not automatically call
-		// AllowRebalance or cancel our Go handler when time runs out.
-		// If a worker holds up the rebalance too long, Kafka can remove the worker from the group.
-		// Kafka uses the largest configured allowance among the group's members;
-		// our workers should finish comfortably within the configured timeout.
+		// Once a rebalance begins, this is the allowance for finishing work and
+		// rejoining. Kafka uses the largest allowance among the group's members.
+		// Holding up reassignment too long can cost us partition ownership.
+		// This is not a per-record timer and does not cancel a Go handler; keep
+		// handling and committing comfortably within this allowance.
 		kgo.RebalanceTimeout(cfg.RebalanceTimeout),
-		// Limit broker fetch requests, not the number of records or partitions.
-		// One request can fetch many records from several partitions led by the
-		// same broker. A larger limit lets requests to different brokers overlap;
-		// it does not force that many requests to run.
-		// A request occupies a slot while waiting for a reply AND while that reply
-		// has unread records buffered in the client. PollRecords(ctx, 1) below
-		// returns one record and leaves any others buffered for later polls.
-		// Draining that buffer frees the slot; committing is a separate operation.
-		// Fetching does not remove records from Kafka or start parallel handlers.
-		// Default 1 allows background fetching between polls, even while the worker
-		// handles a record. It still handles one record at a time. Consumer groups
-		// do not acquire Share Group record locks, so fetching ahead is useful here.
-		// The SDK's special 0 mode fetches only during polling; the share reader uses it.
+		// Limit concurrent fetch requests, not records or handlers. One request
+		// can return many records from several partitions on one broker.
+		// A slot stays occupied until the reply's buffered records are polled;
+		// committing does not free it. PollRecords(ctx, 1) returns one record
+		// and leaves the rest buffered. Records remain retained in Kafka.
+		// Default 1 allows fetching ahead while handling. ShareReader uses
+		// franz-go's special 0 mode to fetch only while polling, avoiding early locks.
 		kgo.MaxConcurrentFetches(cfg.MaxConcurrentFetches),
 		// Kafka can wait to collect at least this much data before replying.
 		// With 1 byte, it can reply as soon as a message is available.
@@ -123,15 +113,17 @@ func NewReader(cfg config.KafkaConsumerConfig, tlsConfig *tls.Config, hooks ...k
 }
 
 // FetchRecord waits for one message. It does not mark the message as handled.
-// Use one processing loop per reader; do not call it from parallel workers.
+// Use one processing loop per reader; do not poll from parallel handlers.
 // After it returns a record, the caller must eventually call AllowRebalance.
+// On a fetch error, stop and recreate the reader to resume committed progress:
+// a failed poll may also have removed records from the client's local buffer.
 func (r *Reader) FetchRecord(ctx context.Context) (*kgo.Record, error) {
 	if r.closed.Load() {
 		return nil, fmt.Errorf("fetch Kafka record: %w", io.EOF)
 	}
 	for {
 		// "Poll" asks franz-go for available messages, waiting if necessary.
-		// The 1 limits what is returned to our worker, even if the client already
+		// The 1 limits what is returned to our consumer, even if the client already
 		// fetched a larger batch from Kafka and is holding the rest in memory.
 		fetches := r.client.PollRecords(ctx, 1)
 		// A fetch result can contain errors for individual partitions. Check
@@ -145,8 +137,8 @@ func (r *Reader) FetchRecord(ctx context.Context) (*kgo.Record, error) {
 			r.client.AllowRebalance()
 			return nil, fmt.Errorf("fetch Kafka record: %w", result)
 		}
-		// Give the worker the record, keeping the rebalance hold until the
-		// worker finishes handling/committing and calls AllowRebalance.
+		// Keep the rebalance hold until the caller finishes handling/committing
+		// and calls AllowRebalance.
 		if iter := fetches.RecordIter(); !iter.Done() {
 			return iter.Next(), nil
 		}
@@ -185,7 +177,7 @@ func (r *Reader) CommitRecords(ctx context.Context, records ...*kgo.Record) erro
 
 // AllowRebalance means "we have finished this attempt; partitions may move now."
 // It does not mark any message successful and does not save progress.
-// The worker defers this call so it runs after success, failure, or cancellation.
+// The consumer defers this call after polling so every attempt releases the hold.
 func (r *Reader) AllowRebalance() { r.client.AllowRebalance() }
 
 // Close leaves the consumer group and stops the client. Call it after the
@@ -214,22 +206,22 @@ func (r *Reader) Close(ctx context.Context) error {
 // Fields not listed keep their configured defaults. The writer examples explain
 // publishing; these examples explain who reads messages and saves progress.
 //
-// 1. Several workers share one job stream
-//    Goal: add workers to share the topic's partitions.
+// 1. Several consumers share one job stream
+//    Goal: add consumers to share the topic's partitions.
 //    Settings:
 //      Topics               = [jobs.v1]
-//      GroupID              = job-workers-v1 (same for all instances)
+//      GroupID              = job-consumers-v1 (same for all instances)
 //      FetchMinBytes        = 1
 //      MaxConcurrentFetches = 1
 //    Handling: inspect the payload, choose a handler, commit after success.
-//    Every worker must support the jobs it can receive. Kafka assigns partitions;
-//    it does not inspect the payload to choose a specialized worker.
+//    Every consumer must support the jobs it can receive. Kafka assigns partitions;
+//    it does not inspect the payload to choose a specialized consumer.
 //
 // 2. Keep one recipient's requests in order
 //    Goal: handle related requests in the order they appear in their partition.
 //    Publisher: use the recipient ID as the message key with key partitioning.
 //    Consumers: use the same group and finish each partition's records in order.
-//    Our worker handles one record at a time. Starting parallel handlers later
+//    Our consumer handles one record at a time. Starting parallel handlers later
 //    needs care: finishing/committing a later record first can skip unfinished work.
 //    A recipient with many messages can make its partition busier than others.
 //
@@ -250,7 +242,7 @@ func (r *Reader) Close(ctx context.Context) error {
 //      FetchMaxWait         = 1s
 //      MaxConcurrentFetches = 2
 //    Cost: more waiting and buffered data. These fetch settings do not turn our
-//    one-record worker into a parallel or batch handler. That needs a separate,
+//    one-record consumer into a parallel or batch handler. That needs a separate,
 //    bounded processing design and careful decisions about when to commit.
 //
 // 5. Fan-out to notification handling and auditing

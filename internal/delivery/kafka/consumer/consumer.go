@@ -10,8 +10,9 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 )
 
-// MessageReader is what this Kafka consumer needs from its reader.
-// The injected handler selects the workflow and decodes its message.
+// MessageReader supplies records and commits partition progress for a regular
+// consumer group. FetchRecord holds up partition reassignment until AllowRebalance;
+// committing is a separate operation and happens only after successful handling.
 type MessageReader interface {
 	FetchRecord(context.Context) (*kgo.Record, error)
 	CommitRecords(context.Context, ...*kgo.Record) error
@@ -27,17 +28,16 @@ func NewConsumer(reader MessageReader, handler middleware.Handler) *Consumer {
 	return &Consumer{reader: reader, handler: handler}
 }
 
-// Run repeats: get one message, handle it, save progress if successful.
-// It finishes each message before asking for the next, even when assigned several
-// partitions. This keeps the example easy to follow and avoids saving progress
-// past unfinished work. A larger fetch setting does not make handlers run in parallel.
+// Run fetches, handles, and commits one record at a time, even across partitions.
+// This preserves partition order and avoids committing past unfinished work.
+// A fetch, handler, or commit failure stops the consumer; parent cancellation is
+// normal shutdown. The app closes the reader after Run returns.
 func (c *Consumer) Run(ctx context.Context) error {
 	for {
 		if ctx.Err() != nil {
 			return nil
 		}
-		// Step 1: wait for a message without marking it as handled. The reader
-		// briefly holds up partition moves until handle finishes this attempt.
+		// Polling does not commit progress. The rebalance hold lasts through handle.
 		message, err := c.reader.FetchRecord(ctx)
 		if err != nil {
 			if ctx.Err() != nil && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
@@ -58,21 +58,16 @@ func (c *Consumer) Run(ctx context.Context) error {
 }
 
 func (c *Consumer) handle(ctx context.Context, message *kgo.Record) error {
-	// Step 2: arrange to let partitions move again when this attempt finishes.
-	// "defer" runs the call when this function returns, including on errors.
-	// AllowRebalance does not save progress; only CommitRecords can advance
-	// the group's saved position.
+	// Always let partitions move after this attempt, including on failure.
+	// AllowRebalance does not commit progress.
 	defer c.reader.AllowRebalance()
 	// The injected chain decodes, observes, and handles this record.
 	if err := c.handler(ctx, message); err != nil {
 		return err
 	}
-	// Handling succeeded, so ask Kafka to save the group's next position.
-	// Example: after handling offset 7, commit saves 8 as the next message to read.
-	// If we crash after handling but before this commit succeeds, Kafka can give
-	// us offset 7 again. This possibility is called "at-least-once processing".
-	// Before adding real sending, we must decide how to avoid sending duplicates.
-	// Cancellation can interrupt the commit too; do not assume progress was saved.
+	// Commit offset + 1 as the next position. A crash or failed commit can replay
+	// already handled work: this is at-least-once processing, so real side effects
+	// must tolerate duplicates. Cancellation does not prove the commit failed.
 	if err := c.reader.CommitRecords(ctx, message); err != nil {
 		return fmt.Errorf("commit record: %w", err)
 	}

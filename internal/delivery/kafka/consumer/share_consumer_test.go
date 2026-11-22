@@ -275,6 +275,39 @@ func TestShareConsumerShutdown(t *testing.T) {
 	}
 }
 
+// TestShareConsumerCancellationSkipsQueuedRecords protects shutdown from starting
+// more handlers while still releasing every record acquired in the batch.
+func TestShareConsumerCancellationSkipsQueuedRecords(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	records := []*kgo.Record{{Offset: 0}, {Offset: 1}, {Offset: 2}}
+	reader := &consumertest.ShareMessageReader{
+		FatalErrorsFunc:  func() <-chan error { return nil },
+		FetchRecordsFunc: func(context.Context) ([]*kgo.Record, error) { return records, nil },
+		ReleaseFunc:      func(*kgo.Record) error { return nil },
+	}
+	var handled int
+	consumer, err := NewShareConsumer(reader, func(ctx context.Context, _ *kgo.Record) error {
+		handled++
+		cancel() // Shutdown begins while the first record is being handled.
+		return ctx.Err()
+	}, ShareConsumerOptions{Concurrency: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := consumer.Run(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if handled != 1 || len(reader.ReleaseCalls) != len(records) || len(reader.AcceptCalls) != 0 {
+		t.Fatalf("handled=%d released=%d accepted=%d", handled, len(reader.ReleaseCalls), len(reader.AcceptCalls))
+	}
+	for i, call := range reader.ReleaseCalls {
+		if call.Record != records[i] {
+			t.Fatal("shutdown released the wrong record")
+		}
+	}
+}
+
 // TestShareConsumerFatalAcknowledgmentCancelsPoll verifies a stop request interrupts
 // an idle fetch and returns its own cause instead of a batch-processing error.
 func TestShareConsumerFatalAcknowledgmentCancelsPoll(t *testing.T) {

@@ -16,7 +16,6 @@ import (
 	contextmw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/context"
 	observabilitymw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/observability"
 	recoverymw "github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware/recovery"
-	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	kafkaclient "github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka"
 	"github.com/eannchen/go-backend-architecture/internal/infra/messaging/kafka/kafkatest"
 	"github.com/eannchen/go-backend-architecture/pkg/logger"
@@ -129,12 +128,7 @@ func prepareGroup(t *testing.T, shared bool, group string) {
 
 func newPublisher(t *testing.T, runtime *otel.Runtime, topic string) *kafkaclient.Writer {
 	t.Helper()
-	writer, err := kafkaclient.NewWriter(config.KafkaPublisherConfig{
-		Brokers: backend.Brokers, Topic: topic, PartitionStrategy: config.PartitionRoundRobin, RequiredAcks: config.KafkaAcksAll,
-		RequestTimeout: 5 * time.Second, ProduceTimeout: 5 * time.Second, DeliveryTimeout: 10 * time.Second,
-		MaxBufferedRecords: 25, BatchBytes: 65536, BatchTimeout: time.Millisecond, MaxAttempts: 3,
-		WriteBackoffMin: 10 * time.Millisecond, WriteBackoffMax: 100 * time.Millisecond, Compression: config.CompressionNone,
-	}, nil, otel.KafkaHooks(runtime.TracerProvider(), runtime.MeterProvider(), "")...)
+	writer, err := kafkaclient.NewWriter(backend.PublisherConfig(topic), nil, otel.KafkaHooks(runtime.TracerProvider(), runtime.MeterProvider(), "")...)
 	if err != nil {
 		t.Fatal(err)
 	}

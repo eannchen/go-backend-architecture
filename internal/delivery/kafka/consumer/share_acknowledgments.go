@@ -11,7 +11,7 @@ import (
 // consumer; the lifecycle then logs that failure and applies the sibling policy.
 func LogShareAcknowledgmentErrors(log logger.Logger, groupID string) func(topic string, partition int32, err error) error {
 	return func(topic string, partition int32, err error) error {
-		// SDK results have no individual message context or batch identity.
+		// franz-go results have no individual message context or batch identity.
 		log.Warn(context.Background(), "Kafka share acknowledgment failed; delivery may be repeated", logger.FromPairs(
 			"kafka.group_id", groupID,
 			"kafka.topic", topic,

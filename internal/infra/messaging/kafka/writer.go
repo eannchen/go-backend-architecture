@@ -16,16 +16,10 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-// Writer sends messages to one Kafka topic using franz-go.
-// franz-go calls a message a "record"; kgo is the name of its Go package.
-//
-// The process is:
-//  1. NewWriter prepares a client with our settings.
-//  2. WriteRecords gives messages to that client and waits for their results.
-//  3. Close stops the client's background work and closes its connections.
-//
-// Creating the client does not prove Kafka is reachable. Connection problems
-// can first appear when publishing. Kafka-specific types stay out of usecases.
+// Writer publishes records to one Kafka topic using franz-go. A record is Kafka's
+// term for a message; kgo is franz-go's client package. WriteRecords waits for results
+// while the client batches and sends in the background. Close releases the client.
+// Construction does not verify connectivity; publishing can reveal connection errors.
 type Writer struct {
 	client          *kgo.Client
 	topic           string
@@ -44,12 +38,10 @@ func NewWriter(cfg config.KafkaPublisherConfig, tlsConfig *tls.Config, hooks ...
 		return nil, fmt.Errorf("Kafka client security: %w", err)
 	}
 
-	// Choose how each message gets its partition:
-	// - round-robin: take turns across partitions, even if messages have keys;
-	// - key: calculate a partition from the key, so the same key stays together
-	//   while the topic's partition count is unchanged.
-	// Our keyPartitioner keeps the previous writer's calculation. Switching to
-	// franz-go's default calculation could send an existing key elsewhere.
+	// Round-robin rotates partitions even when records have keys. Key partitioning
+	// hashes the key: the same key selects the same partition while the partition
+	// count stays unchanged. All producers needing this grouping must use the same
+	// hash calculation; franz-go's default uses a different calculation from ours.
 	var partitioner kgo.Partitioner = kgo.RoundRobinPartitioner()
 	if cfg.PartitionStrategy == config.PartitionByKey {
 		partitioner = keyPartitioner{}
@@ -73,26 +65,22 @@ func NewWriter(cfg config.KafkaPublisherConfig, tlsConfig *tls.Config, hooks ...
 		codec = kgo.ZstdCompression()
 	}
 	opts := []kgo.Opt{
-		// Hooks are injected by app wiring after runtime telemetry is ready.
+		// App wiring supplies hooks, including kotel's client traces and metrics.
 		kgo.WithHooks(hooks...),
-		// Initial addresses used to find the Kafka cluster. The client then learns
-		// which broker leads each partition and sends messages to that broker.
-		// Listing three addresses does not send three copies of each message.
+		// Discover the cluster, then send each record to its partition's leader.
+		// Multiple seed addresses do not create replicas; topic settings do that.
 		kgo.SeedBrokers(cfg.Brokers...),
 		// The topic used when a record does not specify one. WriteRecords below
 		// also checks that callers do not try to publish to a different topic.
 		kgo.DefaultProduceTopic(cfg.Topic),
 		// Apply the partition choice described above.
 		kgo.RecordPartitioner(partitioner),
-		// Decide what reply counts as a successful publish:
-		// - all: the partition leader waits for every copy currently keeping up;
-		// - leader: the leader confirms its write without waiting for other copies;
-		// - none: ask for no reply confirming the write.
-		// Kafka calls the copies currently keeping up the "in-sync replicas" (ISR).
-		// Topic settings decide how many copies exist and the minimum ISR needed
-		// for all acknowledgments. On our one-broker setup, all still means one copy.
-		// With none, a successful return cannot confirm Kafka accepted the message.
-		// None of these replies means a consumer has processed the message.
+		// all waits for the leader and its in-sync replicas (copies keeping up).
+		// leader waits only for the leader's write; none requests no confirmation.
+		// The topic's replication factor sets copy count; min.insync.replicas sets the
+		// minimum in-sync count required for all. With one replica, all still
+		// means one copy. None cannot confirm broker acceptance, and no setting
+		// confirms that a consumer processed the record.
 		kgo.RequiredAcks(acks),
 		// Time allowed for network communication with Kafka. For an ordinary
 		// request, this is its network timeout. If a request asks Kafka to wait,
@@ -108,7 +96,7 @@ func NewWriter(cfg config.KafkaPublisherConfig, tlsConfig *tls.Config, hooks ...
 		// These timeouts ask franz-go to stop; finishing an ongoing network
 		// operation can take additional time, so return is not instant at expiry.
 		kgo.RecordDeliveryTimeout(cfg.DeliveryTimeout),
-		// A batch is a group of messages for one partition sent together.
+		// A batch groups records for one partition to send together.
 		// Limit its size before compression. Kafka's own message-size limits
 		// still apply; increasing this setting does not change the broker.
 		kgo.ProducerBatchMaxBytes(int32(cfg.BatchBytes)),
@@ -134,9 +122,8 @@ func NewWriter(cfg config.KafkaPublisherConfig, tlsConfig *tls.Config, hooks ...
 		// Pause between retries instead of repeatedly contacting a failing broker.
 		// The helper below increases the allowed pause and adds some randomness.
 		kgo.RetryBackoffFn(retryBackoff(cfg.WriteBackoffMin, cfg.WriteBackoffMax)),
-		// Compress batches using the configured format, or leave them uncompressed.
-		// Compression uses CPU to send fewer bytes. Consumers decode it themselves;
-		// they do not need a matching compression setting.
+		// Compression trades CPU for fewer network bytes. Consumers automatically
+		// decode the selected format; no matching consumer setting is needed.
 		kgo.ProducerBatchCompression(codec),
 		// Allow cancellation even after a publish request has been sent. Without
 		// this option, franz-go may keep waiting to protect its duplicate checks.
@@ -164,7 +151,7 @@ func NewWriter(cfg config.KafkaPublisherConfig, tlsConfig *tls.Config, hooks ...
 	return &Writer{client: client, topic: cfg.Topic, deliveryTimeout: cfg.DeliveryTimeout}, nil
 }
 
-// WriteRecords sends messages and waits until each one has a success or failure
+// WriteRecords publishes records and waits until each one has a success or failure
 // result. franz-go updates the records with details such as partition and offset;
 // callers must wait for this method to return before reading/changing them.
 //
@@ -177,8 +164,7 @@ func (w *Writer) WriteRecords(ctx context.Context, records ...*kgo.Record) error
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("publish Kafka records: %w", err)
 	}
-	// Step 1: check the whole input before sending anything. Each record must
-	// exist, and its topic must be empty (use the configured topic) or match it.
+	// Validate the whole call before sending. Empty topics use the configured topic.
 	for _, record := range records {
 		if record == nil {
 			return fmt.Errorf("publish Kafka records: nil record")
@@ -187,19 +173,16 @@ func (w *Writer) WriteRecords(ctx context.Context, records ...*kgo.Record) error
 			return fmt.Errorf("publish Kafka records: record topic differs from configured topic")
 		}
 	}
-	// Step 2: give the call its delivery deadline. An earlier caller deadline
-	// still wins. Prepare a place to collect one result per record.
+	// The whole call shares this deadline; an earlier caller deadline wins.
 	ctx, cancel := context.WithTimeout(ctx, w.deliveryTimeout)
 	defer cancel()
 	results := make(chan error, len(records))
-	// Step 3: queue each record. Produce runs the supplied function when that
-	// record finishes; this function is called a callback. It saves the result.
-	// We use Produce and wait ourselves so BatchTimeout still controls batching.
-	// The SDK's ProduceSync helper skips that batching wait in our pinned version.
+	// Produce reports each result through its callback. Wait here instead of using
+	// ProduceSync, which bypasses the configured linger in the pinned franz-go version.
 	for _, record := range records {
 		w.client.Produce(ctx, record, func(_ *kgo.Record, err error) { results <- err })
 	}
-	// Step 4: wait for every callback, then return any failures together.
+	// Wait for every callback before returning ownership of the records to callers.
 	// With RequiredAcks=none, success still only means no local send failure
 	// was reported; we did not ask Kafka to confirm acceptance.
 	var result error
@@ -221,7 +204,8 @@ func (w *Writer) Close() error {
 	return nil
 }
 
-// keyPartitioner keeps the key-to-partition calculation used before migration.
+// keyPartitioner uses FNV-1a with a signed 32-bit remainder, matching kafka-go's Hash.
+// Changing this calculation can move an existing key to a different partition.
 // A nil key means "no key", so use round-robin. An empty but non-nil key still
 // counts as a key and always goes through the hash calculation.
 type keyPartitioner struct{}
@@ -250,7 +234,7 @@ func (p *keyTopicPartitioner) Partition(record *kgo.Record, n int) int {
 // retryBackoff decides how long to wait before retrying a failed request.
 // Example: with minimum=100ms and maximum=1s, the upper limit grows through
 // 100ms, 200ms, 400ms, 800ms, then stays at 1s. Choose a random pause between
-// the minimum and that limit, so many workers do not all retry together.
+// the minimum and that limit, so many producers do not all retry together.
 // Check the limit before doubling to avoid overflowing Go's duration number.
 func retryBackoff(minimum, maximum time.Duration) func(int) time.Duration {
 	return func(attempt int) time.Duration {
@@ -318,14 +302,14 @@ func retryBackoff(minimum, maximum time.Duration) func(int) time.Duration {
 //    Example: notification handling and auditing both need the same events.
 //    Publisher: choose the required acknowledgment/batching settings above.
 //    Consumers: use different GroupIDs, e.g. notifications-v1 and audit-v1.
-//    Each group reads the stream and saves its own progress. Adding workers to
+//    Each group reads the stream and saves its own progress. Adding consumers to
 //    the SAME group instead shares the work; it does not create another full copy
 //    of the workflow. These choices are made by consumers, not the partitioner.
 //
 // 6. Fan-in: several producers write to one topic
 //    Example: several services all publish notification requests.
 //    Publishers: agree on the message format and, if grouping matters, the same
-//    key calculation. Our key strategy preserves the previous writer's mapping.
+//    key calculation. Our key strategy uses the calculation described above.
 //    Consumers: read the resulting stream. Combining several related events into
 //    one result requires application logic; sharing a topic does not do that.
 //    Kafka has no single message order across different partitions.

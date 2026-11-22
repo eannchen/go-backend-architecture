@@ -8,12 +8,12 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-// Handler processes one record. The worker decides how to save its outcome.
+// Handler processes one record. The consumer commits or acknowledges its outcome.
 type Handler func(context.Context, *kgo.Record) error
 type Middleware func(Handler) Handler
 
 // ErrInvalidMessage identifies a message that cannot be decoded or validated.
-// Each worker chooses whether to stop or reject it.
+// The regular consumer stops without committing; the Share Group consumer rejects it.
 var ErrInvalidMessage = errors.New("invalid Kafka message")
 var ErrHandlerPanic = errors.New("Kafka handler panicked")
 
