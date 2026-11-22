@@ -82,6 +82,8 @@ func transportSelectionPlan(profile string) (selectionPlan, error) {
 	commonRemovals := []string{
 		".github/workflows/profile-selector.yml",
 		"config/env",
+		"config/air",
+		"config/sqlc",
 		"tools/profile-selector",
 	}
 
@@ -90,7 +92,6 @@ func transportSelectionPlan(profile string) (selectionPlan, error) {
 		return selectionPlan{
 			profile: profile,
 			remove: append(commonRemovals,
-				".air.grpcapi.toml",
 				".github/workflows/protobuf.yml",
 				"buf.gen.yaml",
 				"buf.yaml",
@@ -105,17 +106,15 @@ func transportSelectionPlan(profile string) (selectionPlan, error) {
 				"pkg/observability/grpcsemconv",
 				"pkg/grpcmetadata",
 				"make/service-grpc.mk",
-				"sqlc.service-grpc.yaml",
 			),
-			airSource:    ".air.httpapi.toml",
-			sqlcSource:   "sqlc.public-http.yaml",
+			airSource:    "config/air/httpapi.toml",
+			sqlcSource:   "config/sqlc/public-http.yaml",
 			envFragments: []string{"config/env/common.env.example", "config/env/public-http.env.example"},
 		}, nil
 	case serviceGRPCProfile:
 		return selectionPlan{
 			profile: profile,
 			remove: append(commonRemovals,
-				".air.httpapi.toml",
 				".github/workflows/openapi.yml",
 				"cmd/httpapi",
 				"contracts/http",
@@ -152,10 +151,9 @@ func transportSelectionPlan(profile string) (selectionPlan, error) {
 				"internal/usecase/globalratelimit",
 				"make/public-http.mk",
 				"oapi-codegen.yaml",
-				"sqlc.public-http.yaml",
 			),
-			airSource:    ".air.grpcapi.toml",
-			sqlcSource:   "sqlc.service-grpc.yaml",
+			airSource:    "config/air/grpcapi.toml",
+			sqlcSource:   "config/sqlc/service-grpc.yaml",
 			envFragments: []string{"config/env/common.env.example", "config/env/service-grpc.env.example"},
 		}, nil
 	default:
@@ -176,10 +174,9 @@ func newSelectionPlan(profile string) (selectionPlan, error) {
 		"internal/infra/config/kafka_consumer_config.go", "internal/infra/config/kafka_consumer_config_test.go",
 		"internal/infra/config/kafka_publisher_config.go", "internal/infra/config/kafka_publisher_config_test.go",
 		"internal/infra/config/kafka_share_consumer_config.go", "internal/infra/config/kafka_share_consumer_config_test.go",
-		"sqlc.kafka.yaml",
 	}
-	groupOnly := []string{"cmd/kafkaworker", "internal/app/kafkaworker", "make/kafka-worker.mk", ".air.kafkaworker.toml"}
-	shareOnly := []string{"cmd/kafkashareworker", "internal/app/kafkashareworker", "make/kafka-share-worker.mk", ".air.kafkashareworker.toml"}
+	groupOnly := []string{"cmd/kafkaworker", "internal/app/kafkaworker", "make/kafka-worker.mk"}
+	shareOnly := []string{"cmd/kafkashareworker", "internal/app/kafkashareworker", "make/kafka-share-worker.mk"}
 	if profile == publicHTTPProfile || profile == serviceGRPCProfile {
 		plan, err := transportSelectionPlan(profile)
 		plan.remove = append(plan.remove, kafkaCommon...)
@@ -200,8 +197,7 @@ func newSelectionPlan(profile string) (selectionPlan, error) {
 	}
 	removals := append(http.remove, grpc.remove...)
 	removals = slices.DeleteFunc(removals, func(path string) bool { return path == "pkg/tlsconfig" })
-	removals = append(removals, ".air.httpapi.toml", ".air.grpcapi.toml", "sqlc.public-http.yaml", "sqlc.service-grpc.yaml")
-	plan := selectionPlan{profile: profile, sqlcSource: "sqlc.kafka.yaml", envFragments: []string{"config/env/common.env.example", "config/env/" + profile + ".env.example"}}
+	plan := selectionPlan{profile: profile, sqlcSource: "config/sqlc/kafka.yaml", envFragments: []string{"config/env/common.env.example", "config/env/" + profile + ".env.example"}}
 	if profile == kafkaWorkerProfile {
 		removals = append(removals, shareOnly...)
 		removals = append(removals,
@@ -210,11 +206,11 @@ func newSelectionPlan(profile string) (selectionPlan, error) {
 			"internal/delivery/kafka/consumer/share_acknowledgments.go", "internal/delivery/kafka/consumer/share_acknowledgments_test.go",
 			"internal/delivery/kafka/integration/share_consumer_integration_test.go", "internal/delivery/kafka/integration/context_middleware_integration_test.go",
 		)
-		plan.airSource = ".air.kafkaworker.toml"
+		plan.airSource = "config/air/kafkaworker.toml"
 	} else {
 		removals = append(removals, groupOnly...)
 		removals = append(removals, "internal/delivery/kafka/consumer/consumertest/message_reader.go", "internal/delivery/kafka/consumer/consumertest/message_reader_test.go", "internal/delivery/kafka/consumer/consumer.go", "internal/delivery/kafka/consumer/consumer_test.go", "internal/delivery/kafka/integration/consumer_integration_test.go")
-		plan.airSource = ".air.kafkashareworker.toml"
+		plan.airSource = "config/air/kafkashareworker.toml"
 	}
 	slices.Sort(removals)
 	plan.remove = slices.Compact(removals)
@@ -278,7 +274,7 @@ func printPlan(plan selectionPlan, apply bool) {
 	}
 	fmt.Printf("  generate .env.example from %s\n", strings.Join(plan.envFragments, " + "))
 	fmt.Printf("  rename %s to .air.toml\n", plan.airSource)
-	fmt.Printf("  rename %s to sqlc.yaml\n", plan.sqlcSource)
+	fmt.Printf("  install %s as sqlc.yaml with root-relative paths\n", plan.sqlcSource)
 	fmt.Println("  write .template-profile")
 }
 
@@ -296,7 +292,14 @@ func applySelection(root string, plan selectionPlan) error {
 	if err := os.Rename(filepath.Join(root, plan.airSource), filepath.Join(root, ".air.toml")); err != nil {
 		return fmt.Errorf("install Air configuration: %w", err)
 	}
-	if err := os.Rename(filepath.Join(root, plan.sqlcSource), filepath.Join(root, "sqlc.yaml")); err != nil {
+	sqlc, err := os.ReadFile(filepath.Join(root, plan.sqlcSource))
+	if err != nil {
+		return fmt.Errorf("read sqlc configuration: %w", err)
+	}
+	// sqlc resolves paths relative to its configuration file. Moving from
+	// config/sqlc to the root removes the two parent-directory components.
+	sqlc = bytes.ReplaceAll(sqlc, []byte("../../internal/"), []byte("internal/"))
+	if err := os.WriteFile(filepath.Join(root, "sqlc.yaml"), sqlc, 0o644); err != nil {
 		return fmt.Errorf("install sqlc configuration: %w", err)
 	}
 	if err := os.WriteFile(filepath.Join(root, ".template-profile"), []byte(plan.profile+"\n"), 0o644); err != nil {

@@ -59,20 +59,21 @@ func TestCombineFilesPreservesFragmentOrder(t *testing.T) {
 	}
 }
 
-// TestApplySelectionGeneratesOutputsAndRemovesOwnedPaths checks selection writes chosen outputs and removes paths owned by the other transport.
+// TestApplySelectionGeneratesOutputsAndRemovesOwnedPaths protects root-level
+// outputs, rebased sqlc paths, and removal of temporary profile configurations.
 func TestApplySelectionGeneratesOutputsAndRemovesOwnedPaths(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "common.env", "COMMON=true\n")
 	writeTestFile(t, root, "profile.env", "PROFILE=true\n")
-	writeTestFile(t, root, ".air.profile.toml", "air")
-	writeTestFile(t, root, "sqlc.profile.yaml", "sqlc")
+	writeTestFile(t, root, "config/air/profile.toml", "air")
+	writeTestFile(t, root, "config/sqlc/profile.yaml", "queries: ../../internal/queries.sql\n")
 	writeTestFile(t, root, "unused/file", "remove")
 
 	plan := selectionPlan{
 		profile:      publicHTTPProfile,
-		remove:       []string{"unused"},
-		airSource:    ".air.profile.toml",
-		sqlcSource:   "sqlc.profile.yaml",
+		remove:       []string{"unused", "config/air", "config/sqlc"},
+		airSource:    "config/air/profile.toml",
+		sqlcSource:   "config/sqlc/profile.yaml",
 		envFragments: []string{"common.env", "profile.env"},
 	}
 	if err := applySelection(root, plan); err != nil {
@@ -84,8 +85,14 @@ func TestApplySelectionGeneratesOutputsAndRemovesOwnedPaths(t *testing.T) {
 			t.Errorf("generated path %s: %v", path, err)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(root, "unused")); !os.IsNotExist(err) {
-		t.Fatalf("unused path still exists: %v", err)
+	sqlc, err := os.ReadFile(filepath.Join(root, "sqlc.yaml"))
+	if err != nil || string(sqlc) != "queries: internal/queries.sql\n" {
+		t.Fatalf("root sqlc configuration = %q, error = %v", sqlc, err)
+	}
+	for _, path := range plan.remove {
+		if _, err := os.Stat(filepath.Join(root, path)); !os.IsNotExist(err) {
+			t.Fatalf("removed path %s still exists: %v", path, err)
+		}
 	}
 }
 

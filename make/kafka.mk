@@ -29,4 +29,4 @@ kafka-share-group-init:
 # Client guarantees and delivery workflows each own a disposable-broker suite.
 INTEGRATION_PACKAGES += ./internal/infra/messaging/kafka ./internal/delivery/kafka/integration
 
-SQLC_CONFIG ?= $(if $(wildcard sqlc.kafka.yaml),sqlc.kafka.yaml,sqlc.yaml)
+SQLC_CONFIG ?= $(if $(wildcard config/sqlc/kafka.yaml),config/sqlc/kafka.yaml,sqlc.yaml)

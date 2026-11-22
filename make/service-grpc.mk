@@ -1,6 +1,6 @@
 SERVICE_GRPC_PROFILE := true
-SQLC_CONFIG ?= $(if $(wildcard sqlc.service-grpc.yaml),sqlc.service-grpc.yaml,sqlc.yaml)
-AIR_GRPCAPI_CONFIG ?= $(if $(wildcard .air.grpcapi.toml),.air.grpcapi.toml,.air.toml)
+SQLC_CONFIG ?= $(if $(wildcard config/sqlc/service-grpc.yaml),config/sqlc/service-grpc.yaml,sqlc.yaml)
+AIR_GRPCAPI_CONFIG ?= $(if $(wildcard config/air/grpcapi.toml),config/air/grpcapi.toml,.air.toml)
 AIR_GRPCAPI_CMD ?= air -c $(AIR_GRPCAPI_CONFIG)
 BUF_CMD ?= github.com/bufbuild/buf/cmd/buf@v1.75.0
 # `?=` permits CI to select an immutable baseline commit. Buf reads that Git
