@@ -15,13 +15,13 @@ import (
 	"google.golang.org/grpc/status"
 
 	diagnosticsv1 "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/gen/diagnostics/v1"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/grpccontext"
+	diagnosticstest "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics/diagnosticstest"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/infra/security/tlsconfig/tlsconfigtest"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
-	"github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/tlsconfig/tlsconfigtest"
 )
 
 // TestBuildServerWiresServicesRequestContextAndRecovery checks the assembled
@@ -31,7 +31,7 @@ func TestBuildServerWiresServicesRequestContextAndRecovery(t *testing.T) {
 
 	requestContexts := make(chan context.Context, 2)
 	panicOnCheck := false
-	healthUsecase := &healthtest.Usecase{
+	healthUsecase := &diagnosticstest.HealthChecker{
 		CheckFunc: func(ctx context.Context, _ usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			requestContexts <- ctx
 			if panicOnCheck {
@@ -133,13 +133,13 @@ func TestBuildServerPublishesVerifiedMTLSCallerIdentity(t *testing.T) {
 	serverCertFile, serverKeyFile := tlsconfigtest.WriteCertificateFiles(t, "server", authority.IssueServerCertificate(t, "localhost"))
 	clientCertificate := authority.IssueClientCertificateWithURI(t, subject)
 	type identityResult struct {
-		identity calleridentity.Identity
+		identity grpccontext.CallerIdentity
 		found    bool
 	}
 	clientIdentity := make(chan identityResult, 1)
-	healthUsecase := &healthtest.Usecase{
+	healthUsecase := &diagnosticstest.HealthChecker{
 		CheckFunc: func(ctx context.Context, _ usecasehealth.CheckMode) (usecasehealth.Result, error) {
-			identity, ok := calleridentity.FromContext(ctx)
+			identity, ok := grpccontext.CallerIdentityFromContext(ctx)
 			clientIdentity <- identityResult{identity: identity, found: ok}
 			return usecasehealth.Result{}, nil
 		},
@@ -204,7 +204,7 @@ func TestBuildServerPublishesVerifiedMTLSCallerIdentity(t *testing.T) {
 		t.Fatalf("GetHealth() error = %v", err)
 	}
 	result := <-clientIdentity
-	if !result.found || result.identity.Subject != subject || result.identity.AuthenticationType != calleridentity.AuthenticationTypeMTLS {
+	if !result.found || result.identity.Subject != subject || result.identity.AuthenticationType != grpccontext.AuthenticationTypeMTLS {
 		t.Fatalf("caller identity = (%+v, %t)", result.identity, result.found)
 	}
 }

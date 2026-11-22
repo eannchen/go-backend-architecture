@@ -12,11 +12,13 @@ import (
 	"github.com/labstack/echo/v5"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
+	healthtest "github.com/eannchen/go-backend-architecture/internal/delivery/http/handler/health/healthtest"
 	httpdeliverytest "github.com/eannchen/go-backend-architecture/internal/delivery/http/httptest"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
-	"github.com/eannchen/go-backend-architecture/internal/usecase/health/healthtest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 func streamConfig() StreamConfig {
@@ -38,7 +40,7 @@ func TestStreamHealthWritesInitialHealthEvent(t *testing.T) {
 		Cache:    usecasehealth.Dependency{Status: "up"},
 		KVStore:  usecasehealth.Dependency{Status: "up"},
 	}
-	uc := &healthtest.Usecase{
+	uc := &healthtest.Checker{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			// The handler writes its first event synchronously, so cancellation here
 			// lets the stream exit without making this test depend on a timer.
@@ -46,7 +48,7 @@ func TestStreamHealthWritesInitialHealthEvent(t *testing.T) {
 			return result, nil
 		},
 	}
-	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
+	h := NewHandler(logger.NoopLogger{}, observability.NoopTracer{}, response.NewResponder(), uc, streamConfig())
 
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t)
@@ -66,15 +68,15 @@ func TestStreamHealthWritesInitialHealthEvent(t *testing.T) {
 	if got := rec.Body.String(); !strings.Contains(got, "event: health\ndata: ") {
 		t.Fatalf("stream body = %q, want health event", got)
 	}
-	if uc.CheckMode != usecasehealth.CheckModeLive {
-		t.Fatalf("check mode = %q, want live", uc.CheckMode)
+	if len(uc.CheckCalls) != 1 || uc.CheckCalls[0].Mode != usecasehealth.CheckModeLive {
+		t.Fatalf("health checks = %+v, want one live check", uc.CheckCalls)
 	}
 }
 
 // TestStreamHealthRejectsInvalidQueryBeforeOpeningStream checks invalid queries are rejected before response headers start a stream.
 func TestStreamHealthRejectsInvalidQueryBeforeOpeningStream(t *testing.T) {
-	uc := &healthtest.Usecase{}
-	h := NewHandler(logger.NoopLogger{}, nil, nil, uc, streamConfig())
+	uc := &healthtest.Checker{}
+	h := NewHandler(logger.NoopLogger{}, observability.NoopTracer{}, response.NewResponder(), uc, streamConfig())
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t)
 	rec := httptest.NewRecorder()
@@ -89,8 +91,8 @@ func TestStreamHealthRejectsInvalidQueryBeforeOpeningStream(t *testing.T) {
 	if got := rec.Header().Get(echo.HeaderContentType); got == "text/event-stream" {
 		t.Fatalf("content type = %q, stream must not open for an invalid query", got)
 	}
-	if uc.CheckCalls != 0 {
-		t.Fatalf("Check() calls = %d, want 0", uc.CheckCalls)
+	if len(uc.CheckCalls) != 0 {
+		t.Fatalf("Check() calls = %d, want 0", len(uc.CheckCalls))
 	}
 }
 
@@ -99,7 +101,7 @@ func TestStreamHealthEmitsDependencyFailureAndLogsWarning(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	wantErr := apperr.New(apperr.CodeUnavailable, "database unavailable")
-	uc := &healthtest.Usecase{
+	uc := &healthtest.Checker{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			cancel()
 			return usecasehealth.Result{Database: usecasehealth.Database{Status: "down"}}, wantErr
@@ -108,7 +110,7 @@ func TestStreamHealthEmitsDependencyFailureAndLogsWarning(t *testing.T) {
 	log := &loggertest.Logger{
 		WarnFunc: func(context.Context, string, ...logger.Fields) {},
 	}
-	h := NewHandler(log, nil, nil, uc, streamConfig())
+	h := NewHandler(log, observability.NoopTracer{}, response.NewResponder(), uc, streamConfig())
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t)
 	req := httptest.NewRequest(http.MethodGet, StreamPath, nil).WithContext(ctx)
@@ -128,7 +130,7 @@ func TestStreamHealthEmitsDependencyFailureAndLogsWarning(t *testing.T) {
 // TestStreamHealthStopsAfterEventWriteFailure checks a failed event write stops the stream instead of continuing to write.
 func TestStreamHealthStopsAfterEventWriteFailure(t *testing.T) {
 	wantErr := errors.New("client connection closed")
-	uc := &healthtest.Usecase{
+	uc := &healthtest.Checker{
 		CheckFunc: func(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error) {
 			return usecasehealth.Result{Database: usecasehealth.Database{Status: "up"}}, nil
 		},
@@ -136,7 +138,7 @@ func TestStreamHealthStopsAfterEventWriteFailure(t *testing.T) {
 	log := &loggertest.Logger{
 		WarnFunc: func(context.Context, string, ...logger.Fields) {},
 	}
-	h := NewHandler(log, nil, nil, uc, streamConfig())
+	h := NewHandler(log, observability.NoopTracer{}, response.NewResponder(), uc, streamConfig())
 	e := echo.New()
 	e.Validator = httpdeliverytest.NewValidator(t)
 	w := &failingHealthStreamWriter{header: make(http.Header), err: wantErr}
@@ -145,8 +147,8 @@ func TestStreamHealthStopsAfterEventWriteFailure(t *testing.T) {
 	if err := h.StreamHealth(c); err != nil {
 		t.Fatalf("StreamHealth() error = %v", err)
 	}
-	if uc.CheckCalls != 1 {
-		t.Fatalf("Check() calls = %d, want 1", uc.CheckCalls)
+	if len(uc.CheckCalls) != 1 {
+		t.Fatalf("Check() calls = %d, want 1", len(uc.CheckCalls))
 	}
 	if len(log.WarnCalls) != 1 {
 		t.Fatalf("warning calls = %d, want 1", len(log.WarnCalls))

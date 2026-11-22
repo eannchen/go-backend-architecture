@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/grpc/metadata"
 
-	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
+	appobservability "github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // Tracing owns local client span lifecycle and optional outbound trace propagation.
@@ -19,11 +19,8 @@ type TraceConfig struct {
 	PropagateContext bool
 }
 
-// NewTracing creates client tracing with a safe no-op default.
+// NewTracing creates client tracing using the injected tracer.
 func NewTracing(tracer appobservability.Tracer, config TraceConfig) *Tracing {
-	if tracer == nil {
-		tracer = appobservability.NoopTracer{}
-	}
 	return &Tracing{tracer: tracer, propagateTraceContext: config.PropagateContext}
 }
 
@@ -58,13 +55,18 @@ func (t *Tracing) Start(ctx context.Context, rpc rpcInfo) (context.Context, appo
 
 // Finish records the bounded transport outcome and completes the span.
 func (*Tracing) Finish(span appobservability.Span, outcome rpcOutcome) {
-	fields := appobservability.FromPairs(keyRPCResponseStatusCode, outcome.responseStatusName())
-	if errorType := outcome.errorType(); errorType != "" {
+	fields := appobservability.FromPairs(keyRPCStatusCode, outcome.responseStatusName())
+	errorType := outcome.errorType()
+	if errorType != "" {
 		fields[keyErrorType] = errorType
 		fields[keyApplicationRPCStatusMessage] = outcome.responseStatusMessage
 	}
 	span.SetAttributes(fields)
-	span.Finish(outcome.callError, outcome.responseStatusMessage)
+	span.Finish(appobservability.SpanOutcome{
+		Err:         outcome.callError,
+		Failed:      errorType != "",
+		Description: outcome.responseStatusMessage,
+	})
 }
 
 // metadataCarrier adapts multi-value outgoing gRPC metadata to the tracing

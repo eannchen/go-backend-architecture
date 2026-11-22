@@ -1,76 +1,78 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title description">
-  <title id="title">Clean Architecture layers and allowed dependencies</title>
-  <desc id="description">Concentric rings group domain, application, adapters, and composition. A dependency map beside the rings shows that delivery imports usecases, infrastructure imports contracts and domain, and usecases import contracts and domain.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" role="img" aria-labelledby="title description">
+  <title id="title">Clean Architecture in this template</title>
+  <desc id="description">Concentric circles place domain at the center, surrounded by usecases, adapters, and composition. An import diagram shows delivery and infrastructure depending on usecase contracts, usecases depending on domain, and infrastructure also depending on domain. App wiring selects implementations. Shared technical packages contain no internal imports.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <style>
+      text { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; fill: #0f172a; }
+      .heading { font-size: 22px; font-weight: 700; }
+      .detail { font-size: 16px; fill: #334155; }
+      .small { font-size: 14px; fill: #475569; }
+      .arrow { fill: none; stroke: #475569; stroke-width: 2.5; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1280" height="800" rx="20" fill="#f8fafc"/>
+  <text x="40" y="50" font-size="30" font-weight="700">Clean Architecture in this template</text>
+  <text x="40" y="80" class="detail">Business code stays at the center. App wiring chooses concrete adapters.</text>
 
-  <rect width="1280" height="720" rx="20" fill="#f8fafc"/>
-
-  <!-- Rings group code by architectural responsibility, not by identical imports. -->
-  <circle cx="345" cy="360" r="300" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
-  <circle cx="345" cy="360" r="225" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
-  <circle cx="345" cy="360" r="150" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
-  <circle cx="345" cy="360" r="72" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
-
-  <g font-family="ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="#0f172a" text-anchor="middle">
-    <text x="345" y="90" font-size="19" font-weight="700">Composition and external systems</text>
-    <text x="345" y="114" font-size="14">cmd · internal/app · frameworks and services</text>
-
-    <text x="345" y="163" font-size="19" font-weight="700">Adapters</text>
-    <text x="345" y="187" font-size="14">delivery · infrastructure</text>
-
-    <text x="345" y="242" font-size="19" font-weight="700">Application</text>
-    <text x="345" y="265" font-size="14">usecases · contracts</text>
-
-    <text x="345" y="351" font-size="20" font-weight="700">Domain</text>
-    <text x="345" y="374" font-size="13">entities · value objects</text>
-    <text x="345" y="394" font-size="13">business invariants</text>
+  <!-- Matching colors connect each circle to the import diagram. -->
+  <circle cx="305" cy="395" r="275" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <circle cx="305" cy="395" r="207" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <circle cx="305" cy="395" r="139" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+  <circle cx="305" cy="395" r="76" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <g text-anchor="middle">
+    <text x="305" y="151" class="heading">Composition</text>
+    <text x="305" y="174" class="small">cmd · internal/app · frameworks</text>
+    <text x="305" y="219" class="heading">Adapters</text>
+    <text x="305" y="242" class="small">internal/delivery · internal/infra</text>
+    <text x="305" y="287" class="heading">Usecases</text>
+    <text x="305" y="310" class="small">Workflows · outbound contracts</text>
+    <text x="305" y="380" font-size="21" font-weight="700">Domain</text>
+    <text x="305" y="403" font-size="13">Entities · business rules</text>
+    <text x="305" y="420" font-size="11">Shared repository contracts</text>
   </g>
+  <!-- Inward arrows describe source dependencies, not execution order. -->
+  <path d="M 305 655 V 613" class="arrow"/>
+  <path d="M 305 587 V 545" class="arrow"/>
+  <path d="M 305 519 V 479" class="arrow"/>
+  <text x="335" y="634" class="small">Imports point inward</text>
 
-  <!-- The map makes the different dependencies within each ring explicit. -->
-  <rect x="680" y="60" width="550" height="600" rx="16" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
-  <g font-family="ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" fill="#0f172a">
-    <text x="710" y="101" font-size="22" font-weight="700">Allowed source dependencies</text>
-    <text x="710" y="127" font-size="14" fill="#475569">An arrow means the left package may import the right package.</text>
+  <rect x="620" y="120" width="620" height="550" rx="16" fill="white" stroke="#cbd5e1"/>
+  <text x="645" y="154" class="heading">How the packages depend on each other</text>
+  <text x="645" y="179" class="small">Arrows mean Go imports.</text>
+
+  <rect x="645" y="210" width="215" height="100" rx="14" fill="#dcfce7" stroke="#16a34a"/>
+  <rect x="980" y="210" width="235" height="100" rx="14" fill="#fef3c7" stroke="#d97706"/>
+  <rect x="645" y="415" width="215" height="100" rx="14" fill="#dcfce7" stroke="#16a34a"/>
+  <rect x="980" y="415" width="235" height="100" rx="14" fill="#fee2e2" stroke="#dc2626"/>
+  <g text-anchor="middle">
+    <text x="752" y="244" class="heading">Delivery</text>
+    <text x="752" y="270" class="detail">HTTP · gRPC · Kafka</text>
+    <text x="752" y="292" class="small">Calls usecases</text>
+    <text x="1097" y="244" class="heading">Usecases</text>
+    <text x="1097" y="270" class="detail">Workflows</text>
+    <text x="1097" y="292" class="small">Own outbound contracts</text>
+    <text x="752" y="449" class="heading">Infrastructure</text>
+    <text x="752" y="475" class="detail">PostgreSQL · Redis</text>
+    <text x="752" y="497" class="small">Kafka clients · providers</text>
+    <text x="1097" y="449" class="heading">Domain</text>
+    <text x="1097" y="475" class="detail">Entities · business rules</text>
+    <text x="1097" y="497" class="small">Shared repository contracts</text>
   </g>
+  <path d="M 866 260 H 970" class="arrow"/>
+  <path d="M 1097 316 V 405" class="arrow"/>
+  <path d="M 866 465 H 970" class="arrow"/>
+  <path d="M 752 405 V 355 H 1010 V 320" class="arrow"/>
+  <text x="790" y="345" class="small">Implements contracts</text>
+  <text x="645" y="550" class="small">Delivery may also import domain types.</text>
 
-  <g stroke="#e2e8f0" stroke-width="1">
-    <line x1="710" y1="145" x2="1200" y2="145"/>
-    <line x1="710" y1="215" x2="1200" y2="215"/>
-    <line x1="710" y1="285" x2="1200" y2="285"/>
-    <line x1="710" y1="355" x2="1200" y2="355"/>
-    <line x1="710" y1="425" x2="1200" y2="425"/>
-    <line x1="710" y1="520" x2="1200" y2="520"/>
-  </g>
+  <rect x="645" y="572" width="570" height="73" rx="10" fill="#f1f5f9"/>
+  <text x="662" y="598" font-size="17" font-weight="700">Shared technical packages (pkg)</text>
+  <text x="662" y="622" class="small">logger · observability · tlsconfig — no internal imports</text>
 
-  <g font-family="ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="16" fill="#0f172a">
-    <text x="710" y="183" font-weight="700">Delivery</text>
-    <text x="935" y="183" fill="#475569">→</text>
-    <text x="970" y="183">Usecases</text>
-
-    <text x="710" y="253" font-weight="700">Usecases</text>
-    <text x="935" y="253" fill="#475569">→</text>
-    <text x="970" y="248">Repository contracts</text>
-    <text x="970" y="270">and domain</text>
-
-    <text x="710" y="323" font-weight="700">Repository contracts</text>
-    <text x="935" y="323" fill="#475569">→</text>
-    <text x="970" y="323">Domain</text>
-
-    <text x="710" y="393" font-weight="700">Infrastructure</text>
-    <text x="935" y="393" fill="#475569">→</text>
-    <text x="970" y="388">Repository contracts</text>
-    <text x="970" y="410">and domain</text>
-
-    <text x="710" y="460" font-weight="700">Delivery · Usecases</text>
-    <text x="710" y="482" font-weight="700">· Infrastructure</text>
-    <text x="935" y="471" fill="#475569">→</text>
-    <text x="970" y="466">Shared technical</text>
-    <text x="970" y="488">contracts</text>
-
-    <text x="710" y="566" font-weight="700">App</text>
-    <text x="935" y="566" fill="#475569">→</text>
-    <text x="970" y="561">All layers</text>
-    <text x="970" y="583" font-size="14" fill="#475569">composition only</text>
-  </g>
-
-  <text x="710" y="624" font-family="ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="13" fill="#475569">Shared technical contracts include logging, observability, and security.</text>
+  <rect x="40" y="705" width="1200" height="64" rx="12" fill="#dbeafe"/>
+  <text x="60" y="732" font-size="18" font-weight="700">App wires all layers</text>
+  <text x="60" y="755" class="detail">Concrete implementations are selected in internal/app. Usecases never import delivery or infrastructure.</text>
 </svg>

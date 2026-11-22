@@ -98,9 +98,6 @@ func (c *Client) Connection() *googlegrpc.ClientConn {
 
 // Close releases connection resources.
 func (c *Client) Close() error {
-	if c == nil || c.connection == nil {
-		return nil
-	}
 	if err := c.connection.Close(); err != nil {
 		return fmt.Errorf("close gRPC client connection: %w", err)
 	}

@@ -3,8 +3,8 @@ package observability
 import (
 	"context"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/grpccontext"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // AccessLog writes one structured completion log per RPC.
@@ -14,9 +14,6 @@ type AccessLog struct {
 
 // NewAccessLog creates gRPC request access logging.
 func NewAccessLog(log logger.Logger) *AccessLog {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
 	return &AccessLog{log: log}
 }
 
@@ -27,10 +24,10 @@ func (l *AccessLog) Record(ctx context.Context, outcome rpcOutcome) {
 		keyRPCSystemName, "grpc",
 		keyRPCMethod, outcome.rpc.method,
 		keyApplicationRPCCallType, outcome.rpc.callType,
-		keyRPCResponseStatusCode, outcome.responseStatusName(),
+		keyRPCStatusCode, outcome.responseStatusName(),
 		keyLogDurationMS, outcome.duration.Milliseconds(),
 	)
-	if identity, ok := calleridentity.FromContext(ctx); ok {
+	if identity, ok := grpccontext.CallerIdentityFromContext(ctx); ok {
 		fields[keyApplicationCallerID] = identity.Subject
 		fields[keyApplicationCallerAuthenticationType] = string(identity.AuthenticationType)
 	}

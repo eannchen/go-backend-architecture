@@ -1,34 +1,35 @@
 package ratelimitmw
 
 import (
+	"context"
 	"math"
 	"strconv"
 	"time"
 
+	"github.com/labstack/echo/v5"
+
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
-	"github.com/labstack/echo/v5"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
+// Limiter is the application behavior required by this adapter.
+type Limiter interface {
+	AllowIP(context.Context, string) (globalratelimit.Decision, error)
+}
+
 type GlobalRateLimitMiddleware struct {
-	limiter   globalratelimit.Limiter
-	responder httpresponse.Responder
+	limiter   Limiter
+	responder *httpresponse.Responder
 	decisions observability.Counter
 }
 
-func NewGlobalRateLimit(limiter globalratelimit.Limiter, responder httpresponse.Responder, meter observability.Meter) *GlobalRateLimitMiddleware {
-	if responder == nil {
-		responder = httpresponse.NewResponder()
-	}
-	if meter == nil {
-		meter = observability.NoopMeter{}
-	}
+func NewGlobalRateLimit(limiter Limiter, responder *httpresponse.Responder, meter observability.Meter) *GlobalRateLimitMiddleware {
 	return &GlobalRateLimitMiddleware{
 		limiter:   limiter,
 		responder: responder,
-		decisions: meter.Counter("http_rate_limit_decisions_total", observability.MetricOption{Description: "Global HTTP rate-limit decisions by outcome.", Unit: "{decision}"}),
+		decisions: meter.Counter("app.http.rate_limit.decisions", observability.MetricOption{Description: "Global HTTP rate-limit decisions by outcome.", Unit: "{decision}"}),
 	}
 }
 

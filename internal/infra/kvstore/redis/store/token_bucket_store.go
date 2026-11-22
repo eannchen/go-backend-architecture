@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
 	goredis "github.com/redis/go-redis/v9"
+
+	globalratelimit "github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
 )
 
 const tokenBucketKeyPrefix = "ratelimit:tb:"
@@ -51,32 +52,30 @@ func NewTokenBucketStore(client *goredis.Client) *TokenBucketStore {
 	return &TokenBucketStore{client: client}
 }
 
-func (s *TokenBucketStore) Allow(ctx context.Context, key string, capacity int, refill time.Duration) (repokvstore.TokenBucketDecision, error) {
+func (s *TokenBucketStore) Allow(ctx context.Context, key string, capacity int, refill time.Duration) (globalratelimit.StoreDecision, error) {
 	ms := refill.Milliseconds()
 	if capacity <= 0 || ms <= 0 {
-		return repokvstore.TokenBucketDecision{}, fmt.Errorf("token bucket: invalid capacity or refill interval")
+		return globalratelimit.StoreDecision{}, fmt.Errorf("token bucket: invalid capacity or refill interval")
 	}
 	res, err := tokenBucketScript.Run(ctx, s.client, []string{tokenBucketKeyPrefix + key}, capacity, ms, time.Now().UnixMilli()).Slice()
 	if err != nil {
-		return repokvstore.TokenBucketDecision{}, fmt.Errorf("token bucket allow: %w", err)
+		return globalratelimit.StoreDecision{}, fmt.Errorf("token bucket allow: %w", err)
 	}
 	allowed, err := redisInt(res[0])
 	if err != nil {
-		return repokvstore.TokenBucketDecision{}, err
+		return globalratelimit.StoreDecision{}, err
 	}
 	retry, err := redisInt(res[1])
 	if err != nil {
-		return repokvstore.TokenBucketDecision{}, err
+		return globalratelimit.StoreDecision{}, err
 	}
 	remaining, err := redisInt(res[2])
 	if err != nil {
-		return repokvstore.TokenBucketDecision{}, err
+		return globalratelimit.StoreDecision{}, err
 	}
-	d := repokvstore.TokenBucketDecision{Allowed: allowed == 1, Remaining: remaining}
+	d := globalratelimit.StoreDecision{Allowed: allowed == 1, Remaining: remaining}
 	if !d.Allowed && retry > 0 {
 		d.RetryAfter = time.Duration(retry) * time.Millisecond
 	}
 	return d, nil
 }
-
-var _ repokvstore.TokenBucketRepository = (*TokenBucketStore)(nil)

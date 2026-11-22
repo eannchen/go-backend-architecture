@@ -9,22 +9,16 @@ import (
 	"google.golang.org/grpc/codes"
 
 	grpcresponse "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // Interceptor converts panics into safe gRPC failures.
 type Interceptor struct {
 	log       logger.Logger
-	responder grpcresponse.Responder
+	responder *grpcresponse.Responder
 }
 
-func New(log logger.Logger, responder grpcresponse.Responder) *Interceptor {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
-	if responder == nil {
-		responder = grpcresponse.NewResponder()
-	}
+func New(log logger.Logger, responder *grpcresponse.Responder) *Interceptor {
 	return &Interceptor{log: log, responder: responder}
 }
 

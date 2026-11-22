@@ -7,7 +7,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
+	authotp "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp"
 )
 
 const otpKeyPrefix = "otp:"
@@ -54,7 +54,7 @@ func (s *OTPStore) Consume(ctx context.Context, email, candidateHash string) (bo
 	}
 	switch status {
 	case 0:
-		return false, repokvstore.ErrOTPNotFound
+		return false, authotp.ErrOTPNotFound
 	case 1:
 		return false, nil
 	case 2:
@@ -70,5 +70,3 @@ func (s *OTPStore) Delete(ctx context.Context, email string) error {
 	}
 	return nil
 }
-
-var _ repokvstore.OTPRepository = (*OTPStore)(nil)

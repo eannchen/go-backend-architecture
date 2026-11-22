@@ -5,28 +5,27 @@ import (
 
 	rediscachestore "github.com/eannchen/go-backend-architecture/internal/infra/cache/redis/store"
 	rediskvstore "github.com/eannchen/go-backend-architecture/internal/infra/kvstore/redis/store"
-	repocache "github.com/eannchen/go-backend-architecture/internal/repository/cache"
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
+	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
 type redisStores struct {
-	cacheHealth repocache.CacheHealthStore
+	cacheHealth usecasehealth.Pinger
 	userCache   *rediscachestore.UserCacheStore
-	kvHealth    repokvstore.KVHealthStore
+	kvHealth    usecasehealth.Pinger
 	session     *rediskvstore.SessionStore
 	otp         *rediskvstore.OTPStore
 	oauthState  *rediskvstore.OAuthStateStore
 	tokenBucket *rediskvstore.TokenBucketStore
 }
 
-func (d wiring) buildRedisStores(client *goredis.Client) redisStores {
+func (d wiring) buildRedisStores(cacheClient, kvClient *goredis.Client) redisStores {
 	return redisStores{
-		cacheHealth: rediscachestore.NewHealthStore(client),
-		userCache:   rediscachestore.NewUserCacheStore(client, d.cfg.Redis.CacheTTL),
-		kvHealth:    rediskvstore.NewHealthStore(client),
-		session:     rediskvstore.NewSessionStore(client),
-		otp:         rediskvstore.NewOTPStore(client),
-		oauthState:  rediskvstore.NewOAuthStateStore(client),
-		tokenBucket: rediskvstore.NewTokenBucketStore(client),
+		cacheHealth: rediscachestore.NewHealthStore(cacheClient),
+		userCache:   rediscachestore.NewUserCacheStore(cacheClient, d.cfg.Redis.CacheTTL),
+		kvHealth:    rediskvstore.NewHealthStore(kvClient),
+		session:     rediskvstore.NewSessionStore(kvClient),
+		otp:         rediskvstore.NewOTPStore(kvClient),
+		oauthState:  rediskvstore.NewOAuthStateStore(kvClient),
+		tokenBucket: rediskvstore.NewTokenBucketStore(kvClient),
 	}
 }

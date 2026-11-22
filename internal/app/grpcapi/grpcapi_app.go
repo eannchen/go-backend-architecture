@@ -8,7 +8,6 @@ import (
 	grpcdelivery "github.com/eannchen/go-backend-architecture/internal/delivery/grpc"
 	healthservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
 )
 
 type App struct {
@@ -17,8 +16,6 @@ type App struct {
 	Server   *grpcdelivery.Server
 	Reporter *healthservice.Reporter
 }
-
-var _ appruntime.Application = (*App)(nil)
 
 func New(ctx context.Context) (*App, error) {
 	cfg, err := config.LoadGRPCAPI()
@@ -36,12 +33,13 @@ func New(ctx context.Context) (*App, error) {
 		runtime.Observability.Tracer(),
 		runtime.Observability.Meter(),
 	)
-	healthUsecase := wiring.buildHealthUsecase(runtime.DBPool, runtime.RedisClient)
+	healthUsecase := wiring.buildHealthUsecase(runtime.DBPool, runtime.RedisClient, runtime.RedisClient)
 	components, err := wiring.buildServer(healthUsecase)
 	if err != nil {
-		return nil, errutil.Join(
+		cleanupErr := appruntime.CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, runtime.Shutdown)
+		return nil, errors.Join(
 			err,
-			errutil.Step("shutdown runtime after gRPC server init failure", runtime.Shutdown(ctx)),
+			appruntime.WrapCleanupError("shutdown runtime after gRPC server init failure", cleanupErr),
 		)
 	}
 
@@ -59,15 +57,9 @@ func (a *App) Start() error {
 }
 
 func (a *App) Shutdown(ctx context.Context) error {
-	var shutdownErr error
-	if err := a.Reporter.Shutdown(ctx); err != nil {
-		shutdownErr = errors.Join(shutdownErr, err)
-	}
-	if err := a.Server.Shutdown(ctx); err != nil {
-		shutdownErr = errors.Join(shutdownErr, err)
-	}
-	if err := a.Runtime.Shutdown(ctx); err != nil {
-		shutdownErr = errors.Join(shutdownErr, err)
-	}
-	return shutdownErr
+	return errors.Join(
+		a.Reporter.Shutdown(ctx),
+		a.Server.Shutdown(ctx),
+		a.Runtime.Shutdown(ctx),
+	)
 }

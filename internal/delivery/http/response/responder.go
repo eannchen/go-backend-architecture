@@ -53,24 +53,12 @@ var codeStatusMap = map[Code]int{
 // Details is forwarded from httpcontext so Responder's public API stays self-contained.
 type Details = httpcontext.Details
 
-// Responder writes transport responses and records metadata for observability middleware.
-type Responder interface {
-	Success(c *echo.Context, status int, payload any) error
-	Error(c *echo.Context, err error, code Code, message string, details ...Details) error
-	InvalidQuery(c *echo.Context, err error, message string, details ...Details) error
-	AppError(c *echo.Context, err error) error
-	// AppErrorWithPayload records the app error for observability and responds with payload
-	// instead of the standard error body; status is derived from the error like AppError.
-	AppErrorWithPayload(c *echo.Context, err error, payload any) error
-	// StartSSE opens a Server-Sent Events response after validation succeeds.
-	StartSSE(c *echo.Context) (*SSEStream, error)
-}
-
-type responder struct{}
+// Responder maps application outcomes to HTTP responses.
+type Responder struct{}
 
 // NewResponder creates an injectable HTTP responder.
-func NewResponder() Responder {
-	return &responder{}
+func NewResponder() *Responder {
+	return &Responder{}
 }
 
 type errorPayload struct {
@@ -78,19 +66,19 @@ type errorPayload struct {
 	Message string `json:"message"`
 }
 
-func (r *responder) Success(c *echo.Context, status int, payload any) error {
+func (r *Responder) Success(c *echo.Context, status int, payload any) error {
 	return c.JSON(status, payload)
 }
 
-func (r *responder) Error(c *echo.Context, err error, code Code, message string, details ...Details) error {
+func (r *Responder) Error(c *echo.Context, err error, code Code, message string, details ...Details) error {
 	return r.writeError(c, err, code, message, optionalDetails(details...))
 }
 
-func (r *responder) InvalidQuery(c *echo.Context, err error, message string, details ...Details) error {
+func (r *Responder) InvalidQuery(c *echo.Context, err error, message string, details ...Details) error {
 	return r.writeError(c, err, CodeInvalidQuery, message, optionalDetails(details...))
 }
 
-func (r *responder) AppError(c *echo.Context, err error) error {
+func (r *Responder) AppError(c *echo.Context, err error) error {
 	if handled, responseErr := r.writeContextError(c, err); handled {
 		return responseErr
 	}
@@ -101,7 +89,7 @@ func (r *responder) AppError(c *echo.Context, err error) error {
 	return r.writeError(c, err, Code(appErr.Code), appErr.Message, appErr.Details)
 }
 
-func (r *responder) writeError(c *echo.Context, originalError error, code Code, message string, details Details) error {
+func (r *Responder) writeError(c *echo.Context, originalError error, code Code, message string, details Details) error {
 	recordErrorOutcome(c, originalError, code, message, details)
 	return c.JSON(code.toHTTPStatus(), errorPayload{
 		Code:    string(code),
@@ -109,7 +97,7 @@ func (r *responder) writeError(c *echo.Context, originalError error, code Code, 
 	})
 }
 
-func (r *responder) AppErrorWithPayload(c *echo.Context, err error, payload any) error {
+func (r *Responder) AppErrorWithPayload(c *echo.Context, err error, payload any) error {
 	if handled, responseErr := r.writeContextError(c, err); handled {
 		return responseErr
 	}
@@ -123,7 +111,7 @@ func (r *responder) AppErrorWithPayload(c *echo.Context, err error, payload any)
 	return c.JSON(Code(appErr.Code).toHTTPStatus(), payload)
 }
 
-func (r *responder) writeContextError(c *echo.Context, err error) (bool, error) {
+func (r *Responder) writeContextError(c *echo.Context, err error) (bool, error) {
 	switch {
 	case errors.Is(err, context.Canceled):
 		recordErrorOutcome(c, err, CodeRequestCanceled, "request canceled", nil)

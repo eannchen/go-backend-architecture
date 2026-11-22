@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 func NewPool(ctx context.Context, cfg config.DBConfig, log logger.Logger) (*pgxpool.Pool, error) {
@@ -41,9 +41,6 @@ func NewPool(ctx context.Context, cfg config.DBConfig, log logger.Logger) (*pgxp
 }
 
 func ClosePool(ctx context.Context, pool *pgxpool.Pool, log logger.Logger) {
-	if pool == nil {
-		return
-	}
 	start := time.Now()
 	pool.Close()
 	log.Info(ctx, "database pool closed", logger.FromPairs("duration_ms", time.Since(start).Milliseconds()))

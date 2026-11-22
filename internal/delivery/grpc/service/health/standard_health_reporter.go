@@ -8,9 +8,14 @@ import (
 
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
 	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
+
+// HealthChecker is the application behavior required by this adapter.
+type HealthChecker interface {
+	Check(context.Context, usecasehealth.CheckMode) (usecasehealth.Result, error)
+}
 
 const overallService = ""
 
@@ -28,7 +33,7 @@ type StandardHealthServer interface {
 // Reporter translates readiness results into cached standard gRPC health states.
 type Reporter struct {
 	log      logger.Logger
-	health   usecasehealth.Usecase
+	health   HealthChecker
 	server   StandardHealthServer
 	services []string
 	interval time.Duration
@@ -45,15 +50,12 @@ type Reporter struct {
 func NewReporter(
 	cfg ReporterConfig,
 	log logger.Logger,
-	health usecasehealth.Usecase,
+	health HealthChecker,
 	server StandardHealthServer,
 	serviceName string,
 ) (*Reporter, error) {
 	if cfg.RefreshInterval <= 0 {
 		return nil, fmt.Errorf("standard gRPC health refresh interval must be positive")
-	}
-	if log == nil {
-		log = logger.NoopLogger{}
 	}
 
 	services := []string{overallService}

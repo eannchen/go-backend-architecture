@@ -6,8 +6,8 @@ import (
 	googlegrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	appobservability "github.com/eannchen/go-backend-architecture/internal/observability"
-	"github.com/eannchen/go-backend-architecture/internal/security/calleridentity"
+	"github.com/eannchen/go-backend-architecture/internal/delivery/grpc/grpccontext"
+	appobservability "github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // Tracing owns distributed-context extraction and server-span lifecycle.
@@ -17,9 +17,6 @@ type Tracing struct {
 
 // NewTracing creates gRPC server tracing.
 func NewTracing(tracer appobservability.Tracer) *Tracing {
-	if tracer == nil {
-		tracer = appobservability.NoopTracer{}
-	}
 	return &Tracing{tracer: tracer}
 }
 
@@ -31,7 +28,7 @@ func (t *Tracing) Start(ctx context.Context, rpc rpcInfo) (context.Context, appo
 		ctx = t.tracer.Extract(ctx, metadataCarrier{MD: md})
 	}
 	fields := rpc.spanStartFields()
-	if identity, ok := calleridentity.FromContext(ctx); ok {
+	if identity, ok := grpccontext.CallerIdentityFromContext(ctx); ok {
 		// Caller identity is useful on individual spans but intentionally excluded
 		// from aggregate metrics, where arbitrary subjects increase cardinality.
 		fields[keyApplicationCallerID] = identity.Subject
@@ -44,8 +41,9 @@ func (t *Tracing) Start(ctx context.Context, rpc rpcInfo) (context.Context, appo
 
 // Finish records the normalized outcome and ends the span.
 func (*Tracing) Finish(span appobservability.Span, outcome rpcOutcome) {
-	fields := appobservability.FromPairs(keyRPCResponseStatusCode, outcome.responseStatusName())
-	if errorType := outcome.errorType(); errorType != "" {
+	fields := appobservability.FromPairs(keyRPCStatusCode, outcome.responseStatusName())
+	errorType := outcome.errorType()
+	if errorType != "" {
 		fields[keyErrorType] = errorType
 	}
 	if outcome.applicationError.causeChain != "" {
@@ -61,7 +59,7 @@ func (*Tracing) Finish(span appobservability.Span, outcome rpcOutcome) {
 		fields[keyApplicationErrorMessage] = outcome.applicationError.applicationErrorMessage
 	}
 	span.SetAttributes(fields)
-	span.Finish(outcome.handlerError)
+	span.Finish(appobservability.SpanOutcome{Err: outcome.handlerError, Failed: errorType != ""})
 }
 
 // metadataCarrier adapts multi-value gRPC metadata to the tracing carrier's

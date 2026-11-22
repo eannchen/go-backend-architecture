@@ -3,7 +3,7 @@ package observabilitymw
 import (
 	"context"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // AccessLog writes one structured completion log per HTTP request.
@@ -13,9 +13,6 @@ type AccessLog struct {
 
 // NewAccessLog creates HTTP request access logging.
 func NewAccessLog(log logger.Logger) *AccessLog {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
 	return &AccessLog{log: log}
 }
 

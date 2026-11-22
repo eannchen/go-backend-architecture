@@ -3,11 +3,18 @@
 include make/common.mk
 -include make/public-http.mk
 -include make/service-grpc.mk
+-include make/kafka.mk
+-include make/kafka-worker.mk
+-include make/kafka-share-worker.mk
 
 ifeq ($(PUBLIC_HTTP_PROFILE),true)
 run: run-httpapi
 else ifeq ($(SERVICE_GRPC_PROFILE),true)
 run: run-grpcapi
+else ifeq ($(KAFKA_WORKER_PROFILE),true)
+run: run-kafkaworker
+else ifeq ($(KAFKA_SHARE_WORKER_PROFILE),true)
+run: run-kafkashareworker
 else
 run:
 	@echo "No application profile is installed."

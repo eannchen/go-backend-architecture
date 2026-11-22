@@ -10,15 +10,14 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 	"github.com/eannchen/go-backend-architecture/internal/infra/db/postgres"
 	"github.com/eannchen/go-backend-architecture/internal/infra/redisconn"
-	"github.com/eannchen/go-backend-architecture/internal/util/errutil"
 )
-
-type Application interface{ Shutdown(context.Context) error }
 
 type Runtime struct {
 	*Telemetry
-	Config      config.RuntimeConfig
-	DBPool      *pgxpool.Pool
+	Config config.RuntimeConfig
+	DBPool *pgxpool.Pool
+	// RedisClient is shared by cache and KV stores in the template. Runtime
+	// owns the client; stores borrow it and must not close it.
 	RedisClient *goredis.Client
 }
 
@@ -29,7 +28,8 @@ func New(ctx context.Context, cfg config.RuntimeConfig) (*Runtime, error) {
 	}
 	pool, err := postgres.NewPool(ctx, cfg.DB, telemetry.Logger)
 	if err != nil {
-		return nil, errutil.Join(err, errutil.Step("shutdown telemetry after db init failure", telemetry.Shutdown(ctx)))
+		cleanupErr := CleanupAfterInitFailure(ctx, cfg.Shutdown.GracePeriod, telemetry.Shutdown)
+		return nil, errors.Join(err, WrapCleanupError("shutdown telemetry after db init failure", cleanupErr))
 	}
 	redisClient := redisconn.NewClient(cfg.Redis)
 	return &Runtime{
@@ -41,13 +41,7 @@ func New(ctx context.Context, cfg config.RuntimeConfig) (*Runtime, error) {
 }
 
 func (r *Runtime) Shutdown(ctx context.Context) error {
-	var err error
-	if r.RedisClient != nil {
-		err = errors.Join(err, r.RedisClient.Close())
-	}
+	redisErr := r.RedisClient.Close()
 	postgres.ClosePool(ctx, r.DBPool, r.Logger)
-	err = errors.Join(err, r.Telemetry.Shutdown(ctx))
-	return err
+	return errors.Join(WrapCleanupError("close Redis client", redisErr), r.Telemetry.Shutdown(ctx))
 }
-
-var _ Application = (*Runtime)(nil)

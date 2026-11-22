@@ -6,10 +6,7 @@ import (
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
-	repocache "github.com/eannchen/go-backend-architecture/internal/repository/cache"
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 type Result struct {
@@ -29,41 +26,32 @@ type Dependency struct {
 	Status string
 }
 
-type Usecase interface {
-	Check(ctx context.Context, mode CheckMode) (Result, error)
-}
-
-type impl struct {
+// Usecase implements the health workflow.
+type Usecase struct {
 	tracer       observability.Tracer
 	checkTotal   observability.Counter
 	checkLatency observability.Histogram
-	dbHealth     repodb.DBHealthRepository
-	cacheHealth  repocache.CacheHealthStore
-	kvHealth     repokvstore.KVHealthStore
+	dbHealth     DatabaseHealth
+	cacheHealth  Pinger
+	kvHealth     Pinger
 }
 
 func New(
 	tracer observability.Tracer,
 	meter observability.Meter,
-	dbHealth repodb.DBHealthRepository,
-	cacheHealth repocache.CacheHealthStore,
-	kvHealth repokvstore.KVHealthStore,
-) Usecase {
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
-	if meter == nil {
-		meter = observability.NoopMeter{}
-	}
-	return &impl{
+	dbHealth DatabaseHealth,
+	cacheHealth Pinger,
+	kvHealth Pinger,
+) *Usecase {
+	return &Usecase{
 		tracer: tracer,
-		checkTotal: meter.Counter("health_check_total",
+		checkTotal: meter.Counter("app.health.checks",
 			observability.MetricOption{
 				Description: "Total number of health checks by mode and result.",
 				Unit:        "{check}",
 			},
 		),
-		checkLatency: meter.Histogram("health_check_duration_seconds",
+		checkLatency: meter.Histogram("app.health.check.duration",
 			observability.MetricOption{
 				Description: "Health check latency in seconds by mode and result.",
 				Unit:        "s",
@@ -75,7 +63,7 @@ func New(
 	}
 }
 
-func (u *impl) Check(ctx context.Context, mode CheckMode) (result Result, err error) {
+func (u *Usecase) Check(ctx context.Context, mode CheckMode) (result Result, err error) {
 	ctx, span := u.tracer.Start(ctx, "usecase", "health_usecase.check")
 	startedAt := time.Now()
 	defer func() {
@@ -89,7 +77,7 @@ func (u *impl) Check(ctx context.Context, mode CheckMode) (result Result, err er
 		)
 		u.checkTotal.Add(ctx, 1, fields)
 		u.checkLatency.Record(ctx, time.Since(startedAt).Seconds(), fields)
-		span.Finish(err)
+		span.Finish(observability.SpanOutcome{Err: err, Failed: err != nil})
 	}()
 
 	if mode == "" {

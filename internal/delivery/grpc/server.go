@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // ServiceRegistrar registers one or more services with a gRPC server.
@@ -70,9 +70,6 @@ func newServer(
 	streamInterceptors []googlegrpc.StreamServerInterceptor,
 	registrars ...ServiceRegistrar,
 ) *Server {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
 
 	options := make([]googlegrpc.ServerOption, 0, 5)
 	if cfg.TransportCredentials != nil {

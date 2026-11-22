@@ -1,10 +1,10 @@
 PUBLIC_HTTP_PROFILE := true
-SQLC_CONFIG ?= $(if $(wildcard sqlc.public-http.yaml),sqlc.public-http.yaml,sqlc.yaml)
-AIR_HTTPAPI_CONFIG ?= $(if $(wildcard .air.httpapi.toml),.air.httpapi.toml,.air.toml)
+SQLC_CONFIG ?= $(if $(wildcard config/sqlc/public-http.yaml),config/sqlc/public-http.yaml,sqlc.yaml)
+AIR_HTTPAPI_CONFIG ?= $(if $(wildcard config/air/httpapi.toml),config/air/httpapi.toml,.air.toml)
 AIR_HTTPAPI_CMD ?= air -c $(AIR_HTTPAPI_CONFIG)
-OAPI_CODEGEN_CMD ?= github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
-VACUUM_CMD ?= github.com/daveshanley/vacuum@v0.30.1
-OASDIFF_CMD ?= github.com/oasdiff/oasdiff@v1.29.1
+OAPI_CODEGEN_CMD ?= github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.9.0
+VACUUM_CMD ?= github.com/daveshanley/vacuum@v0.42.3
+OASDIFF_CMD ?= github.com/oasdiff/oasdiff@v1.39.0
 OPENAPI_CONTRACT ?= contracts/http/openapi.yaml
 OPENAPI_GENERATED_DIR ?= internal/delivery/http/openapi/gen
 OPENAPI_BREAKING_BASE_REF ?= main

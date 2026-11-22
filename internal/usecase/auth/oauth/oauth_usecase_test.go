@@ -1,7 +1,9 @@
-package oauth
+package oauth_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"strings"
 	"testing"
@@ -9,13 +11,10 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
-	"github.com/eannchen/go-backend-architecture/internal/repository/db/dbtest"
-	repoexternal "github.com/eannchen/go-backend-architecture/internal/repository/external/oauth"
-	"github.com/eannchen/go-backend-architecture/internal/repository/external/oauth/oauthtest"
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
-	"github.com/eannchen/go-backend-architecture/internal/repository/kvstore/kvstoretest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
+	"github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
+	oauthtest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth/oauthtest"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // TestOAuthAuthenticatorAuthorize checks authorization creates the state and redirect needed for a safe OAuth flow.
@@ -54,18 +53,18 @@ func TestOAuthAuthenticatorAuthorize(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			stateRepo := &kvstoretest.OAuthStateRepository{
-				StoreFunc: func(context.Context, string, repokvstore.OAuthStateData, time.Duration) error {
+			stateRepo := &oauthtest.OAuthStateRepository{
+				StoreFunc: func(context.Context, string, oauth.OAuthStateData, time.Duration) error {
 					return tt.storeErr
 				},
 			}
 			provider := &oauthtest.OAuthProvider{
-				ProviderName: "google",
+				NameFunc: func() string { return "google" },
 				AuthCodeURLFunc: func(state, _ string) string {
 					return "https://oauth.test/authorize?state=" + state
 				},
 			}
-			uc := NewOAuthAuthenticator(nil, nil, stateRepo, &dbtest.UserRepository{}, provider)
+			uc := oauth.NewOAuthAuthenticator(observability.NoopTracer{}, observability.NoopMeter{}, stateRepo, &oauthtest.UserRepository{}, provider)
 
 			got, err := uc.Authorize(context.Background(), tt.provider)
 
@@ -74,18 +73,18 @@ func TestOAuthAuthenticatorAuthorize(t *testing.T) {
 			} else if err != nil {
 				t.Fatalf("expected nil error, got %v", err)
 			}
-			if stateRepo.StoreCalls != tt.wantStoreCalls {
-				t.Fatalf("expected store calls %d, got %d", tt.wantStoreCalls, stateRepo.StoreCalls)
+			if len(stateRepo.StoreCalls) != tt.wantStoreCalls {
+				t.Fatalf("expected store calls %d, got %d", tt.wantStoreCalls, len(stateRepo.StoreCalls))
 			}
-			if provider.AuthCodeCalls != tt.wantAuthCalls {
-				t.Fatalf("expected auth url calls %d, got %d", tt.wantAuthCalls, provider.AuthCodeCalls)
+			if len(provider.AuthCodeURLCalls) != tt.wantAuthCalls {
+				t.Fatalf("expected auth url calls %d, got %d", tt.wantAuthCalls, len(provider.AuthCodeURLCalls))
 			}
 			if tt.wantAuthCalls == 1 {
-				if !strings.Contains(got.RedirectURL, stateRepo.StoreState) {
-					t.Fatalf("expected redirect URL %q to contain stored state %q", got.RedirectURL, stateRepo.StoreState)
+				if !strings.Contains(got.RedirectURL, stateRepo.StoreCalls[0].State) {
+					t.Fatalf("expected redirect URL %q to contain stored state %q", got.RedirectURL, stateRepo.StoreCalls[0].State)
 				}
-				if got.BrowserBinding == "" || stateRepo.StoreData.BrowserBindingHash != hashBrowserBinding(got.BrowserBinding) {
-					t.Fatalf("expected stored browser-binding hash, got %+v", stateRepo.StoreData)
+				if got.BrowserBinding == "" || stateRepo.StoreCalls[0].Data.BrowserBindingHash != expectedDigest(got.BrowserBinding) {
+					t.Fatalf("expected stored browser-binding hash, got %+v", stateRepo.StoreCalls[0].Data)
 				}
 			}
 		})
@@ -102,7 +101,7 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 		code              string
 		stateValid        bool
 		stateErr          error
-		exchangeResult    repoexternal.OAuthUserInfo
+		exchangeResult    oauth.OAuthUserInfo
 		exchangeErr       error
 		upsertResult      domainuser.User
 		upsertErr         error
@@ -160,7 +159,7 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 			provider:          "google",
 			code:              "code-1",
 			stateValid:        true,
-			exchangeResult:    repoexternal.OAuthUserInfo{ProviderUserID: "google-1", Email: "user@example.com"},
+			exchangeResult:    oauth.OAuthUserInfo{ProviderUserID: "google-1", Email: "user@example.com"},
 			upsertErr:         errors.New("postgres unavailable"),
 			wantCode:          apperr.CodeInternal,
 			wantConsumeCalls:  1,
@@ -172,7 +171,7 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 			provider:          "google",
 			code:              "code-1",
 			stateValid:        true,
-			exchangeResult:    repoexternal.OAuthUserInfo{ProviderUserID: "google-1", Email: "user@example.com"},
+			exchangeResult:    oauth.OAuthUserInfo{ProviderUserID: "google-1", Email: "user@example.com"},
 			upsertResult:      domainuser.User{ID: 77, Email: "user@example.com", Status: domainuser.StatusActive},
 			wantIdentity:      auth.Identity{UserID: 77, Email: "user@example.com", Method: auth.MethodOAuth},
 			wantConsumeCalls:  1,
@@ -184,7 +183,7 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 			provider:          "google",
 			code:              "code-1",
 			stateValid:        true,
-			exchangeResult:    repoexternal.OAuthUserInfo{ProviderUserID: "google-2", Email: "disabled@example.com"},
+			exchangeResult:    oauth.OAuthUserInfo{ProviderUserID: "google-2", Email: "disabled@example.com"},
 			upsertResult:      domainuser.User{ID: 78, Email: "disabled@example.com", Status: domainuser.StatusDisabled},
 			wantCode:          apperr.CodeForbidden,
 			wantConsumeCalls:  1,
@@ -197,23 +196,23 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			stateRepo := &kvstoretest.OAuthStateRepository{
-				ConsumeFunc: func(context.Context, string) (repokvstore.OAuthStateData, bool, error) {
-					return repokvstore.OAuthStateData{BrowserBindingHash: hashBrowserBinding("binding-1")}, tt.stateValid, tt.stateErr
+			stateRepo := &oauthtest.OAuthStateRepository{
+				ConsumeFunc: func(context.Context, string) (oauth.OAuthStateData, bool, error) {
+					return oauth.OAuthStateData{BrowserBindingHash: expectedDigest("binding-1")}, tt.stateValid, tt.stateErr
 				},
 			}
 			provider := &oauthtest.OAuthProvider{
-				ProviderName: "google",
-				ExchangeFunc: func(context.Context, string, string) (repoexternal.OAuthUserInfo, error) {
+				NameFunc: func() string { return "google" },
+				ExchangeFunc: func(context.Context, string, string) (oauth.OAuthUserInfo, error) {
 					return tt.exchangeResult, tt.exchangeErr
 				},
 			}
-			userRepo := &dbtest.UserRepository{
-				UpsertOAuthUserFunc: func(context.Context, repodb.OAuthUserUpsert) (domainuser.User, error) {
+			userRepo := &oauthtest.UserRepository{
+				UpsertOAuthUserFunc: func(context.Context, oauth.OAuthUserUpsert) (domainuser.User, error) {
 					return tt.upsertResult, tt.upsertErr
 				},
 			}
-			uc := NewOAuthAuthenticator(nil, nil, stateRepo, userRepo, provider)
+			uc := oauth.NewOAuthAuthenticator(observability.NoopTracer{}, observability.NoopMeter{}, stateRepo, userRepo, provider)
 
 			got, err := uc.HandleCallback(context.Background(), tt.provider, tt.code, "state-1", "binding-1")
 
@@ -225,23 +224,23 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 			if got != tt.wantIdentity {
 				t.Fatalf("expected identity %+v, got %+v", tt.wantIdentity, got)
 			}
-			if stateRepo.ConsumeCalls != tt.wantConsumeCalls {
-				t.Fatalf("expected consume calls %d, got %d", tt.wantConsumeCalls, stateRepo.ConsumeCalls)
+			if len(stateRepo.ConsumeCalls) != tt.wantConsumeCalls {
+				t.Fatalf("expected consume calls %d, got %d", tt.wantConsumeCalls, len(stateRepo.ConsumeCalls))
 			}
-			if provider.ExchangeCalls != tt.wantExchangeCalls {
-				t.Fatalf("expected exchange calls %d, got %d", tt.wantExchangeCalls, provider.ExchangeCalls)
+			if len(provider.ExchangeCalls) != tt.wantExchangeCalls {
+				t.Fatalf("expected exchange calls %d, got %d", tt.wantExchangeCalls, len(provider.ExchangeCalls))
 			}
-			if userRepo.UpsertOAuthUserCalls != tt.wantUpsertCalls {
-				t.Fatalf("expected upsert calls %d, got %d", tt.wantUpsertCalls, userRepo.UpsertOAuthUserCalls)
+			if len(userRepo.UpsertOAuthUserCalls) != tt.wantUpsertCalls {
+				t.Fatalf("expected upsert calls %d, got %d", tt.wantUpsertCalls, len(userRepo.UpsertOAuthUserCalls))
 			}
 			if tt.wantUpsertCalls == 1 {
-				wantInfo := repodb.OAuthUserUpsert{
+				wantInfo := oauth.OAuthUserUpsert{
 					Provider:       tt.provider,
 					ProviderUserID: tt.exchangeResult.ProviderUserID,
 					Email:          tt.exchangeResult.Email,
 				}
-				if userRepo.UpsertOAuthUserInfo != wantInfo {
-					t.Fatalf("expected upsert info %+v, got %+v", wantInfo, userRepo.UpsertOAuthUserInfo)
+				if userRepo.UpsertOAuthUserCalls[0].Info != wantInfo {
+					t.Fatalf("expected upsert info %+v, got %+v", wantInfo, userRepo.UpsertOAuthUserCalls[0].Info)
 				}
 			}
 		})
@@ -250,18 +249,18 @@ func TestOAuthAuthenticatorHandleCallback(t *testing.T) {
 
 // TestOAuthAuthenticatorHandleCallbackRejectsMismatchedBrowserBinding checks a callback from another browser cannot consume the OAuth state.
 func TestOAuthAuthenticatorHandleCallbackRejectsMismatchedBrowserBinding(t *testing.T) {
-	stateRepo := &kvstoretest.OAuthStateRepository{
-		ConsumeFunc: func(context.Context, string) (repokvstore.OAuthStateData, bool, error) {
-			return repokvstore.OAuthStateData{BrowserBindingHash: hashBrowserBinding("expected")}, true, nil
+	stateRepo := &oauthtest.OAuthStateRepository{
+		ConsumeFunc: func(context.Context, string) (oauth.OAuthStateData, bool, error) {
+			return oauth.OAuthStateData{BrowserBindingHash: expectedDigest("expected")}, true, nil
 		},
 	}
-	provider := &oauthtest.OAuthProvider{ProviderName: "google"}
-	uc := NewOAuthAuthenticator(nil, nil, stateRepo, &dbtest.UserRepository{}, provider)
+	provider := &oauthtest.OAuthProvider{NameFunc: func() string { return "google" }}
+	uc := oauth.NewOAuthAuthenticator(observability.NoopTracer{}, observability.NoopMeter{}, stateRepo, &oauthtest.UserRepository{}, provider)
 
 	_, err := uc.HandleCallback(context.Background(), "google", "code", "state", "wrong")
 	assertAppCode(t, err, apperr.CodeUnauthorized)
-	if provider.ExchangeCalls != 0 {
-		t.Fatalf("Exchange() calls = %d, want 0", provider.ExchangeCalls)
+	if len(provider.ExchangeCalls) != 0 {
+		t.Fatalf("Exchange() calls = %d, want 0", len(provider.ExchangeCalls))
 	}
 }
 
@@ -277,4 +276,10 @@ func assertAppCode(t *testing.T, err error, want apperr.Code) {
 	if appErr.Code != want {
 		t.Fatalf("expected code %q, got %q", want, appErr.Code)
 	}
+}
+
+// expectedDigest matches the SHA-256 representation required by the storage contract.
+func expectedDigest(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
 }

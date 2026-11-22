@@ -1,21 +1,22 @@
-package otp
+package otp_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"testing"
 	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	domainuser "github.com/eannchen/go-backend-architecture/internal/domain/user"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/logger/loggertest"
-	repodb "github.com/eannchen/go-backend-architecture/internal/repository/db"
-	"github.com/eannchen/go-backend-architecture/internal/repository/db/dbtest"
-	"github.com/eannchen/go-backend-architecture/internal/repository/external/otp/otptest"
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
-	"github.com/eannchen/go-backend-architecture/internal/repository/kvstore/kvstoretest"
+	usertest "github.com/eannchen/go-backend-architecture/internal/domain/user/usertest"
 	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
+	"github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp"
+	otptest "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp/otptest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger/loggertest"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // TestOTPAuthenticatorSendCode checks that stored codes are hashed, delivery
@@ -78,7 +79,7 @@ func TestOTPAuthenticatorSendCode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			otpRepo := &kvstoretest.OTPRepository{
+			otpRepo := &otptest.OTPRepository{
 				StoreFunc: func(context.Context, string, string, time.Duration) error {
 					return tt.storeErr
 				},
@@ -94,14 +95,14 @@ func TestOTPAuthenticatorSendCode(t *testing.T) {
 			log := &loggertest.Logger{
 				WarnFunc: func(context.Context, string, ...logger.Fields) {},
 			}
-			uc := NewOTPAuthenticator(
+			uc := otp.NewOTPAuthenticator(
 				log,
-				nil,
-				nil,
+				observability.NoopTracer{},
+				observability.NoopMeter{},
 				otpRepo,
 				emailSender,
-				&dbtest.UserRepository{},
-				OTPConfig{CodeLength: 6, TTL: 5 * time.Minute},
+				&usertest.Repository{},
+				otp.OTPConfig{CodeLength: 6, TTL: 5 * time.Minute},
 			)
 
 			err := uc.SendCode(context.Background(), tt.email)
@@ -111,30 +112,32 @@ func TestOTPAuthenticatorSendCode(t *testing.T) {
 			} else if err != nil {
 				t.Fatalf("expected nil error, got %v", err)
 			}
-			if otpRepo.StoreCalls != tt.wantStoreCalls {
-				t.Fatalf("expected store calls %d, got %d", tt.wantStoreCalls, otpRepo.StoreCalls)
+			if len(otpRepo.StoreCalls) != tt.wantStoreCalls {
+				t.Fatalf("expected store calls %d, got %d", tt.wantStoreCalls, len(otpRepo.StoreCalls))
 			}
-			if emailSender.SendOTPCalls != tt.wantSendCalls {
-				t.Fatalf("expected send calls %d, got %d", tt.wantSendCalls, emailSender.SendOTPCalls)
+			if len(emailSender.SendOTPCalls) != tt.wantSendCalls {
+				t.Fatalf("expected send calls %d, got %d", tt.wantSendCalls, len(emailSender.SendOTPCalls))
 			}
-			if otpRepo.DeleteCalls != tt.wantDeleteCalls {
-				t.Fatalf("expected delete calls %d, got %d", tt.wantDeleteCalls, otpRepo.DeleteCalls)
+			if len(otpRepo.DeleteCalls) != tt.wantDeleteCalls {
+				t.Fatalf("expected delete calls %d, got %d", tt.wantDeleteCalls, len(otpRepo.DeleteCalls))
 			}
 			if len(log.WarnCalls) != tt.wantWarnCalls {
 				t.Fatalf("expected warn calls %d, got %d", tt.wantWarnCalls, len(log.WarnCalls))
 			}
 			if tt.wantSendCalls == 1 {
-				if emailSender.SendOTPEmail != tt.email {
-					t.Fatalf("expected email %q, got %q", tt.email, emailSender.SendOTPEmail)
+				sent := emailSender.SendOTPCalls[0]
+				stored := otpRepo.StoreCalls[0]
+				if sent.Email != tt.email {
+					t.Fatalf("expected email %q, got %q", tt.email, sent.Email)
 				}
-				if len(emailSender.SendOTPCode) != 6 {
-					t.Fatalf("expected 6 digit code, got %q", emailSender.SendOTPCode)
+				if len(sent.Code) != 6 {
+					t.Fatalf("expected 6 digit code, got %q", sent.Code)
 				}
-				if otpRepo.StoreHashedCode != hashCode(emailSender.SendOTPCode) {
+				if stored.HashedCode != expectedDigest(sent.Code) {
 					t.Fatalf("expected stored hash to match sent code")
 				}
-				if otpRepo.StoreTTL != 5*time.Minute {
-					t.Fatalf("expected ttl %v, got %v", 5*time.Minute, otpRepo.StoreTTL)
+				if stored.TTL != 5*time.Minute {
+					t.Fatalf("expected ttl %v, got %v", 5*time.Minute, stored.TTL)
 				}
 			}
 		})
@@ -146,7 +149,7 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 	t.Parallel()
 
 	validCode := "123456"
-	validHash := hashCode(validCode)
+	validHash := expectedDigest(validCode)
 
 	tests := []struct {
 		name             string
@@ -178,7 +181,7 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 			name:             "rejects missing otp",
 			email:            "user@example.com",
 			code:             validCode,
-			consumeOTPErr:    repokvstore.ErrOTPNotFound,
+			consumeOTPErr:    otp.ErrOTPNotFound,
 			wantCode:         apperr.CodeUnauthorized,
 			wantConsumeCalls: 1,
 		},
@@ -205,7 +208,7 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 			email:            "new@example.com",
 			code:             validCode,
 			storedHash:       validHash,
-			getUserErr:       repodb.ErrNotFound,
+			getUserErr:       domainuser.ErrNotFound,
 			createUserResult: domainuser.User{ID: 99, Email: "new@example.com", Status: domainuser.StatusActive},
 			wantIdentity:     auth.Identity{UserID: 99, Email: "new@example.com", Method: auth.MethodOTP},
 			wantConsumeCalls: 1,
@@ -235,8 +238,8 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 			email:            "race@example.com",
 			code:             validCode,
 			storedHash:       validHash,
-			getUserErr:       repodb.ErrNotFound,
-			createUserErr:    repodb.ErrDuplicateKey,
+			getUserErr:       domainuser.ErrNotFound,
+			createUserErr:    domainuser.ErrAlreadyExists,
 			wantCode:         apperr.CodeConflict,
 			wantConsumeCalls: 1,
 			wantGetUserCalls: 1,
@@ -247,7 +250,7 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 			email:            "slow@example.com",
 			code:             validCode,
 			storedHash:       validHash,
-			getUserErr:       repodb.ErrNotFound,
+			getUserErr:       domainuser.ErrNotFound,
 			createUserErr:    context.DeadlineExceeded,
 			wantCode:         apperr.CodeTimeout,
 			wantConsumeCalls: 1,
@@ -259,7 +262,7 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 			email:            "fail@example.com",
 			code:             validCode,
 			storedHash:       validHash,
-			getUserErr:       repodb.ErrNotFound,
+			getUserErr:       domainuser.ErrNotFound,
 			createUserErr:    errors.New("postgres unavailable"),
 			wantCode:         apperr.CodeInternal,
 			wantConsumeCalls: 1,
@@ -273,12 +276,12 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 			t.Parallel()
 
 			log := logger.NoopLogger{}
-			otpRepo := &kvstoretest.OTPRepository{
+			otpRepo := &otptest.OTPRepository{
 				ConsumeFunc: func(_ context.Context, _ string, candidateHash string) (bool, error) {
 					return candidateHash == tt.storedHash, tt.consumeOTPErr
 				},
 			}
-			userRepo := &dbtest.UserRepository{
+			userRepo := &usertest.Repository{
 				GetByEmailFunc: func(context.Context, string) (domainuser.User, error) {
 					return tt.getUserResult, tt.getUserErr
 				},
@@ -286,7 +289,7 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 					return tt.createUserResult, tt.createUserErr
 				},
 			}
-			uc := NewOTPAuthenticator(log, nil, nil, otpRepo, &otptest.EmailSender{}, userRepo, OTPConfig{})
+			uc := otp.NewOTPAuthenticator(log, observability.NoopTracer{}, observability.NoopMeter{}, otpRepo, &otptest.EmailSender{}, userRepo, otp.OTPConfig{})
 
 			got, err := uc.VerifyCode(context.Background(), tt.email, tt.code)
 
@@ -298,14 +301,14 @@ func TestOTPAuthenticatorVerifyCode(t *testing.T) {
 			if got != tt.wantIdentity {
 				t.Fatalf("expected identity %+v, got %+v", tt.wantIdentity, got)
 			}
-			if otpRepo.ConsumeCalls != tt.wantConsumeCalls {
-				t.Fatalf("expected otp consume calls %d, got %d", tt.wantConsumeCalls, otpRepo.ConsumeCalls)
+			if len(otpRepo.ConsumeCalls) != tt.wantConsumeCalls {
+				t.Fatalf("expected otp consume calls %d, got %d", tt.wantConsumeCalls, len(otpRepo.ConsumeCalls))
 			}
-			if userRepo.GetByEmailCalls != tt.wantGetUserCalls {
-				t.Fatalf("expected user get calls %d, got %d", tt.wantGetUserCalls, userRepo.GetByEmailCalls)
+			if len(userRepo.GetByEmailCalls) != tt.wantGetUserCalls {
+				t.Fatalf("expected user get calls %d, got %d", tt.wantGetUserCalls, len(userRepo.GetByEmailCalls))
 			}
-			if userRepo.CreateByEmailCalls != tt.wantCreateCalls {
-				t.Fatalf("expected user create calls %d, got %d", tt.wantCreateCalls, userRepo.CreateByEmailCalls)
+			if len(userRepo.CreateByEmailCalls) != tt.wantCreateCalls {
+				t.Fatalf("expected user create calls %d, got %d", tt.wantCreateCalls, len(userRepo.CreateByEmailCalls))
 			}
 		})
 	}
@@ -323,4 +326,10 @@ func assertAppCode(t *testing.T, err error, want apperr.Code) {
 	if appErr.Code != want {
 		t.Fatalf("expected code %q, got %q", want, appErr.Code)
 	}
+}
+
+// expectedDigest matches the SHA-256 representation required by the storage contract.
+func expectedDigest(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
 }

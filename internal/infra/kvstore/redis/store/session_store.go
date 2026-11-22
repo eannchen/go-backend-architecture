@@ -9,7 +9,7 @@ import (
 
 	goredis "github.com/redis/go-redis/v9"
 
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
+	authsession "github.com/eannchen/go-backend-architecture/internal/usecase/auth/session"
 )
 
 const sessionKeyPrefix = "session:"
@@ -30,7 +30,7 @@ type sessionJSON struct {
 	ExpiresAt int64  `json:"expires_at"`
 }
 
-func (s *SessionStore) Create(ctx context.Context, session repokvstore.SessionData, ttl time.Duration) error {
+func (s *SessionStore) Create(ctx context.Context, session authsession.SessionData, ttl time.Duration) error {
 	data, err := json.Marshal(sessionJSON{
 		UserID:    session.UserID,
 		Email:     session.Email,
@@ -46,19 +46,19 @@ func (s *SessionStore) Create(ctx context.Context, session repokvstore.SessionDa
 	return nil
 }
 
-func (s *SessionStore) GetByToken(ctx context.Context, token string) (repokvstore.SessionData, error) {
+func (s *SessionStore) GetByToken(ctx context.Context, token string) (authsession.SessionData, error) {
 	data, err := s.client.Get(ctx, sessionKeyPrefix+token).Bytes()
 	if err != nil {
 		if errors.Is(err, goredis.Nil) {
-			return repokvstore.SessionData{}, fmt.Errorf("get session: %w", errors.Join(repokvstore.ErrSessionNotFound, err))
+			return authsession.SessionData{}, fmt.Errorf("get session: %w", errors.Join(authsession.ErrSessionNotFound, err))
 		}
-		return repokvstore.SessionData{}, fmt.Errorf("get session: %w", err)
+		return authsession.SessionData{}, fmt.Errorf("get session: %w", err)
 	}
 	var v sessionJSON
 	if err := json.Unmarshal(data, &v); err != nil {
-		return repokvstore.SessionData{}, fmt.Errorf("unmarshal session: %w", err)
+		return authsession.SessionData{}, fmt.Errorf("unmarshal session: %w", err)
 	}
-	return repokvstore.SessionData{
+	return authsession.SessionData{
 		Token:     token,
 		UserID:    v.UserID,
 		Email:     v.Email,
@@ -73,5 +73,3 @@ func (s *SessionStore) Delete(ctx context.Context, token string) error {
 	}
 	return nil
 }
-
-var _ repokvstore.SessionRepository = (*SessionStore)(nil)

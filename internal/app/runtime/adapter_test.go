@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
-	"github.com/eannchen/go-backend-architecture/internal/observability/observabilitytest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
+	"github.com/eannchen/go-backend-architecture/pkg/observability/observabilitytest"
 )
 
 // TestToObservabilitySeverity checks runtime log levels keep their meaning when mapped to observability severity.

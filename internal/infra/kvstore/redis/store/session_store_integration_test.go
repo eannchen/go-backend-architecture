@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
+	authsession "github.com/eannchen/go-backend-architecture/internal/usecase/auth/session"
 )
 
 // TestSessionStoreIntegration checks session creation, lookup, and deletion against real Redis storage.
 func TestSessionStoreIntegration(t *testing.T) {
-	client := requireRedisTestClient(t)
+	client := redisTestClient
 
 	store := NewSessionStore(client)
 	ctx := context.Background()
@@ -25,7 +25,7 @@ func TestSessionStoreIntegration(t *testing.T) {
 		}
 	})
 
-	want := repokvstore.SessionData{
+	want := authsession.SessionData{
 		Token:     token,
 		UserID:    42,
 		Email:     "session@example.com",
@@ -48,7 +48,7 @@ func TestSessionStoreIntegration(t *testing.T) {
 	if err := store.Delete(ctx, token); err != nil {
 		t.Fatalf("delete session: %v", err)
 	}
-	if _, err := store.GetByToken(ctx, token); !errors.Is(err, repokvstore.ErrSessionNotFound) {
+	if _, err := store.GetByToken(ctx, token); !errors.Is(err, authsession.ErrSessionNotFound) {
 		t.Fatalf("error after delete = %v, want ErrSessionNotFound", err)
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/infra/security/tlsconfig/tlsconfigtest"
+	"github.com/eannchen/go-backend-architecture/pkg/tlsconfig/tlsconfigtest"
 )
 
 // TestBuildTransportCredentials covers plaintext, TLS, and invalid certificate settings so transport security follows configuration.

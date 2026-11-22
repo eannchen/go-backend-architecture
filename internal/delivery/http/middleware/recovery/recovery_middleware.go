@@ -10,22 +10,16 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/apperr"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/http/httpcontext"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
 )
 
 // Middleware converts panics into safe HTTP failures when a response can still be written.
 type Middleware struct {
 	log       logger.Logger
-	responder httpresponse.Responder
+	responder *httpresponse.Responder
 }
 
-func New(log logger.Logger, responder httpresponse.Responder) *Middleware {
-	if log == nil {
-		log = logger.NoopLogger{}
-	}
-	if responder == nil {
-		responder = httpresponse.NewResponder()
-	}
+func New(log logger.Logger, responder *httpresponse.Responder) *Middleware {
 	return &Middleware{log: log, responder: responder}
 }
 

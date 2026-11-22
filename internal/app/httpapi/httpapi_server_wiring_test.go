@@ -13,10 +13,10 @@ import (
 
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
-	repokvstore "github.com/eannchen/go-backend-architecture/internal/repository/kvstore"
-	"github.com/eannchen/go-backend-architecture/internal/repository/kvstore/kvstoretest"
+	globalratelimit "github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit"
+	globalratelimittest "github.com/eannchen/go-backend-architecture/internal/usecase/globalratelimit/globalratelimittest"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
 
 // TestBuildServerAppliesEnvironmentHTTPProtection checks environment settings enable the expected HTTP protections on the assembled server.
@@ -48,9 +48,9 @@ func TestBuildServerAppliesEnvironmentHTTPProtection(t *testing.T) {
 				},
 			}, logger.NoopLogger{}, observability.NoopTracer{}, observability.NoopMeter{})
 
-			tokenBucket := &kvstoretest.TokenBucketRepository{
-				AllowFunc: func(context.Context, string, int, time.Duration) (repokvstore.TokenBucketDecision, error) {
-					return repokvstore.TokenBucketDecision{Allowed: true}, nil
+			tokenBucket := &globalratelimittest.TokenBucketRepository{
+				AllowFunc: func(context.Context, string, int, time.Duration) (globalratelimit.StoreDecision, error) {
+					return globalratelimit.StoreDecision{Allowed: true}, nil
 				},
 			}
 			server, err := wiring.buildServer(httpresponse.NewResponder(), appRepositories{tokenBucketRepo: tokenBucket}, appHandlers{}, appUsecases{})
@@ -102,15 +102,15 @@ func TestBuildServerEstablishesRequestContextBeforeRateLimitingAndSkipsPreflight
 		},
 	}, logger.NoopLogger{}, observability.NoopTracer{}, observability.NoopMeter{})
 
-	tokenBucket := &kvstoretest.TokenBucketRepository{
-		AllowFunc: func(ctx context.Context, _ string, _ int, _ time.Duration) (repokvstore.TokenBucketDecision, error) {
+	tokenBucket := &globalratelimittest.TokenBucketRepository{
+		AllowFunc: func(ctx context.Context, _ string, _ int, _ time.Duration) (globalratelimit.StoreDecision, error) {
 			if got := observability.RequestIDFromContext(ctx); got != "request-123" {
 				t.Fatalf("rate-limit request ID = %q, want request-123", got)
 			}
 			if _, ok := ctx.Deadline(); !ok {
 				t.Fatal("rate-limit context has no request deadline")
 			}
-			return repokvstore.TokenBucketDecision{Allowed: true}, nil
+			return globalratelimit.StoreDecision{Allowed: true}, nil
 		},
 	}
 	server, err := wiring.buildServer(httpresponse.NewResponder(), appRepositories{tokenBucketRepo: tokenBucket}, appHandlers{}, appUsecases{})
@@ -122,15 +122,15 @@ func TestBuildServerEstablishesRequestContextBeforeRateLimitingAndSkipsPreflight
 	preflight.Header.Set(echo.HeaderOrigin, "https://app.example.com")
 	preflight.Header.Set(echo.HeaderAccessControlRequestMethod, http.MethodGet)
 	server.ServeHTTP(httptest.NewRecorder(), preflight)
-	if tokenBucket.AllowCalls != 0 {
-		t.Fatalf("rate-limit calls after preflight = %d, want 0", tokenBucket.AllowCalls)
+	if len(tokenBucket.AllowCalls) != 0 {
+		t.Fatalf("rate-limit calls after preflight = %d, want 0", len(tokenBucket.AllowCalls))
 	}
 
 	request := httptest.NewRequest(http.MethodGet, "/missing", nil)
 	request.Header.Set("X-Correlation-ID", "request-123")
 	server.ServeHTTP(httptest.NewRecorder(), request)
-	if tokenBucket.AllowCalls != 1 {
-		t.Fatalf("rate-limit calls after application request = %d, want 1", tokenBucket.AllowCalls)
+	if len(tokenBucket.AllowCalls) != 1 {
+		t.Fatalf("rate-limit calls after application request = %d, want 1", len(tokenBucket.AllowCalls))
 	}
 }
 

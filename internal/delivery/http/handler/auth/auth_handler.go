@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -11,12 +12,29 @@ import (
 	sessionmw "github.com/eannchen/go-backend-architecture/internal/delivery/http/middleware/session"
 	openapi "github.com/eannchen/go-backend-architecture/internal/delivery/http/openapi/gen"
 	httpresponse "github.com/eannchen/go-backend-architecture/internal/delivery/http/response"
-	"github.com/eannchen/go-backend-architecture/internal/logger"
-	"github.com/eannchen/go-backend-architecture/internal/observability"
+	"github.com/eannchen/go-backend-architecture/internal/usecase/auth"
 	authoauth "github.com/eannchen/go-backend-architecture/internal/usecase/auth/oauth"
-	authotp "github.com/eannchen/go-backend-architecture/internal/usecase/auth/otp"
-	authsession "github.com/eannchen/go-backend-architecture/internal/usecase/auth/session"
+	"github.com/eannchen/go-backend-architecture/pkg/logger"
+	"github.com/eannchen/go-backend-architecture/pkg/observability"
 )
+
+// OTPAuthenticator supplies the OTP operations exposed by this handler.
+type OTPAuthenticator interface {
+	SendCode(context.Context, string) error
+	VerifyCode(context.Context, string, string) (auth.Identity, error)
+}
+
+// OAuthAuthenticator supplies the OAuth operations exposed by this handler.
+type OAuthAuthenticator interface {
+	Authorize(context.Context, string) (authoauth.Authorization, error)
+	HandleCallback(context.Context, string, string, string, string) (auth.Identity, error)
+}
+
+// SessionManager supplies the session operations exposed by this handler.
+type SessionManager interface {
+	Create(context.Context, auth.Identity) (auth.Session, error)
+	Revoke(context.Context, string) error
+}
 
 const oauthBrowserBindingCookieName = "oauth_browser_binding"
 
@@ -31,10 +49,10 @@ type SessionCookieConfig struct {
 type Handler struct {
 	logger    logger.Logger
 	tracer    observability.Tracer
-	responder httpresponse.Responder
-	otp       authotp.OTPAuthenticator
-	oauth     authoauth.OAuthAuthenticator
-	session   authsession.SessionManager
+	responder *httpresponse.Responder
+	otp       OTPAuthenticator
+	oauth     OAuthAuthenticator
+	session   SessionManager
 	cookie    SessionCookieConfig
 	sessionMW *sessionmw.SessionMiddleware
 }
@@ -42,19 +60,13 @@ type Handler struct {
 func NewHandler(
 	log logger.Logger,
 	tracer observability.Tracer,
-	responder httpresponse.Responder,
-	otp authotp.OTPAuthenticator,
-	oauth authoauth.OAuthAuthenticator,
-	session authsession.SessionManager,
+	responder *httpresponse.Responder,
+	otp OTPAuthenticator,
+	oauth OAuthAuthenticator,
+	session SessionManager,
 	cookie SessionCookieConfig,
 	sessionMW *sessionmw.SessionMiddleware,
 ) *Handler {
-	if tracer == nil {
-		tracer = observability.NoopTracer{}
-	}
-	if responder == nil {
-		responder = httpresponse.NewResponder()
-	}
 	return &Handler{
 		logger:    log,
 		tracer:    tracer,
@@ -79,7 +91,7 @@ func (h *Handler) RegisterRoutes(e *echo.Echo) {
 func (h *Handler) SendOTP(c *echo.Context) error {
 	ctx, span := h.tracer.Start(c.Request().Context(), "handler", "auth_handler.send_otp")
 	var spanErr error
-	defer func() { span.Finish(spanErr) }()
+	defer func() { span.Finish(observability.SpanOutcome{Err: spanErr, Failed: spanErr != nil}) }()
 
 	var req openapi.OTPSendRequest
 	if err := c.Bind(&req); err != nil {
@@ -104,7 +116,7 @@ func (h *Handler) SendOTP(c *echo.Context) error {
 func (h *Handler) VerifyOTP(c *echo.Context) error {
 	ctx, span := h.tracer.Start(c.Request().Context(), "handler", "auth_handler.verify_otp")
 	var spanErr error
-	defer func() { span.Finish(spanErr) }()
+	defer func() { span.Finish(observability.SpanOutcome{Err: spanErr, Failed: spanErr != nil}) }()
 
 	var req openapi.OTPVerifyRequest
 	if err := c.Bind(&req); err != nil {
@@ -139,7 +151,7 @@ func (h *Handler) VerifyOTP(c *echo.Context) error {
 func (h *Handler) OAuthAuthorize(c *echo.Context) error {
 	ctx, span := h.tracer.Start(c.Request().Context(), "handler", "auth_handler.oauth_authorize")
 	var spanErr error
-	defer func() { span.Finish(spanErr) }()
+	defer func() { span.Finish(observability.SpanOutcome{Err: spanErr, Failed: spanErr != nil}) }()
 
 	provider := c.Param("provider")
 
@@ -156,7 +168,7 @@ func (h *Handler) OAuthAuthorize(c *echo.Context) error {
 func (h *Handler) OAuthCallback(c *echo.Context) error {
 	ctx, span := h.tracer.Start(c.Request().Context(), "handler", "auth_handler.oauth_callback")
 	var spanErr error
-	defer func() { span.Finish(spanErr) }()
+	defer func() { span.Finish(observability.SpanOutcome{Err: spanErr, Failed: spanErr != nil}) }()
 
 	provider := c.Param("provider")
 
@@ -204,7 +216,7 @@ func (h *Handler) OAuthCallback(c *echo.Context) error {
 func (h *Handler) Logout(c *echo.Context) error {
 	ctx, span := h.tracer.Start(c.Request().Context(), "handler", "auth_handler.logout")
 	var spanErr error
-	defer func() { span.Finish(spanErr) }()
+	defer func() { span.Finish(observability.SpanOutcome{Err: spanErr, Failed: spanErr != nil}) }()
 
 	cookie, err := c.Cookie(h.cookie.Name)
 	if err == nil && cookie != nil {
@@ -223,7 +235,7 @@ func (h *Handler) Logout(c *echo.Context) error {
 // Me returns the current user; requires session middleware (enforced by the route group).
 func (h *Handler) Me(c *echo.Context) error {
 	_, span := h.tracer.Start(c.Request().Context(), "handler", "auth_handler.me")
-	defer span.Finish(nil)
+	defer span.Finish(observability.SpanOutcome{})
 
 	session, _ := httpcontext.SessionFromContext(c)
 	return h.responder.Success(c, http.StatusOK, openapi.AuthResponse{

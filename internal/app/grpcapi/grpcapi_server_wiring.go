@@ -10,14 +10,12 @@ import (
 	grpcdelivery "github.com/eannchen/go-backend-architecture/internal/delivery/grpc"
 	diagnosticsv1 "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/gen/diagnostics/v1"
 	calleridentityinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/calleridentity"
+	contextinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/context"
 	observabilityinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/observability"
 	recoveryinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/recovery"
-	requestcontextinterceptor "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/interceptor/requestcontext"
 	grpcresponse "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/response"
 	diagnosticsservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/diagnostics"
 	healthservice "github.com/eannchen/go-backend-architecture/internal/delivery/grpc/service/health"
-	infracalleridentity "github.com/eannchen/go-backend-architecture/internal/infra/security/calleridentity"
-	usecasehealth "github.com/eannchen/go-backend-architecture/internal/usecase/health"
 )
 
 type serverComponents struct {
@@ -25,7 +23,7 @@ type serverComponents struct {
 	reporter *healthservice.Reporter
 }
 
-func (d wiring) buildServer(healthUsecase usecasehealth.Usecase) (serverComponents, error) {
+func (d wiring) buildServer(healthUsecase diagnosticsservice.HealthChecker) (serverComponents, error) {
 	transportCredentials, err := d.buildTransportCredentials()
 	if err != nil {
 		return serverComponents{}, err
@@ -45,9 +43,9 @@ func (d wiring) buildServer(healthUsecase usecasehealth.Usecase) (serverComponen
 	if err != nil {
 		return serverComponents{}, err
 	}
-	requestContext, err := requestcontextinterceptor.New(requestcontextinterceptor.Config{
+	requestContext, err := contextinterceptor.New(contextinterceptor.Config{
 		Timeout: d.cfg.GRPC.RequestTimeout,
-		RequestID: requestcontextinterceptor.RequestIDConfig{
+		RequestID: contextinterceptor.RequestIDConfig{
 			IncomingMetadataKey: d.cfg.GRPC.RequestID.IncomingKey,
 			ResponseMetadataKey: d.cfg.GRPC.RequestID.ResponseKey,
 			RejectInvalid:       d.cfg.GRPC.RequestID.RejectInvalid,
@@ -61,10 +59,7 @@ func (d wiring) buildServer(healthUsecase usecasehealth.Usecase) (serverComponen
 	unaryInterceptors := []googlegrpc.UnaryServerInterceptor{requestContext.Unary()}
 	streamInterceptors := []googlegrpc.StreamServerInterceptor{requestContext.Stream()}
 	if d.cfg.GRPC.TLS.Enabled && d.cfg.GRPC.TLS.ClientCAFile != "" {
-		callerIdentity, err := calleridentityinterceptor.New(infracalleridentity.URICertificateExtractor{}, responder)
-		if err != nil {
-			return serverComponents{}, fmt.Errorf("create gRPC caller-identity interceptor: %w", err)
-		}
+		callerIdentity := calleridentityinterceptor.New(responder)
 		unaryInterceptors = append(unaryInterceptors, callerIdentity.Unary())
 		streamInterceptors = append(streamInterceptors, callerIdentity.Stream())
 	}

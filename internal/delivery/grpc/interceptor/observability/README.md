@@ -13,4 +13,4 @@ This interceptor records server spans, access logs, and request metrics from one
 
 - Add detailed diagnostic fields only to traces and logs.
 - Add a metric attribute only when its value set is bounded and useful for aggregation.
-- Keep OpenTelemetry imports in `internal/infra/observability` and shared conventions in `internal/observability`.
+- Keep OpenTelemetry imports in `pkg/observability/otel` and shared conventions in `pkg/observability`.
