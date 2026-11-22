@@ -24,6 +24,7 @@ func buildConsumer(reader *kafkaclient.ShareReader, telemetry *appruntime.Teleme
 			contextmw.New(telemetry.Observability.Tracer(), contextmw.Config{
 				HandlingTimeout:      cfg.HandlingTimeout,
 				AcknowledgmentMargin: cfg.AcknowledgmentMargin,
+				RenewalEnabled:       cfg.RenewalInterval > 0,
 			}).Handler(),
 			observabilitymw.New(telemetry.Observability.Tracer(), telemetry.Logger, telemetry.Observability.Meter()).Handler(operation),
 			recoverymw.New(telemetry.Logger).Handler(),
@@ -36,5 +37,5 @@ func buildConsumer(reader *kafkaclient.ShareReader, telemetry *appruntime.Teleme
 	if err != nil {
 		return nil, err
 	}
-	return consumer.NewShareConsumer(reader, handler, consumer.ShareConsumerOptions{Concurrency: cfg.Concurrency})
+	return consumer.NewShareConsumer(reader, handler, consumer.ShareConsumerOptions{Concurrency: cfg.Concurrency, RenewalInterval: cfg.RenewalInterval})
 }

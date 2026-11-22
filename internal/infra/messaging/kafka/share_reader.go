@@ -30,8 +30,8 @@ type ShareAcknowledgmentErrorHandler func(topic string, partition int32, err err
 // ShareReader consumes a Kafka Share Group. Several readers can share records
 // from the same partition. Requires Kafka 4.2+ for the strict batch-size limit.
 //
-// One goroutine owns fetching, outcome decisions, and Close. Handlers may run
-// in parallel, but return outcomes to that owner.
+// One goroutine owns fetching, outcome decisions, renewal, and Close. Handlers
+// may run in parallel, but return outcomes to that owner.
 // Cancel the polling context and wait for processing to stop before Close.
 //
 // Default (explicit) flow: fetch -> process -> mark every outcome -> fetch again.
@@ -39,7 +39,7 @@ type ShareAcknowledgmentErrorHandler func(topic string, partition int32, err err
 // KafkaShareConsumer, we offer both policies; franz-go itself always permits
 // next-poll auto-acceptance, so our wrapper adds the explicit-mode guard.
 // Kafka acknowledgment results arrive separately through the injected handler.
-// Only shutdown waits for the pending acknowledgment queue to drain.
+// The SDK sends decisions in the background; only shutdown waits for them.
 type ShareReader struct {
 	// Owned SDK client and fixed maximum number of records per poll.
 	client             *kgo.Client
@@ -216,6 +216,34 @@ func (r *ShareReader) markRecord(record *kgo.Record, decision kgo.AckStatus) err
 	r.client.MarkAcks(decision, record)
 	r.active.decisions[record] = decision
 	r.active.pending--
+	return nil
+}
+
+// RenewRemaining queues best-effort renewal for undecided records, including
+// queued work. It does not complete records or wait for Kafka. The SDK sends
+// acknowledgments in the background and reports failures through the callback.
+// Its v1.22.3 background timer is 1s; shorter renewal ticks do not force sends.
+// A queued renewal does not guarantee continued ownership; handlers must tolerate
+// redelivery. Overlapping renewal and final decisions can produce SDK duplicate-
+// acknowledgment errors; these are reported asynchronously as well.
+func (r *ShareReader) RenewRemaining() error {
+	if r.closed {
+		return fmt.Errorf("renew remaining share records: %w", io.ErrClosedPipe)
+	}
+	if r.active == nil || r.active.pending == 0 {
+		return nil
+	}
+	// One goroutine owns this map; the SDK's acknowledgment state is separate.
+	// This filter skips our final decisions. MarkAcks atomically checks the SDK
+	// state when queuing renewal, so a final Accept/Release/Reject cannot be
+	// overwritten. Selecting a record here does not provide that protection.
+	records := make([]*kgo.Record, 0, r.active.pending)
+	for record, decision := range r.active.decisions {
+		if decision == 0 {
+			records = append(records, record)
+		}
+	}
+	r.client.MarkAcks(kgo.AckRenew, records...)
 	return nil
 }
 

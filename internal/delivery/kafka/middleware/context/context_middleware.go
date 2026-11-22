@@ -16,6 +16,10 @@ type Config struct {
 	HandlingTimeout time.Duration
 	// Reserve time to acknowledge a Share Group record before its lock expires.
 	AcknowledgmentMargin time.Duration
+	// The consumer requests best-effort renewal. The SDK does not update its
+	// original acquisition deadline, so it cannot bound renewed work here.
+	// HandlingTimeout and parent cancellation still apply; ownership may be lost.
+	RenewalEnabled bool
 }
 
 // Middleware carries trace metadata and applies a processing deadline while
@@ -44,7 +48,7 @@ func (m *Middleware) Handler() middleware.Middleware {
 			// use the configured handling timeout (or an earlier parent deadline).
 			// Their partition ownership can still change through a rebalance or
 			// session timeout; this middleware does not detect those changes.
-			if lock := record.AcquisitionDeadline(); !lock.IsZero() {
+			if lock := record.AcquisitionDeadline(); !m.config.RenewalEnabled && !lock.IsZero() {
 				if finishBy := lock.Add(-m.config.AcknowledgmentMargin); finishBy.Before(deadline) {
 					deadline = finishBy
 				}

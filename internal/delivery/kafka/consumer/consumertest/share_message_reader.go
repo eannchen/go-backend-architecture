@@ -8,16 +8,18 @@ import (
 
 // ShareMessageReader is a configurable double for its parent package's ShareMessageReader contract.
 type ShareMessageReader struct {
-	FetchRecordsFunc  func(ctx context.Context) ([]*kgo.Record, error)
-	FetchRecordsCalls []ShareMessageReaderFetchRecordsCall
-	AcceptFunc        func(record *kgo.Record) error
-	AcceptCalls       []ShareMessageReaderAcceptCall
-	ReleaseFunc       func(record *kgo.Record) error
-	ReleaseCalls      []ShareMessageReaderReleaseCall
-	RejectFunc        func(record *kgo.Record) error
-	RejectCalls       []ShareMessageReaderRejectCall
-	FatalErrorsFunc   func() <-chan error
-	FatalErrorsCalls  []ShareMessageReaderFatalErrorsCall
+	FetchRecordsFunc    func(ctx context.Context) ([]*kgo.Record, error)
+	FetchRecordsCalls   []ShareMessageReaderFetchRecordsCall
+	AcceptFunc          func(record *kgo.Record) error
+	AcceptCalls         []ShareMessageReaderAcceptCall
+	ReleaseFunc         func(record *kgo.Record) error
+	ReleaseCalls        []ShareMessageReaderReleaseCall
+	RejectFunc          func(record *kgo.Record) error
+	RejectCalls         []ShareMessageReaderRejectCall
+	RenewRemainingFunc  func() error
+	RenewRemainingCalls []ShareMessageReaderRenewRemainingCall
+	FatalErrorsFunc     func() <-chan error
+	FatalErrorsCalls    []ShareMessageReaderFatalErrorsCall
 }
 
 // ShareMessageReaderFetchRecordsCall records one ShareMessageReader.FetchRecords invocation.
@@ -74,6 +76,18 @@ func (d *ShareMessageReader) Reject(record *kgo.Record) error {
 		panic("unexpected ShareMessageReader.Reject call")
 	}
 	return fn(record)
+}
+
+// ShareMessageReaderRenewRemainingCall records one renewal request.
+type ShareMessageReaderRenewRemainingCall struct{}
+
+func (d *ShareMessageReader) RenewRemaining() error {
+	d.RenewRemainingCalls = append(d.RenewRemainingCalls, ShareMessageReaderRenewRemainingCall{})
+	fn := d.RenewRemainingFunc
+	if fn == nil {
+		panic("unexpected ShareMessageReader.RenewRemaining call")
+	}
+	return fn()
 }
 
 // ShareMessageReaderFatalErrorsCall records one ShareMessageReader.FatalErrors invocation.

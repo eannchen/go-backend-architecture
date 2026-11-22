@@ -183,6 +183,33 @@ func TestShareReaderPreservesCancellation(t *testing.T) {
 	}
 }
 
+// TestShareRenewalPreservesPendingRecords protects local bookkeeping: queuing
+// renewal does not finish a record or prevent the owner from releasing it.
+func TestShareRenewalPreservesPendingRecords(t *testing.T) {
+	r, err := NewShareReader(validShareConfig(), nil, stopOnShareAcknowledgmentError)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleanupShareReader(t, r)
+	record := &kgo.Record{}
+	r.active = newShareBatch([]*kgo.Record{record})
+	if err := r.RenewRemaining(); err != nil {
+		t.Fatal(err)
+	}
+	if r.active.pending != 1 || r.active.decisions[record] != 0 {
+		t.Fatal("renewal completed the record")
+	}
+	if err := r.ReleaseRemaining(); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.RenewRemaining(); !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatal(err)
+	}
+}
+
 func validShareConfig() config.KafkaShareConsumerConfig {
 	return config.KafkaShareConsumerConfig{
 		Brokers: []string{"127.0.0.1:1"}, Topics: []string{"jobs.v1"}, GroupID: "shared-jobs", MaxPollRecords: 2,

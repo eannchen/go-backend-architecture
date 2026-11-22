@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -18,6 +19,9 @@ type ShareMessageReader interface {
 	Accept(*kgo.Record) error
 	Release(*kgo.Record) error
 	Reject(*kgo.Record) error
+	// RenewRemaining queues renewal without waiting for Kafka. Broker
+	// failures are reported through the acknowledgment callback.
+	RenewRemaining() error
 	// FatalErrors stays open and reports independently selected stop requests.
 	FatalErrors() <-chan error
 }
@@ -25,11 +29,18 @@ type ShareMessageReader interface {
 // ShareConsumerOptions bounds local work. Batch size is configured on the reader.
 type ShareConsumerOptions struct {
 	Concurrency int
+	// Zero disables renewal. A positive interval renews undecided records in
+	// the current batch, including queued records. Leave enough time for SDK
+	// background sending and network delays before the broker lock expires.
+	RenewalInterval time.Duration
 }
 
 func (o ShareConsumerOptions) Validate() error {
 	if o.Concurrency < 1 || o.Concurrency > 1000 {
 		return errors.New("share consumer concurrency must be between 1 and 1000")
+	}
+	if o.RenewalInterval < 0 || (o.RenewalInterval > 0 && o.RenewalInterval < 10*time.Millisecond) || o.RenewalInterval > 15*time.Minute {
+		return errors.New("share consumer renewal interval must be zero or between 10ms and 15m")
 	}
 	return nil
 }
@@ -91,6 +102,12 @@ type shareOutcome struct {
 func (c *ShareConsumer) handleBatch(ctx context.Context, records []*kgo.Record) error {
 	batchCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	var renewalTicks <-chan time.Time
+	if c.options.RenewalInterval > 0 {
+		ticker := time.NewTicker(c.options.RenewalInterval)
+		defer ticker.Stop()
+		renewalTicks = ticker.C
+	}
 	// Both queues are bounded by this finite batch / configured concurrency.
 	// A queued record already holds a Kafka lock, so keep batches small.
 	jobs := make(chan *kgo.Record, len(records))
@@ -115,26 +132,43 @@ func (c *ShareConsumer) handleBatch(ctx context.Context, records []*kgo.Record) 
 		close(results)
 	}()
 	var failure error
-	for result := range results {
-		var markErr error
-		switch {
-		case errors.Is(result.err, middleware.ErrInvalidMessage):
-			markErr = c.reader.Reject(result.record)
-		case result.err != nil:
-			markErr = c.reader.Release(result.record)
-			// Cancellation caused by shutdown or another failed handler is expected.
-			// A handler's own timeout is a failure and stops this consumer after the batch.
-			if batchCtx.Err() == nil || (!errors.Is(result.err, context.Canceled) && !errors.Is(result.err, context.DeadlineExceeded)) {
-				failure = errors.Join(failure, fmt.Errorf("handle topic=%s partition=%d offset=%d: %w", result.record.Topic, result.record.Partition, result.record.Offset, result.err))
+	for {
+		select {
+		case <-renewalTicks:
+			if batchCtx.Err() != nil {
+				renewalTicks = nil
+				continue
+			}
+			// This queues renewal only. Remote failures are reported separately;
+			// they do not become errors for the batch currently being processed.
+			if err := c.reader.RenewRemaining(); err != nil {
+				failure = errors.Join(failure, fmt.Errorf("queue share renewal: %w", err))
+				cancel()
+				renewalTicks = nil
+			}
+		case result, ok := <-results:
+			if !ok {
+				return failure
+			}
+			var markErr error
+			switch {
+			case errors.Is(result.err, middleware.ErrInvalidMessage):
+				markErr = c.reader.Reject(result.record)
+			case result.err != nil:
+				markErr = c.reader.Release(result.record)
+				// Cancellation caused by shutdown or another failed handler is expected.
+				// A handler's own timeout is a failure and stops this consumer after the batch.
+				if batchCtx.Err() == nil || (!errors.Is(result.err, context.Canceled) && !errors.Is(result.err, context.DeadlineExceeded)) {
+					failure = errors.Join(failure, fmt.Errorf("handle topic=%s partition=%d offset=%d: %w", result.record.Topic, result.record.Partition, result.record.Offset, result.err))
+					cancel()
+				}
+			default:
+				markErr = c.reader.Accept(result.record)
+			}
+			if markErr != nil {
+				failure = errors.Join(failure, fmt.Errorf("mark share outcome: %w", markErr))
 				cancel()
 			}
-		default:
-			markErr = c.reader.Accept(result.record)
-		}
-		if markErr != nil {
-			failure = errors.Join(failure, fmt.Errorf("mark share outcome: %w", markErr))
-			cancel()
 		}
 	}
-	return failure
 }

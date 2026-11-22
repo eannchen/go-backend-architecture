@@ -88,10 +88,10 @@ func setShareConsumerEnv(t *testing.T) {
 }
 
 // TestShareWorkerConfigKeepsRuntimeAndBoundsWork verifies shared settings remain
-// available while worker defaults avoid acquiring a long queue of locked records.
+// available while defaults bound acquired work and leave renewal disabled.
 func TestShareWorkerConfigKeepsRuntimeAndBoundsWork(t *testing.T) {
 	setValidRuntimeEnv(t)
-	for _, key := range []string{"KAFKA_NOTIFICATION_SHARE_WORKER_CONCURRENCY", "KAFKA_NOTIFICATION_SHARE_MAX_POLL_RECORDS", "KAFKA_NOTIFICATION_SHARE_HANDLING_TIMEOUT", "KAFKA_NOTIFICATION_SHARE_ACKNOWLEDGMENT_MARGIN"} {
+	for _, key := range []string{"KAFKA_NOTIFICATION_SHARE_WORKER_CONCURRENCY", "KAFKA_NOTIFICATION_SHARE_MAX_POLL_RECORDS", "KAFKA_NOTIFICATION_SHARE_HANDLING_TIMEOUT", "KAFKA_NOTIFICATION_SHARE_ACKNOWLEDGMENT_MARGIN", "KAFKA_NOTIFICATION_SHARE_RENEWAL_INTERVAL"} {
 		t.Setenv(key, "")
 		if err := os.Unsetenv(key); err != nil {
 			t.Fatal(err)
@@ -110,18 +110,19 @@ func TestShareWorkerConfigKeepsRuntimeAndBoundsWork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.RuntimeConfig != runtime || cfg.Readers[0].Concurrency != 4 || cfg.Readers[0].Kafka.MaxPollRecords != 4 || cfg.Readers[0].HandlingTimeout != 10*time.Second || cfg.Readers[0].AcknowledgmentMargin != 3*time.Second {
+	if cfg.RuntimeConfig != runtime || cfg.Readers[0].Concurrency != 4 || cfg.Readers[0].Kafka.MaxPollRecords != 4 || cfg.Readers[0].HandlingTimeout != 10*time.Second || cfg.Readers[0].AcknowledgmentMargin != 3*time.Second || cfg.Readers[0].RenewalInterval != 0 {
 		t.Fatalf("config=%+v", cfg)
 	}
 	t.Setenv("KAFKA_NOTIFICATION_SHARE_WORKER_CONCURRENCY", " 2 ")
 	t.Setenv("KAFKA_NOTIFICATION_SHARE_MAX_POLL_RECORDS", "6")
 	t.Setenv("KAFKA_NOTIFICATION_SHARE_HANDLING_TIMEOUT", "5s")
 	t.Setenv("KAFKA_NOTIFICATION_SHARE_ACKNOWLEDGMENT_MARGIN", "2s")
+	t.Setenv("KAFKA_NOTIFICATION_SHARE_RENEWAL_INTERVAL", " 500ms ")
 	cfg, err = LoadKafkaShareWorker()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Readers[0].Concurrency != 2 || cfg.Readers[0].Kafka.MaxPollRecords != 6 || cfg.Readers[0].HandlingTimeout != 5*time.Second || cfg.Readers[0].AcknowledgmentMargin != 2*time.Second {
+	if cfg.Readers[0].Concurrency != 2 || cfg.Readers[0].Kafka.MaxPollRecords != 6 || cfg.Readers[0].HandlingTimeout != 5*time.Second || cfg.Readers[0].AcknowledgmentMargin != 2*time.Second || cfg.Readers[0].RenewalInterval != 500*time.Millisecond {
 		t.Fatalf("overrides=%+v", cfg)
 	}
 }
@@ -131,6 +132,7 @@ func TestShareWorkerConfigKeepsRuntimeAndBoundsWork(t *testing.T) {
 func TestShareWorkerConfigRejectsInvalidSettings(t *testing.T) {
 	for _, tc := range []struct{ key, value string }{
 		{"KAFKA_NOTIFICATION_SHARE_WORKER_CONCURRENCY", "0"}, {"KAFKA_NOTIFICATION_SHARE_WORKER_CONCURRENCY", "1001"}, {"KAFKA_NOTIFICATION_SHARE_WORKER_CONCURRENCY", "many"},
+		{"KAFKA_NOTIFICATION_SHARE_RENEWAL_INTERVAL", "bad"}, {"KAFKA_NOTIFICATION_SHARE_RENEWAL_INTERVAL", "-1s"}, {"KAFKA_NOTIFICATION_SHARE_RENEWAL_INTERVAL", "1ms"}, {"KAFKA_NOTIFICATION_SHARE_RENEWAL_INTERVAL", "16m"},
 		{"KAFKA_NOTIFICATION_SHARE_HANDLING_TIMEOUT", "0s"}, {"KAFKA_NOTIFICATION_SHARE_HANDLING_TIMEOUT", "bad"}, {"KAFKA_NOTIFICATION_SHARE_ACKNOWLEDGMENT_MARGIN", "-1s"},
 	} {
 		t.Run(tc.key+tc.value, func(t *testing.T) {
@@ -163,6 +165,8 @@ func TestWorkflowShareSettingsAreIndependent(t *testing.T) {
 	}
 	t.Setenv("KAFKA_NOTIFICATION_SHARE_ACKNOWLEDGMENT_MODE", "explicit")
 	t.Setenv("KAFKA_ACTIVITY_SHARE_ACKNOWLEDGMENT_MODE", "implicit")
+	t.Setenv("KAFKA_NOTIFICATION_SHARE_RENEWAL_INTERVAL", "0s")
+	t.Setenv("KAFKA_ACTIVITY_SHARE_RENEWAL_INTERVAL", "2s")
 	cfg, err := LoadKafkaShareWorker()
 	if err != nil {
 		t.Fatal(err)
@@ -175,7 +179,7 @@ func TestWorkflowShareSettingsAreIndependent(t *testing.T) {
 			t.Fatalf("reader %d = %+v", i, cfg.Readers[i])
 		}
 	}
-	if cfg.Readers[0].Kafka.AcknowledgmentMode != KafkaShareAcknowledgmentExplicit || cfg.Readers[1].Kafka.AcknowledgmentMode != KafkaShareAcknowledgmentImplicit {
+	if cfg.Readers[0].Kafka.AcknowledgmentMode != KafkaShareAcknowledgmentExplicit || cfg.Readers[1].Kafka.AcknowledgmentMode != KafkaShareAcknowledgmentImplicit || cfg.Readers[0].RenewalInterval != 0 || cfg.Readers[1].RenewalInterval != 2*time.Second {
 		t.Fatalf("acknowledgment modes = %+v", cfg.Readers)
 	}
 	t.Setenv("KAFKA_ACTIVITY_SHARE_MAX_POLL_RECORDS", "9")
@@ -192,6 +196,7 @@ func TestWorkflowShareSettingsAreIndependent(t *testing.T) {
 	t.Setenv("KAFKA_ACTIVITY_TOPIC", "")
 	t.Setenv("KAFKA_ACTIVITY_SHARE_WORKER_CONCURRENCY", "invalid")
 	t.Setenv("KAFKA_ACTIVITY_SHARE_ACKNOWLEDGMENT_MODE", "invalid")
+	t.Setenv("KAFKA_ACTIVITY_SHARE_RENEWAL_INTERVAL", "invalid")
 	cfg, err = LoadKafkaShareWorker()
 	if err != nil || len(cfg.Readers) != 1 || cfg.Readers[0].Concurrency != 2 {
 		t.Fatalf("disabled workflow: %+v / %v", cfg, err)

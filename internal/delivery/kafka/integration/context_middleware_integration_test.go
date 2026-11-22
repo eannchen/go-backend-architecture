@@ -51,6 +51,20 @@ func TestShareAcquisitionDeadlineUsesBrokerMetadata(t *testing.T) {
 	if !called {
 		t.Fatal("handler not invoked")
 	}
+	// Renewal uses the handler budget, not the SDK's original lock snapshot.
+	started := time.Now()
+	renewing := contextmw.New(runtime.Tracer(), contextmw.Config{
+		HandlingTimeout: time.Minute, AcknowledgmentMargin: margin, RenewalEnabled: true,
+	}).Handler()(func(ctx context.Context, _ *kgo.Record) error {
+		deadline, ok := ctx.Deadline()
+		if !ok || deadline.Before(started.Add(time.Minute)) || !deadline.After(record.AcquisitionDeadline()) {
+			t.Error("renewal-enabled handler retained the original acquisition deadline")
+		}
+		return nil
+	})
+	if err := renewing(t.Context(), record); err != nil {
+		t.Fatal(err)
+	}
 	if err := flow.complete(ctx, record); err != nil {
 		t.Fatal(err)
 	}

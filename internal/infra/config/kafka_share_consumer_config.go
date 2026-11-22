@@ -34,11 +34,16 @@ type KafkaShareWorkerReaderConfig struct {
 	Kafka KafkaShareConsumerConfig
 	// Maximum simultaneous record handlers in this process.
 	Concurrency int
-	// Each attempt gets this much time, unless its Kafka lock expires sooner.
+	// Maximum time for each handler, including when renewal is enabled.
 	HandlingTimeout time.Duration
-	// Finish this much before the SDK's estimated lock deadline. This leaves
-	// network time for Kafka to confirm outcomes; it does not extend the lock.
+	// When renewal is disabled, finish this much before the SDK's estimated
+	// lock deadline. This reserves network time without extending the lock.
 	AcknowledgmentMargin time.Duration
+	// Zero disables automatic renewal. Otherwise renew the finite batch at
+	// this interval. Leave room for SDK background sending and network delays,
+	// e.g. 10s for a 30s lock. Renewal is best effort and does not extend
+	// HandlingTimeout or guarantee exclusive processing.
+	RenewalInterval time.Duration
 }
 
 // KafkaShareConsumerConfig is for Kafka Share Groups, where several consumers
@@ -125,11 +130,19 @@ func loadKafkaShareWorkerReader(workflow kafkaWorkflow) (KafkaShareWorkerReaderC
 	if err != nil {
 		return KafkaShareWorkerReaderConfig{}, err
 	}
+	renewal, err := kafkaDuration(workflow.prefix+"SHARE_RENEWAL_INTERVAL", "0s")
+	if err != nil {
+		return KafkaShareWorkerReaderConfig{}, err
+	}
+	if renewal < 0 || (renewal > 0 && renewal < 10*time.Millisecond) || renewal > 15*time.Minute {
+		return KafkaShareWorkerReaderConfig{}, fmt.Errorf("%sSHARE_RENEWAL_INTERVAL must be zero or between 10ms and 15m", workflow.prefix)
+	}
 	return KafkaShareWorkerReaderConfig{
 		Kafka:                kafka,
 		Concurrency:          concurrency,
 		HandlingTimeout:      timeout,
 		AcknowledgmentMargin: margin,
+		RenewalInterval:      renewal,
 	}, nil
 }
 

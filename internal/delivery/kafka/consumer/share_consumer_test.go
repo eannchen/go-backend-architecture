@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -14,6 +15,56 @@ import (
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/consumer/consumertest"
 	"github.com/eannchen/go-backend-architecture/internal/delivery/kafka/middleware"
 )
+
+// TestShareConsumerRenewalUsesBatchTimer protects one owner-driven timer while
+// handlers run. Virtual time avoids sleeping to guess whether renewal happened.
+func TestShareConsumerRenewalUsesBatchTimer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		renewed := make(chan struct{})
+		finish := make(chan struct{})
+		stopped := errors.New("end of input")
+		reader := &consumertest.ShareMessageReader{
+			FatalErrorsFunc: func() <-chan error { return nil },
+			RenewRemainingFunc: func() error {
+				close(renewed)
+				return nil
+			},
+			AcceptFunc: func(*kgo.Record) error { return nil },
+		}
+		reader.FetchRecordsFunc = func(context.Context) ([]*kgo.Record, error) {
+			if len(reader.FetchRecordsCalls) > 1 {
+				return nil, stopped
+			}
+			return []*kgo.Record{{Offset: 0}}, nil
+		}
+		consumer, err := NewShareConsumer(reader, func(context.Context, *kgo.Record) error {
+			<-finish
+			return nil
+		}, ShareConsumerOptions{Concurrency: 1, RenewalInterval: time.Second})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, result := startShareConsumer(t, consumer)
+		<-renewed
+		close(finish)
+		if err := <-result; !errors.Is(err, stopped) {
+			t.Fatal(err)
+		}
+		if len(reader.RenewRemainingCalls) != 1 || len(reader.AcceptCalls) != 1 {
+			t.Fatal("renewal completed the record or started another poll early")
+		}
+	})
+}
+
+// TestShareConsumerRenewalOptions rejects timer settings that would disable
+// renewal accidentally or create an excessive request rate.
+func TestShareConsumerRenewalOptions(t *testing.T) {
+	for _, interval := range []time.Duration{-time.Second, time.Millisecond, 16 * time.Minute} {
+		if err := (ShareConsumerOptions{Concurrency: 1, RenewalInterval: interval}).Validate(); err == nil {
+			t.Fatalf("accepted renewal interval %s", interval)
+		}
+	}
+}
 
 // TestShareConsumerOutcomes protects record decisions and processing failures;
 // acknowledgments are reported independently instead of being awaited per batch.

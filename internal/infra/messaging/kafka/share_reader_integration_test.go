@@ -796,3 +796,155 @@ func TestShareImplicitAcknowledgmentOnNextPoll(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestShareRenewalPreservesFinalDecisions verifies repeated renewals leave only
+// unfinished records pending and never overwrite Accept, Release, or Reject.
+func TestShareRenewalPreservesFinalDecisions(t *testing.T) {
+	topic := createIntegrationTopic(t, 1)
+	group := createIntegrationShareGroup(t, topic+"-renew", 30000)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	writer := newIntegrationWriter(t, topic)
+	if err := writer.WriteRecords(ctx, &kgo.Record{}, &kgo.Record{}, &kgo.Record{}, &kgo.Record{}); err != nil {
+		t.Fatal(err)
+	}
+	reader := newIntegrationShareReader(t, topic, group, 4)
+	records, err := reader.FetchRecords(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 4 {
+		t.Fatalf("acquired=%d want=4", len(records))
+	}
+	for i, mark := range []func(*kgo.Record) error{reader.Accept, reader.Reject, reader.Release} {
+		if err := mark(records[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for range 3 {
+		if err := reader.RenewRemaining(); err != nil {
+			t.Fatal(err)
+		}
+		// Synchronize only this protocol assertion. Production renewal stays
+		// asynchronous; this test isolates renewal from the SDK's ack race.
+		if err := reader.client.FlushAcks(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if reader.active.pending != 1 || reader.active.decisions[records[3]] != 0 {
+			t.Fatal("renewal completed the unfinished record")
+		}
+	}
+	if _, err := reader.FetchRecords(ctx); !errors.Is(err, ErrShareBatchPending) {
+		t.Fatalf("renewal bypassed explicit poll guard: %v", err)
+	}
+	if err := reader.Accept(records[3]); err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	reopened := newIntegrationShareReader(t, topic, group, 4)
+	replayed, err := reopened.FetchRecords(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(replayed) != 1 || replayed[0].Offset != records[2].Offset || replayed[0].DeliveryCount() != 2 {
+		t.Fatalf("renewal changed final decisions: %+v", replayed)
+	}
+	if err := reopened.Accept(replayed[0]); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestShareRenewalDoesNotWaitForAcknowledgments holds a real SDK callback to
+// prove renewal only queues work. Pending callbacks must not prevent final
+// decisions or leave the reader unusable for subsequent operations.
+func TestShareRenewalDoesNotWaitForAcknowledgments(t *testing.T) {
+	topic := createIntegrationTopic(t, 1)
+	group := createIntegrationShareGroup(t, topic+"-renew-async", 30000)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	if err := newIntegrationWriter(t, topic).WriteRecords(ctx, &kgo.Record{}); err != nil {
+		t.Fatal(err)
+	}
+	entered := make(chan struct{})
+	resume := make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(resume) })
+	var first sync.Once
+	reader := &ShareReader{
+		maxPollRecords: 1, groupID: group, acknowledgmentMode: config.KafkaShareAcknowledgmentExplicit,
+		fatalErrors: make(chan error, 1),
+		onAcknowledgmentError: func(topic string, partition int32, err error) error {
+			// Best-effort renewal permits SDK duplicate-ack errors; report them
+			// independently of the local operation rather than stopping this reader.
+			t.Logf("asynchronous acknowledgment: topic=%s partition=%d error=%v", topic, partition, err)
+			return nil
+		},
+	}
+	client, err := kgo.NewClient(
+		kgo.SeedBrokers(integrationBrokers...), kgo.ConsumeTopics(topic), kgo.ShareGroup(group),
+		kgo.ShareMaxRecords(1), kgo.ShareMaxRecordsStrict(), kgo.MaxConcurrentFetches(0),
+		kgo.ShareAckCallback(func(client *kgo.Client, results kgo.ShareAckResults) {
+			first.Do(func() { close(entered); <-resume })
+			reader.recordAckResults(client, results)
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader.client = client
+	ownerDone := make(chan struct{})
+	started := false
+	t.Cleanup(func() {
+		unblock()
+		cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stop()
+		if started {
+			select {
+			case <-ownerDone:
+			case <-cleanup.Done():
+				t.Error("renewal owner did not exit")
+				return
+			}
+		}
+		if err := reader.Close(cleanup); err != nil {
+			t.Error(err)
+		}
+	})
+	records, err := reader.FetchRecords(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := make(chan error, 1)
+	started = true
+	go func() { defer close(ownerDone); result <- reader.RenewRemaining() }()
+	select {
+	case <-entered:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal("renewal waited for its acknowledgment callback")
+	}
+	<-ownerDone
+	if err := reader.RenewRemaining(); err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.Accept(records[0]); err != nil {
+		t.Fatal(err)
+	}
+	canceled, stop := context.WithCancel(ctx)
+	stop()
+	if _, err := reader.FetchRecords(canceled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("pending callback blocked the next fetch: %v", err)
+	}
+	unblock()
+	if err := reader.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
