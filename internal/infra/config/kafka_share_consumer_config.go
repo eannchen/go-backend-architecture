@@ -63,6 +63,11 @@ type KafkaShareConsumerConfig struct {
 	// In either mode, finish handlers before polling again. Decisions are queued;
 	// acknowledgment results still arrive asynchronously through the callback.
 	AcknowledgmentMode KafkaShareAcknowledgmentMode
+	// Zero keeps SDK-managed acknowledgment sending. A positive interval
+	// requests additional flushes outside record processing, including renewals.
+	// More frequent flushes reduce batching and may increase broker requests;
+	// they do not guarantee higher throughput or override the SDK's own timer.
+	AckFlushInterval time.Duration
 	// Maximum records returned by FetchRecords AND requested from the broker.
 	// It bounds one batch of work, not how many handlers run in parallel.
 	// All acquired records already have a running lock timer, so choose a small
@@ -177,6 +182,7 @@ func loadKafkaShareConsumer(topics []string, prefix, defaultGroup string, defaul
 		key, fallback string
 		target        *time.Duration
 	}{
+		{prefix + "SHARE_ACK_FLUSH_INTERVAL", "0s", &cfg.AckFlushInterval},
 		{prefix + "SHARE_FETCH_MAX_WAIT", "500ms", &cfg.FetchMaxWait},
 		{prefix + "SHARE_REQUEST_TIMEOUT", "10s", &cfg.RequestTimeout},
 	} {
@@ -227,6 +233,9 @@ func (cfg KafkaShareConsumerConfig) validate(prefix string) error {
 	}
 	if cfg.RequestTimeout < 100*time.Millisecond || cfg.RequestTimeout > 15*time.Minute {
 		return fmt.Errorf("%sSHARE_REQUEST_TIMEOUT must be between 100ms and 15m", prefix)
+	}
+	if cfg.AckFlushInterval < 0 || (cfg.AckFlushInterval > 0 && cfg.AckFlushInterval < 10*time.Millisecond) || cfg.AckFlushInterval > 15*time.Minute {
+		return fmt.Errorf("%sSHARE_ACK_FLUSH_INTERVAL must be zero or between 10ms and 15m", prefix)
 	}
 	return nil
 }

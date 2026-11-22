@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
@@ -39,7 +40,8 @@ type ShareAcknowledgmentErrorHandler func(topic string, partition int32, err err
 // KafkaShareConsumer, we offer both policies; franz-go itself always permits
 // next-poll auto-acceptance, so our wrapper adds the explicit-mode guard.
 // Kafka acknowledgment results arrive separately through the injected handler.
-// The SDK sends decisions in the background; only shutdown waits for them.
+// Record operations only queue decisions. An optional flusher requests earlier
+// sends outside processing; shutdown performs the final acknowledgment drain.
 type ShareReader struct {
 	// Owned SDK client and fixed maximum number of records per poll.
 	client             *kgo.Client
@@ -50,6 +52,10 @@ type ShareReader struct {
 	active   *shareBatch
 	closed   bool
 	closeErr error
+	// Optional background flusher. It uses only the thread-safe SDK client,
+	// never the active batch. Close cancels and joins it before leaving Kafka.
+	stopAckFlusher context.CancelFunc
+	ackFlusherDone chan struct{}
 	// The callback owns error reporting. Only its first stop request is queued;
 	// the buffered channel keeps the SDK callback from waiting for the worker.
 	onAcknowledgmentError ShareAcknowledgmentErrorHandler
@@ -128,7 +134,46 @@ func NewShareReader(cfg config.KafkaShareConsumerConfig, tlsConfig *tls.Config, 
 		return nil, fmt.Errorf("create Kafka share reader: %w", err)
 	}
 	r.client = client
+	r.startAckFlusher(cfg.AckFlushInterval)
 	return r, nil
+}
+
+// startAckFlusher is called once after the SDK client is constructed.
+func (r *ShareReader) startAckFlusher(interval time.Duration) {
+	if interval == 0 {
+		return
+	}
+	// This context belongs to the reader's resource lifecycle, not a record.
+	ctx, cancel := context.WithCancel(context.Background())
+	r.stopAckFlusher = cancel
+	r.ackFlusherDone = make(chan struct{})
+	go func() {
+		defer close(r.ackFlusherDone)
+		runAckFlusher(ctx, interval, r.client.FlushAcks)
+	}()
+}
+
+func runAckFlusher(ctx context.Context, interval time.Duration, flushAcks func(context.Context) error) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if ctx.Err() != nil {
+				return
+			}
+			// One call at a time. Bound the wait so a continuously busy queue
+			// cannot prevent the next periodic request to send pending acks.
+			waitCtx, cancel := context.WithTimeout(ctx, interval)
+			// FlushAcks returns only wait cancellation/deadline errors. Ending
+			// this optional wait is expected and does not cancel queued acks.
+			// Actual broker failures are reported by the acknowledgment callback.
+			_ = flushAcks(waitCtx)
+			cancel()
+		}
+	}
 }
 
 // FetchRecords waits for a bounded set of records. In explicit mode, every
@@ -299,6 +344,10 @@ func (r *ShareReader) Close(ctx context.Context) error {
 		return r.closeErr
 	}
 	r.closed = true
+	if r.stopAckFlusher != nil {
+		r.stopAckFlusher()
+		<-r.ackFlusherDone
+	}
 	// Leaving sends queued decisions and releases unfinished records, so a
 	// separate flush before leaving is unnecessary.
 	leaveErr := r.client.LeaveGroupContext(ctx)

@@ -11,7 +11,7 @@ import (
 // TestKafkaShareConsumerDefaults protects an independent, bounded share
 // subscription without borrowing ordinary offset/rebalance configuration.
 func TestKafkaShareConsumerDefaults(t *testing.T) {
-	for _, key := range []string{"KAFKA_BROKERS", "KAFKA_NOTIFICATION_SHARE_GROUP_ID", "KAFKA_NOTIFICATION_SHARE_ACKNOWLEDGMENT_MODE", "KAFKA_NOTIFICATION_SHARE_MAX_POLL_RECORDS", "KAFKA_NOTIFICATION_SHARE_FETCH_MIN_BYTES", "KAFKA_NOTIFICATION_SHARE_FETCH_MAX_BYTES", "KAFKA_NOTIFICATION_SHARE_FETCH_MAX_WAIT", "KAFKA_NOTIFICATION_SHARE_REQUEST_TIMEOUT"} {
+	for _, key := range []string{"KAFKA_BROKERS", "KAFKA_NOTIFICATION_SHARE_GROUP_ID", "KAFKA_NOTIFICATION_SHARE_ACKNOWLEDGMENT_MODE", "KAFKA_NOTIFICATION_SHARE_ACK_FLUSH_INTERVAL", "KAFKA_NOTIFICATION_SHARE_MAX_POLL_RECORDS", "KAFKA_NOTIFICATION_SHARE_FETCH_MIN_BYTES", "KAFKA_NOTIFICATION_SHARE_FETCH_MAX_BYTES", "KAFKA_NOTIFICATION_SHARE_FETCH_MAX_WAIT", "KAFKA_NOTIFICATION_SHARE_REQUEST_TIMEOUT"} {
 		t.Setenv(key, "")
 		if err := os.Unsetenv(key); err != nil {
 			t.Fatal(err)
@@ -27,7 +27,7 @@ func TestKafkaShareConsumerDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.Brokers, []string{"localhost:9092"}) || !slices.Equal(cfg.Topics, []string{"notifications.requested.v1"}) || cfg.GroupID != "shared-workers-v1" || cfg.AcknowledgmentMode != KafkaShareAcknowledgmentExplicit || cfg.MaxPollRecords != 100 || cfg.FetchMinBytes != 1 || cfg.FetchMaxBytes != 1000000 || cfg.FetchMaxWait != 500*time.Millisecond || cfg.RequestTimeout != 10*time.Second {
+	if !slices.Equal(cfg.Brokers, []string{"localhost:9092"}) || !slices.Equal(cfg.Topics, []string{"notifications.requested.v1"}) || cfg.GroupID != "shared-workers-v1" || cfg.AcknowledgmentMode != KafkaShareAcknowledgmentExplicit || cfg.AckFlushInterval != 0 || cfg.MaxPollRecords != 100 || cfg.FetchMinBytes != 1 || cfg.FetchMaxBytes != 1000000 || cfg.FetchMaxWait != 500*time.Millisecond || cfg.RequestTimeout != 10*time.Second {
 		t.Fatalf("unexpected defaults: %+v", cfg)
 	}
 }
@@ -39,6 +39,7 @@ func TestKafkaShareConsumerOverrides(t *testing.T) {
 	t.Setenv("KAFKA_BROKERS", " localhost:9092 , localhost:19092 ")
 	t.Setenv("KAFKA_NOTIFICATION_SHARE_GROUP_ID", " shared-jobs ")
 	t.Setenv("KAFKA_NOTIFICATION_SHARE_ACKNOWLEDGMENT_MODE", " implicit ")
+	t.Setenv("KAFKA_NOTIFICATION_SHARE_ACK_FLUSH_INTERVAL", " 100ms ")
 	t.Setenv("KAFKA_NOTIFICATION_SHARE_MAX_POLL_RECORDS", " 5 ")
 	t.Setenv("KAFKA_NOTIFICATION_SHARE_FETCH_MIN_BYTES", "1024")
 	t.Setenv("KAFKA_NOTIFICATION_SHARE_FETCH_MAX_BYTES", "2000000")
@@ -48,7 +49,7 @@ func TestKafkaShareConsumerOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(cfg.Brokers, []string{"localhost:9092", "localhost:19092"}) || !slices.Equal(cfg.Topics, []string{"jobs.v1"}) || cfg.GroupID != "shared-jobs" || cfg.AcknowledgmentMode != KafkaShareAcknowledgmentImplicit || cfg.MaxPollRecords != 5 || cfg.FetchMinBytes != 1024 || cfg.FetchMaxBytes != 2000000 || cfg.FetchMaxWait != time.Second || cfg.RequestTimeout != 2*time.Second {
+	if !slices.Equal(cfg.Brokers, []string{"localhost:9092", "localhost:19092"}) || !slices.Equal(cfg.Topics, []string{"jobs.v1"}) || cfg.GroupID != "shared-jobs" || cfg.AcknowledgmentMode != KafkaShareAcknowledgmentImplicit || cfg.AckFlushInterval != 100*time.Millisecond || cfg.MaxPollRecords != 5 || cfg.FetchMinBytes != 1024 || cfg.FetchMaxBytes != 2000000 || cfg.FetchMaxWait != time.Second || cfg.RequestTimeout != 2*time.Second {
 		t.Fatalf("unexpected overrides: %+v", cfg)
 	}
 }
@@ -59,6 +60,7 @@ func TestKafkaShareConsumerValidation(t *testing.T) {
 	for _, tc := range []struct{ key, value string }{
 		{"KAFKA_BROKERS", ""}, {"KAFKA_NOTIFICATION_SHARE_GROUP_ID", " "},
 		{"KAFKA_NOTIFICATION_SHARE_ACKNOWLEDGMENT_MODE", ""}, {"KAFKA_NOTIFICATION_SHARE_ACKNOWLEDGMENT_MODE", "invalid"},
+		{"KAFKA_NOTIFICATION_SHARE_ACK_FLUSH_INTERVAL", "bad"}, {"KAFKA_NOTIFICATION_SHARE_ACK_FLUSH_INTERVAL", "-1s"}, {"KAFKA_NOTIFICATION_SHARE_ACK_FLUSH_INTERVAL", "1ms"}, {"KAFKA_NOTIFICATION_SHARE_ACK_FLUSH_INTERVAL", "16m"},
 		{"KAFKA_NOTIFICATION_SHARE_MAX_POLL_RECORDS", "invalid"}, {"KAFKA_NOTIFICATION_SHARE_MAX_POLL_RECORDS", "0"}, {"KAFKA_NOTIFICATION_SHARE_MAX_POLL_RECORDS", "10001"},
 		{"KAFKA_NOTIFICATION_SHARE_FETCH_MIN_BYTES", "0"}, {"KAFKA_NOTIFICATION_SHARE_FETCH_MIN_BYTES", "1000001"},
 		{"KAFKA_NOTIFICATION_SHARE_FETCH_MAX_BYTES", "invalid"}, {"KAFKA_NOTIFICATION_SHARE_FETCH_MAX_BYTES", "2147483648"},
@@ -80,6 +82,7 @@ func setShareConsumerEnv(t *testing.T) {
 	for key, value := range map[string]string{
 		"KAFKA_BROKERS": "localhost:9092", "KAFKA_NOTIFICATION_SHARE_GROUP_ID": "shared-jobs",
 		"KAFKA_NOTIFICATION_SHARE_ACKNOWLEDGMENT_MODE": "explicit",
+		"KAFKA_NOTIFICATION_SHARE_ACK_FLUSH_INTERVAL":  "0s",
 		"KAFKA_NOTIFICATION_SHARE_MAX_POLL_RECORDS":    "100", "KAFKA_NOTIFICATION_SHARE_FETCH_MIN_BYTES": "1", "KAFKA_NOTIFICATION_SHARE_FETCH_MAX_BYTES": "1000000",
 		"KAFKA_NOTIFICATION_SHARE_FETCH_MAX_WAIT": "500ms", "KAFKA_NOTIFICATION_SHARE_REQUEST_TIMEOUT": "10s",
 	} {
@@ -149,7 +152,7 @@ func TestShareWorkerConfigRejectsInvalidSettings(t *testing.T) {
 }
 
 // TestWorkflowShareSettingsAreIndependent protects per-workflow pool sizing,
-// acknowledgment modes, automatic acquisition limits, and explicit batch overrides.
+// acknowledgment modes, flush intervals, acquisition limits, and batch overrides.
 func TestWorkflowShareSettingsAreIndependent(t *testing.T) {
 	setValidRuntimeEnv(t)
 	t.Setenv("KAFKA_NOTIFICATION_TOPIC", "mail")
@@ -167,6 +170,8 @@ func TestWorkflowShareSettingsAreIndependent(t *testing.T) {
 	t.Setenv("KAFKA_ACTIVITY_SHARE_ACKNOWLEDGMENT_MODE", "implicit")
 	t.Setenv("KAFKA_NOTIFICATION_SHARE_RENEWAL_INTERVAL", "0s")
 	t.Setenv("KAFKA_ACTIVITY_SHARE_RENEWAL_INTERVAL", "2s")
+	t.Setenv("KAFKA_NOTIFICATION_SHARE_ACK_FLUSH_INTERVAL", "0s")
+	t.Setenv("KAFKA_ACTIVITY_SHARE_ACK_FLUSH_INTERVAL", "50ms")
 	cfg, err := LoadKafkaShareWorker()
 	if err != nil {
 		t.Fatal(err)
@@ -181,6 +186,9 @@ func TestWorkflowShareSettingsAreIndependent(t *testing.T) {
 	}
 	if cfg.Readers[0].Kafka.AcknowledgmentMode != KafkaShareAcknowledgmentExplicit || cfg.Readers[1].Kafka.AcknowledgmentMode != KafkaShareAcknowledgmentImplicit || cfg.Readers[0].RenewalInterval != 0 || cfg.Readers[1].RenewalInterval != 2*time.Second {
 		t.Fatalf("acknowledgment modes = %+v", cfg.Readers)
+	}
+	if cfg.Readers[0].Kafka.AckFlushInterval != 0 || cfg.Readers[1].Kafka.AckFlushInterval != 50*time.Millisecond {
+		t.Fatalf("flush intervals = %+v", cfg.Readers)
 	}
 	t.Setenv("KAFKA_ACTIVITY_SHARE_MAX_POLL_RECORDS", "9")
 	t.Setenv("KAFKA_NOTIFICATION_SHARE_HANDLING_TIMEOUT", "1s")
@@ -197,6 +205,7 @@ func TestWorkflowShareSettingsAreIndependent(t *testing.T) {
 	t.Setenv("KAFKA_ACTIVITY_SHARE_WORKER_CONCURRENCY", "invalid")
 	t.Setenv("KAFKA_ACTIVITY_SHARE_ACKNOWLEDGMENT_MODE", "invalid")
 	t.Setenv("KAFKA_ACTIVITY_SHARE_RENEWAL_INTERVAL", "invalid")
+	t.Setenv("KAFKA_ACTIVITY_SHARE_ACK_FLUSH_INTERVAL", "invalid")
 	cfg, err = LoadKafkaShareWorker()
 	if err != nil || len(cfg.Readers) != 1 || cfg.Readers[0].Concurrency != 2 {
 		t.Fatalf("disabled workflow: %+v / %v", cfg, err)

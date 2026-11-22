@@ -948,3 +948,104 @@ func TestShareRenewalDoesNotWaitForAcknowledgments(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestShareAckFlusherJoinsBeforeShutdown holds a real SDK callback so a flush
+// remains pending. Record decisions must continue, and Close must stop the
+// optional flusher before performing its own final drain and closing the SDK.
+func TestShareAckFlusherJoinsBeforeShutdown(t *testing.T) {
+	topic := createIntegrationTopic(t, 1)
+	group := createIntegrationShareGroup(t, topic+"-flush", 30000)
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	if err := newIntegrationWriter(t, topic).WriteRecords(ctx, &kgo.Record{}, &kgo.Record{}); err != nil {
+		t.Fatal(err)
+	}
+	entered := make(chan struct{})
+	resume := make(chan struct{})
+	sdkClosed := make(chan struct{})
+	unblock := sync.OnceFunc(func() { close(resume) })
+	var first sync.Once
+	reader := &ShareReader{
+		maxPollRecords: 2, groupID: group, acknowledgmentMode: config.KafkaShareAcknowledgmentExplicit,
+		onAcknowledgmentError: stopOnShareAcknowledgmentError, fatalErrors: make(chan error, 1),
+	}
+	client, err := kgo.NewClient(
+		kgo.SeedBrokers(integrationBrokers...), kgo.ConsumeTopics(topic), kgo.ShareGroup(group),
+		kgo.ShareMaxRecords(2), kgo.ShareMaxRecordsStrict(), kgo.MaxConcurrentFetches(0),
+		kgo.WithHooks(shareClientClosedHook{done: sdkClosed}),
+		kgo.ShareAckCallback(func(client *kgo.Client, results kgo.ShareAckResults) {
+			first.Do(func() { close(entered); <-resume })
+			reader.recordAckResults(client, results)
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader.client = client
+	// The raw client allows the callback barrier above; start the same owned
+	// flusher used by NewShareReader after constructing its SDK client.
+	reader.startAckFlusher(20 * time.Millisecond)
+	closeStarted := false
+	closeDone := make(chan struct{})
+	t.Cleanup(func() {
+		unblock()
+		cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stop()
+		if closeStarted {
+			select {
+			case <-closeDone:
+			case <-cleanup.Done():
+				t.Error("shutdown owner did not exit")
+			}
+		} else if err := reader.Close(cleanup); err != nil {
+			t.Error(err)
+		}
+	})
+	records, err := reader.FetchRecords(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("records=%d want=2", len(records))
+	}
+	if err := reader.Accept(records[0]); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-entered:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	// The first acknowledgment is still pending; marking the second is local.
+	if err := reader.Accept(records[1]); err != nil {
+		t.Fatal(err)
+	}
+	result := make(chan error, 1)
+	closeStarted = true
+	go func() { defer close(closeDone); result <- reader.Close(ctx) }()
+	select {
+	case <-reader.ackFlusherDone:
+	case <-ctx.Done():
+		t.Fatal("flusher did not stop while an SDK callback was pending")
+	}
+	select {
+	case <-sdkClosed:
+		t.Fatal("SDK closed before the final acknowledgment drain")
+	default:
+	}
+	unblock()
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	<-closeDone
+	select {
+	case <-sdkClosed:
+	default:
+		t.Fatal("SDK resources were not closed")
+	}
+}

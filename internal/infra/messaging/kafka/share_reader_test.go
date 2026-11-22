@@ -6,7 +6,9 @@ import (
 	"io"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kerr"
@@ -14,6 +16,110 @@ import (
 
 	"github.com/eannchen/go-backend-architecture/internal/infra/config"
 )
+
+// TestAckFlusherCadence verifies periodic flush requests stop with their owner.
+// Virtual time and explicit joins keep this independent of machine speed.
+func TestAckFlusherCadence(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		done := make(chan struct{})
+		var calls atomic.Int32
+		go func() {
+			defer close(done)
+			runAckFlusher(ctx, 100*time.Millisecond, func(waitCtx context.Context) error {
+				calls.Add(1)
+				deadline, ok := waitCtx.Deadline()
+				if !ok || deadline.Sub(time.Now()) != 100*time.Millisecond {
+					t.Error("flush wait is not bounded by the interval")
+				}
+				return nil
+			})
+		}()
+		// Advance the virtual clock, then wait for all runnable work to finish.
+		time.Sleep(100 * time.Millisecond)
+		synctest.Wait()
+		if calls.Load() != 1 {
+			t.Fatalf("flush calls=%d want=1", calls.Load())
+		}
+		time.Sleep(100 * time.Millisecond)
+		synctest.Wait()
+		if calls.Load() != 2 {
+			t.Fatalf("flush calls=%d want=2", calls.Load())
+		}
+		cancel()
+		<-done
+		time.Sleep(time.Second)
+		if calls.Load() != 2 {
+			t.Fatal("flush continued after cancellation")
+		}
+	})
+}
+
+// TestAckFlusherBoundsBusyQueue verifies an unfinished drain does not stop future
+// send requests or start overlapping calls, and shutdown cancels the active wait.
+func TestAckFlusherBoundsBusyQueue(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		done := make(chan struct{})
+		started := make(chan struct{})
+		calls, active := 0, 0
+		var waits []error
+		go func() {
+			defer close(done)
+			runAckFlusher(ctx, time.Second, func(waitCtx context.Context) error {
+				calls++
+				active++
+				if active != 1 {
+					t.Error("flush waits overlap")
+				}
+				if calls == 2 {
+					close(started)
+				}
+				<-waitCtx.Done()
+				waits = append(waits, waitCtx.Err())
+				active--
+				return waitCtx.Err()
+			})
+		}()
+		<-started // Virtual time advances through the first wait's deadline.
+		cancel()
+		<-done
+		if calls != 2 || len(waits) != 2 || !errors.Is(waits[0], context.DeadlineExceeded) || !errors.Is(waits[1], context.Canceled) {
+			t.Fatalf("calls=%d waits=%v", calls, waits)
+		}
+	})
+}
+
+// TestShareReaderOwnsAckFlusher protects opt-in construction, cleanup, and
+// idempotent Close without requiring Kafka for an empty acknowledgment queue.
+func TestShareReaderOwnsAckFlusher(t *testing.T) {
+	for _, interval := range []time.Duration{0, 50 * time.Millisecond} {
+		t.Run(interval.String(), func(t *testing.T) {
+			cfg := validShareConfig()
+			cfg.AckFlushInterval = interval
+			r, err := NewShareReader(cfg, nil, stopOnShareAcknowledgmentError)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupShareReader(t, r)
+			if (r.stopAckFlusher == nil) != (interval == 0) {
+				t.Fatal("flusher did not follow configuration")
+			}
+			if err := r.Close(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if interval != 0 {
+				select {
+				case <-r.ackFlusherDone:
+				default:
+					t.Fatal("reader closed before its flusher stopped")
+				}
+			}
+		})
+	}
+}
 
 // TestShareReaderPolicy protects bounded acquisition and share-specific settings
 // rather than reusing the ordinary group's commit/rebalance mechanisms.
